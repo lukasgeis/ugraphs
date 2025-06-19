@@ -79,7 +79,7 @@ impl Node {
         if u == 0 {
             return None;
         }
-        // SAFETY: at this point, v is guaranteed to be `Some(_)`
+        // SAFETY: at this point, `u > 0` is guaranteed
         unsafe { Some(Node(NonZero::new(u).unwrap_unchecked())) }
     }
 
@@ -149,7 +149,7 @@ macro_rules! impl_checked_ops {
                 }
             }
 
-            // Also allow adding RawNode directly
+            // Also allow applying RawNode directly
             impl $trait<RawNode> for Node {
                 type Output = Self;
 
@@ -199,7 +199,7 @@ macro_rules! impl_unchecked_ops {
 
 impl_checked_ops!(Add add, Mul mul, BitOr bitor, BitXor bitxor, Shl shl);
 
-// SAFETY: all those operations can only decrease `self` which is a valid state
+// SAFETY: all those operations can only decrease `self` which is valid
 impl_unchecked_ops!(Sub sub, Div div, Rem rem, BitAnd bitand, Shr shr);
 
 /// Implementors for `std::ops::*Assign`-Traits
@@ -209,7 +209,7 @@ macro_rules! impl_ops_assigns {
             impl $trait for Node {
                 #[inline]
                 fn $fn(&mut self, rhs: Self) {
-                    // As NonZeroU32 prohibits mutable access to the underlying value, we must
+                    // As NonZero<T> prohibits mutable access to the underlying value, we must
                     // extract the value and overwrite the original value itself
                     *self = self.$org_fn(rhs);
                 }
@@ -218,7 +218,7 @@ macro_rules! impl_ops_assigns {
             impl $trait<RawNode> for Node {
                 #[inline]
                 fn $fn(&mut self, rhs: RawNode) {
-                    // As NonZeroU32 prohibits mutable access to the underlying value, we must
+                    // As NonZero<T> prohibits mutable access to the underlying value, we must
                     // extract the value and overwrite the original value itself
                     *self = self.$org_fn(rhs);
                 }
@@ -291,6 +291,7 @@ impl Not for Node {
     #[inline]
     fn not(self) -> Self::Output {
         // The only case where this fails if `self` stores `0`
+        // TBD: maybe set to `RawNode::MAX` if feature `saturate_node_overflow` is enabled
         Node::new_checked(self.raw().not()).expect("Can not apply Not on `0`")
     }
 }
@@ -515,6 +516,7 @@ macro_rules! impl_fn_self_self_to_self {
         $(
             fn $fn(&self, other: &Self) -> Self {
                 // SAFETY: See macro-implemetors for why this is safe!
+                //
                 // Use `Integer::$fn` instead of `self.$fn` as `div_floor` might be added to the
                 // standard library in the future
                 unsafe { Node::new_unchecked(Integer::$fn(&self.raw(), &other.raw())) }
@@ -540,6 +542,7 @@ impl Integer for Node {
             })
         }
 
+        // Saturation does not really make sense for `lcm`
         #[cfg(feature = "saturate_node_overflow")]
         Self::new_saturated(self.raw().lcm(&other.raw()))
     }
