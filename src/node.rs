@@ -1,9 +1,14 @@
 use std::{
     fmt::{Debug, Display},
-    iter::Step,
     num::{NonZero, ParseIntError},
     ops::*,
 };
+
+#[cfg(feature = "node_range")]
+use std::iter::Step;
+
+#[cfg(not(feature = "node_range"))]
+pub use node_range::*;
 
 use num::*;
 use stream_bitset::bitset::BitSetImpl;
@@ -40,6 +45,24 @@ impl Display for Node {
 impl Debug for Node {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         <Self as Display>::fmt(self, f)
+    }
+}
+
+impl Default for Node {
+    fn default() -> Self {
+        Self::MIN
+    }
+}
+
+impl PartialEq<RawNode> for Node {
+    fn eq(&self, other: &RawNode) -> bool {
+        self.raw().eq(other)
+    }
+}
+
+impl PartialOrd<RawNode> for Node {
+    fn partial_cmp(&self, other: &RawNode) -> Option<std::cmp::Ordering> {
+        self.raw().partial_cmp(other)
     }
 }
 
@@ -293,24 +316,6 @@ impl Not for Node {
         // The only case where this fails if `self` stores `0`
         // TBD: maybe set to `RawNode::MAX` if feature `saturate_node_overflow` is enabled
         Node::new_checked(self.raw().not()).expect("Can not apply Not on `0`")
-    }
-}
-
-/// Implement `Step` to enable `Range<Node>` as a viable type
-impl Step for Node {
-    #[inline]
-    fn steps_between(start: &Self, end: &Self) -> (usize, Option<usize>) {
-        <RawNode as Step>::steps_between(&start.raw(), &end.raw())
-    }
-
-    #[inline]
-    fn forward_checked(start: Self, count: usize) -> Option<Self> {
-        Node::new_unchanged(<RawNode as Step>::forward_checked(start.raw(), count)?)
-    }
-
-    #[inline]
-    fn backward_checked(start: Self, count: usize) -> Option<Self> {
-        Node::new_checked(<RawNode as Step>::backward_checked(start.raw(), count)?)
     }
 }
 
@@ -568,4 +573,169 @@ impl Integer for Node {
         // SAFETY: `q <= self, r <= self`
         unsafe { (Node::new_unchecked(q), Node::new_unchecked(r)) }
     }
+}
+
+/// Implement `Step` to enable `Range<Node>` as a viable type
+#[cfg(feature = "node_range")]
+impl Step for Node {
+    #[inline]
+    fn steps_between(start: &Self, end: &Self) -> (usize, Option<usize>) {
+        <RawNode as Step>::steps_between(&start.raw(), &end.raw())
+    }
+
+    #[inline]
+    fn forward_checked(start: Self, count: usize) -> Option<Self> {
+        Node::new_unchanged(<RawNode as Step>::forward_checked(start.raw(), count)?)
+    }
+
+    #[inline]
+    fn backward_checked(start: Self, count: usize) -> Option<Self> {
+        Node::new_checked(<RawNode as Step>::backward_checked(start.raw(), count)?)
+    }
+}
+
+/// Custom Range<Node> Implementation
+#[cfg(not(feature = "node_range"))]
+mod node_range {
+    use std::iter::FusedIterator;
+
+    use super::*;
+
+    /// Custom RangeInclusive<Node> Implementation
+    ///
+    /// # SAFETY
+    /// `self.end` should **never** be manually modified as it is always assumed to be a valid
+    /// state for `Node`
+    #[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
+    pub struct NodeRange {
+        cur: RawNode,
+        end: RawNode,
+    }
+
+    impl NodeRange {
+        /// Returns `self.cur` as a Node without checking for bounds
+        #[inline]
+        const unsafe fn cur_node(&self) -> Node {
+            unsafe { Node::new_unchecked(self.cur) }
+        }
+
+        /// Returns `self.end` as a Node without checking for bounds
+        #[inline]
+        const unsafe fn end_node(&self) -> Node {
+            unsafe { Node::new_unchecked(self.end) }
+        }
+
+        /// Creates a new exclusive NodeRange
+        #[inline]
+        pub const fn new(start: Node, end: Node) -> Self {
+            // An exclusive range `(X, 0)` is always empty
+            if end.raw() == 0 {
+                return Self { cur: 1, end: 0 };
+            }
+
+            Self {
+                cur: start.raw(),
+                // SAFETY: `end.raw() > 0` is guaranteed here
+                end: unsafe { end.raw().unchecked_sub(1) },
+            }
+        }
+
+        /// Creates a new inclusive NodeRange
+        #[inline]
+        pub const fn new_inclusive(start: Node, end: Node) -> Self {
+            Self {
+                cur: start.raw(),
+                end: end.raw(),
+            }
+        }
+
+        /// Creates a new exclusive range from `0` to `end`
+        #[inline]
+        pub const fn new_to(end: Node) -> Self {
+            Self::new(Node::ZERO, end)
+        }
+
+        /// Creates a new inclusive range from `0` to `end`
+        #[inline]
+        pub const fn new_to_inclusive(end: Node) -> Self {
+            Self::new_inclusive(Node::ZERO, end)
+        }
+
+        /// Creates a new inclusive range from `start` to `Node::MAX`
+        #[inline]
+        pub const fn new_from(start: Node) -> Self {
+            Self::new_inclusive(start, Node::MAX)
+        }
+
+        /// Returns *true* if `item` is contained in the NodeRange.
+        #[inline]
+        pub fn contains<U>(&self, item: &U) -> bool
+        where
+            Node: PartialOrd<U>,
+            U: PartialOrd<Node>,
+        {
+            if self.is_empty() {
+                return false;
+            }
+
+            // SAFETY: `self.cur <= self.end <= Node::MAX` as we assume `self.end` to be a valid Node
+            unsafe { &self.cur_node() <= item && item <= &self.end_node() }
+        }
+
+        /// Returns *true* if the range is empty  
+        #[inline]
+        pub const fn is_empty(&self) -> bool {
+            self.cur > self.end
+        }
+    }
+
+    impl Iterator for NodeRange {
+        type Item = Node;
+
+        #[inline]
+        fn next(&mut self) -> Option<Self::Item> {
+            (self.cur <= self.end).then_some(unsafe {
+                // SAFETY: `self.cur <= self.end <= Node::MAX` implying that
+                // (1) `self.cur` is a valid state for `Node`
+                // (2) `self.cur < RawNode::MAX`
+                let cur = self.cur_node();
+                self.cur = self.cur.unchecked_add(1);
+
+                cur
+            })
+        }
+
+        #[inline]
+        fn size_hint(&self) -> (usize, Option<usize>) {
+            if self.cur <= self.end {
+                let size = (self.end - self.cur + 1) as usize;
+                (size, Some(size))
+            } else {
+                (0, Some(0))
+            }
+        }
+    }
+
+    impl DoubleEndedIterator for NodeRange {
+        fn next_back(&mut self) -> Option<Self::Item> {
+            (self.cur <= self.end).then_some(unsafe {
+                // SAFETY: `self.cur <= self.end <= Node::MAX`
+                let end = self.end_node();
+
+                if self.end > 0 {
+                    // SAFETY: `self.end > 0`
+                    self.end = self.end.unchecked_sub(1);
+                } else {
+                    // SAFETY: `self.cur <= self.end <= 0` implying `self.cur == self.end == 0` and
+                    // we increase `self.cur` instead as the Range will be empty in the next step
+                    self.cur = self.cur.unchecked_add(1);
+                }
+
+                end
+            })
+        }
+    }
+
+    impl ExactSizeIterator for NodeRange {}
+    impl FusedIterator for NodeRange {}
 }

@@ -1,3 +1,4 @@
+#[cfg(feature = "node_range")]
 use std::ops::Range;
 
 use itertools::Itertools;
@@ -40,8 +41,14 @@ pub trait GraphNodeOrder {
     /// # Warning
     /// This method may iterate over deleted vertices (if supported by an implementation). It is the
     /// responsibility of the caller to identify and treat them accordingly.
+    #[cfg(feature = "node_range")]
     fn vertices_range(&self) -> Range<Node> {
         Node::MIN..Node::new(self.number_of_nodes())
+    }
+
+    #[cfg(not(feature = "node_range"))]
+    fn vertices_range(&self) -> NodeRange {
+        NodeRange::new_to(self.len_as_node())
     }
 
     /// Returns *true* if the graph has no nodes (and thus no edges)
