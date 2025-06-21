@@ -4,9 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
+# Default features
 default = []
+# Default (unstable) features when `nightly` is enabled
 nightly_default = ["node_range"]
+# Saturate Node-Arithmetic instead of panicking
 saturate_node_overflow = []
+# (Unstable) Use in-built `Range` for Node-Ranges
 node_range = []
 
 [dependencies]

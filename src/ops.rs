@@ -22,7 +22,9 @@ pub trait GraphNodeOrder {
     }
 
     /// Returns an iterator over V.
-    fn vertices(&self) -> impl Iterator<Item = Node> + '_;
+    fn vertices(&self) -> impl Iterator<Item = Node> + '_ {
+        self.vertices_range()
+    }
 
     /// Returns empty bitset with one entry per node
     fn vertex_bitset_unset(&self) -> NodeBitSet {
@@ -155,7 +157,9 @@ pub trait AdjacencyList: GraphNodeOrder + Sized {
 
     /// Returns a BitmaskStream over the neighbors of a given vertex.
     /// ** Panics if `u >= n` **
-    fn neighbors_of_as_stream(&self, u: Node) -> impl BitmaskStream + '_;
+    fn neighbors_of_as_stream(&self, u: Node) -> impl BitmaskStream + '_ {
+        self.neighbors_of_as_bitset(u).into_bitmask_stream()
+    }
 
     /// Returns a NodeBitSet with bit `v` set to *true* if `u`
     /// is at most 2 hops away from a given vertex.
@@ -218,13 +222,13 @@ pub trait AdjacencyList: GraphNodeOrder + Sized {
 
 macro_rules! propagate {
     ($out_fn:ident => $fn:ident($($arg:ident : $type:ty),*) -> $ret:ty) => {
-        #[inline]
         fn $out_fn(&self, $($arg: $type),*) -> $ret {
             self.$fn($($arg),*)
         }
     };
 }
 
+/// Extends AdjacencyList for directed graphs
 pub trait DirectedAdjacencyList: AdjacencyList {
     propagate!(out_neighbors_of => neighbors_of(u : Node) -> impl Iterator<Item = Node> + '_);
     propagate!(out_degree_of => degree_of(u : Node) -> NumNodes);
@@ -247,12 +251,10 @@ pub trait DirectedAdjacencyList: AdjacencyList {
         NodeBitSet
     );
 
-    #[inline]
     fn out_edges_of(&self, u: Node) -> impl Iterator<Item = Edge> + '_ {
         self.edges_of(u, false)
     }
 
-    #[inline]
     fn ordered_out_edges_of(&self, u: Node) -> impl Iterator<Item = Edge> + '_ {
         self.ordered_edges_of(u, false)
     }
@@ -274,7 +276,6 @@ pub trait DirectedAdjacencyList: AdjacencyList {
 
     /// Returns the out-degree and in-degree of a given vertex
     /// ** Panics if `u >= n` **
-    #[inline]
     fn total_degree_of(&self, u: Node) -> NumNodes {
         self.out_degree_of(u) + self.in_degree_of(u)
     }
@@ -323,7 +324,9 @@ pub trait DirectedAdjacencyList: AdjacencyList {
 
     /// Returns a BitmaskStream over the in-neighbors of a given vertex.
     /// ** Panics if `u >= n` **
-    fn in_neighbors_of_as_stream(&self, u: Node) -> impl BitmaskStream + '_;
+    fn in_neighbors_of_as_stream(&self, u: Node) -> impl BitmaskStream + '_ {
+        self.in_neighbors_of_as_bitset(u).into_bitmask_stream()
+    }
 
     /// Returns an iterator over incoming edges of a given vertex.
     /// ** Panics if `u >= n` **
@@ -365,6 +368,7 @@ pub trait AdjacencyTest: GraphNodeOrder {
     }
 }
 
+/// Trait for indexed access of Neighborhoods
 pub trait IndexedAdjacencyList: AdjacencyList {
     /// Returns the ith neighbor (0-indexed) of a given vertex
     /// ** Panics if `u >= n || i >= deg(u)`
@@ -384,7 +388,6 @@ pub trait NeighborsSliceMut: NeighborsSlice {
 }
 
 impl<G: NeighborsSlice + AdjacencyList> IndexedAdjacencyList for G {
-    #[inline]
     fn ith_neighbor(&self, u: Node, i: NumNodes) -> Node {
         self.as_neighbors_slice(u)[i as usize]
     }
@@ -405,7 +408,7 @@ pub trait GraphEdgeEditing: GraphNew {
     }
 
     /// Adds the edge `(u, v)` to the graph.
-    /// Returns *true* exactly if the edge was not present previously.
+    /// Returns *true* exactly if the edge was present previously.
     /// ** Panics if `u >= n || v >= n` **
     fn try_add_edge(&mut self, u: Node, v: Node) -> bool;
 
@@ -431,7 +434,7 @@ pub trait GraphEdgeEditing: GraphNew {
     }
 
     /// Removes the directed edge *(u,v)* from the graph. I.e., the edge FROM u TO v.
-    /// If the edge was removed, returns *true* and *false* otherwise.
+    /// Returns *true* exactly if the edge was present previously.
     /// ** Panics if u, v >= n **
     fn try_remove_edge(&mut self, u: Node, v: Node) -> bool;
 }

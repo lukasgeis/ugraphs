@@ -36,6 +36,7 @@ pub type NodeBitSet = BitSetImpl<Node>;
 pub type NumNodesBitSet = BitSetImpl<NumNodes>;
 
 impl Display for Node {
+    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // We want to have 1-indexed outputs
         write!(f, "{}", self.raw())
@@ -43,26 +44,67 @@ impl Display for Node {
 }
 
 impl Debug for Node {
+    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         <Self as Display>::fmt(self, f)
     }
 }
 
 impl Default for Node {
+    #[inline]
     fn default() -> Self {
         Self::MIN
     }
 }
 
 impl PartialEq<RawNode> for Node {
+    #[inline]
     fn eq(&self, other: &RawNode) -> bool {
         self.raw().eq(other)
     }
 }
 
 impl PartialOrd<RawNode> for Node {
+    #[inline]
     fn partial_cmp(&self, other: &RawNode) -> Option<std::cmp::Ordering> {
         self.raw().partial_cmp(other)
+    }
+}
+
+// Indexing a collection `[T] / Vec<T>` via `[u.raw() as usize]` can be rather tedious and
+// repetitive, so we implement the common cases.
+//
+// Consider removing this or moving it into a feature instead.
+
+impl<T> Index<Node> for [T] {
+    type Output = T;
+
+    #[inline]
+    fn index(&self, index: Node) -> &Self::Output {
+        &self[index.raw() as usize]
+    }
+}
+
+impl<T> IndexMut<Node> for [T] {
+    #[inline]
+    fn index_mut(&mut self, index: Node) -> &mut Self::Output {
+        &mut self[index.raw() as usize]
+    }
+}
+
+impl<T> Index<Node> for Vec<T> {
+    type Output = T;
+
+    #[inline]
+    fn index(&self, index: Node) -> &Self::Output {
+        &self[index.raw() as usize]
+    }
+}
+
+impl<T> IndexMut<Node> for Vec<T> {
+    #[inline]
+    fn index_mut(&mut self, index: Node) -> &mut Self::Output {
+        &mut self[index.raw() as usize]
     }
 }
 
