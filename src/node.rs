@@ -262,10 +262,11 @@ macro_rules! impl_unchecked_ops {
     };
 }
 
-impl_checked_ops!(Add add, Mul mul, BitOr bitor, BitXor bitxor, Shl shl);
+impl_checked_ops!(Add add, Sub sub, Mul mul, BitOr bitor, BitXor bitxor, Shl shl);
 
 // SAFETY: all those operations can only decrease `self` which is valid
-impl_unchecked_ops!(Sub sub, Div div, Rem rem, BitAnd bitand, Shr shr);
+// `Sub` is considered unsafe since it can underflow and wrap in `release`-mode
+impl_unchecked_ops!(Div div, Rem rem, BitAnd bitand, Shr shr);
 
 /// Implementors for `std::ops::*Assign`-Traits
 macro_rules! impl_ops_assigns {
