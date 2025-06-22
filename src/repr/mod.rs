@@ -1,12 +1,14 @@
 use super::{ops::*, *};
+use stream_bitset::prelude::{BitmaskStream, IntoBitmaskStream};
 
-pub mod directed;
-pub mod neighborhood;
-pub mod undirected;
+mod csr;
+mod directed;
+mod neighborhood;
+mod undirected;
 
+pub use csr::*;
 pub use directed::*;
 pub use neighborhood::*;
-use stream_bitset::prelude::{BitmaskStream, IntoBitmaskStream};
 pub use undirected::*;
 
 /// Trait for methods on the Neighborhood of a specified Node
