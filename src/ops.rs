@@ -1,4 +1,3 @@
-#[cfg(feature = "node_range")]
 use std::ops::Range;
 
 use itertools::Itertools;
@@ -10,11 +9,6 @@ use crate::*;
 pub trait GraphNodeOrder {
     /// Returns the number of nodes of the graph
     fn number_of_nodes(&self) -> NumNodes;
-
-    /// Returns the number of nodes as Node
-    fn len_as_node(&self) -> Node {
-        Node::new(self.number_of_nodes())
-    }
 
     /// Return the number of nodes as usize
     fn len(&self) -> usize {
@@ -28,29 +22,19 @@ pub trait GraphNodeOrder {
 
     /// Returns empty bitset with one entry per node
     fn vertex_bitset_unset(&self) -> NodeBitSet {
-        NodeBitSet::new(self.len_as_node())
+        NodeBitSet::new(self.number_of_nodes())
     }
 
     /// Returns full bitset with one entry per node
     fn vertex_bitset_set(&self) -> NodeBitSet {
-        NodeBitSet::new_all_set(self.len_as_node())
+        NodeBitSet::new_all_set(self.number_of_nodes())
     }
 
     /// Returns a range of vertices possibly including deleted vertices
     /// In contrast to self.vertices(), the range returned by self.vertices_ranges() does
     /// not borrow self and hence may be used where additional mutable references of self are needed
-    ///
-    /// # Warning
-    /// This method may iterate over deleted vertices (if supported by an implementation). It is the
-    /// responsibility of the caller to identify and treat them accordingly.
-    #[cfg(feature = "node_range")]
     fn vertices_range(&self) -> Range<Node> {
-        Node::MIN..Node::new(self.number_of_nodes())
-    }
-
-    #[cfg(not(feature = "node_range"))]
-    fn vertices_range(&self) -> NodeRange {
-        NodeRange::new_to(self.len_as_node())
+        0..self.number_of_nodes()
     }
 
     /// Returns *true* if the graph has no nodes (and thus no edges)
@@ -91,7 +75,7 @@ macro_rules! node_iterator {
 macro_rules! node_bitset_of {
     ($bitset : ident, $slice : ident) => {
         fn $bitset(&self, node: Node) -> NodeBitSet {
-            NodeBitSet::new_with_bits_set(self.len_as_node(), self.$slice(node))
+            NodeBitSet::new_with_bits_set(self.number_of_nodes(), self.$slice(node))
         }
     };
 }
@@ -125,7 +109,7 @@ pub trait AdjacencyList: GraphNodeOrder + Sized {
     fn vertices_with_neighbors(&self) -> impl Iterator<Item = Node> + '_ {
         self.degrees()
             .enumerate()
-            .filter_map(|(u, d)| (d > 0).then_some(Node::new(u as RawNode)))
+            .filter_map(|(u, d)| (d > 0).then_some(u as Node))
     }
 
     /// Returns the number of nodes with non-zero degree
@@ -284,7 +268,7 @@ pub trait DirectedAdjacencyList: AdjacencyList {
     fn vertices_with_in_neighbors(&self) -> impl Iterator<Item = Node> + '_ {
         self.in_degrees()
             .enumerate()
-            .filter_map(|(u, d)| (d > 0).then_some(Node::new(u as RawNode)))
+            .filter_map(|(u, d)| (d > 0).then_some(u as Node))
     }
 
     /// Returns the number of nodes with non-zero in-degree

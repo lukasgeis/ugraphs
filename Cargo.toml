@@ -7,11 +7,7 @@ edition = "2024"
 # Default features
 default = []
 # Default (unstable) features when `nightly` is enabled
-nightly_default = ["node_range"]
-# Saturate Node-Arithmetic instead of panicking
-saturate_node_overflow = []
-# (Unstable) Use in-built `Range` for Node-Ranges
-node_range = []
+nightly_default = []
 
 [dependencies]
 fxhash = "0.2.1"

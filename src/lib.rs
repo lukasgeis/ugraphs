@@ -1,5 +1,3 @@
-#![cfg_attr(feature = "node_range", feature(step_trait))]
-
 pub mod algo;
 pub mod edge;
 pub mod gens;

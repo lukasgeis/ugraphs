@@ -138,11 +138,11 @@ pub struct BitNeighborhood(pub NodeBitSet);
 
 impl Neighborhood for BitNeighborhood {
     fn new(n: NumNodes) -> Self {
-        Self(NodeBitSet::new(Node::new(n)))
+        Self(NodeBitSet::new(n))
     }
 
     fn num_of_neighbors(&self) -> NumNodes {
-        self.0.cardinality().raw()
+        self.0.cardinality()
     }
 
     fn neighbors(&self) -> impl Iterator<Item = Node> + '_ {

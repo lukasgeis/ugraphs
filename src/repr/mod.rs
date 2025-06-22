@@ -21,7 +21,7 @@ pub trait Neighborhood: Clone {
 
     /// Returns a BitmaskStream over the Neighborhood for a given maximum number of nodes
     fn neighbors_as_stream(&self, n: NumNodes) -> impl BitmaskStream + '_ {
-        NodeBitSet::new_with_bits_set(Node::new(n), self.neighbors()).into_bitmask_stream()
+        NodeBitSet::new_with_bits_set(n, self.neighbors()).into_bitmask_stream()
     }
 
     /// Returns *true* if `u` is in the Neighborhood
@@ -102,16 +102,16 @@ pub(crate) mod macros {
 
             impl<$($generic: Neighborhood),*> AdjacencyList for $struct<$($generic),*> {
                 fn neighbors_of(&self, u: Node) -> impl Iterator<Item = Node> + '_ {
-                    self.$nbs[u].neighbors()
+                    self.$nbs[u as usize].neighbors()
                 }
 
                 fn degree_of(&self, u: Node) -> NumNodes {
-                    self.$nbs[u].num_of_neighbors()
+                    self.$nbs[u as usize].num_of_neighbors()
                 }
 
                 // Redefine to make use of `AdjMatrix` BitSet-Representation
                 fn neighbors_of_as_stream(&self, u: Node) -> impl stream_bitset::prelude::BitmaskStream + '_ {
-                    self.$nbs[u].neighbors_as_stream(self.number_of_nodes())
+                    self.$nbs[u as usize].neighbors_as_stream(self.number_of_nodes())
                 }
             }
 
@@ -128,13 +128,13 @@ pub(crate) mod macros {
 
             impl<$($generic: NeighborhoodSlice),*> NeighborsSlice for $struct<$($generic),*> {
                 fn as_neighbors_slice(&self, u: Node) -> &[Node] {
-                    self.$nbs[u].as_slice()
+                    self.$nbs[u as usize].as_slice()
                 }
             }
 
             impl<$($generic: NeighborhoodSliceMut),*> NeighborsSliceMut for $struct<$($generic),*> {
                 fn as_neighbors_slice_mut(&mut self, u: Node) -> &mut [Node] {
-                    self.$nbs[u].as_slice_mut()
+                    self.$nbs[u as usize].as_slice_mut()
                 }
             }
         };
