@@ -1,5 +1,6 @@
 [package]
 name = "graphs"
+authors = ["Lukas Geis <lukas.geis@ae.cs.uni-frankfurt.de", "Johannes Meintrup <johannes.meintrup@mni.thm.de>", "Manuel Penschuck <mpenschuck@ae.cs.uni-frankfurt.de>"]
 version = "0.1.0"
 edition = "2024"
 
