@@ -1,4 +1,7 @@
-use crate::repr::macros::impl_common_graph_ops;
+use crate::{
+    repr::macros::{impl_common_graph_ops, impl_try_add_edge},
+    testing::test_graph_ops,
+};
 
 use super::*;
 
@@ -67,14 +70,12 @@ impl<OutNbs: Neighborhood> AdjacencyTest for DirectedGraph<OutNbs> {
 }
 
 impl<OutNbs: Neighborhood> GraphEdgeEditing for DirectedGraph<OutNbs> {
-    fn try_add_edge(&mut self, u: Node, v: Node) -> bool {
-        if !self.out_nbs[u as usize].try_add_neighbor(v) {
-            self.num_edges += 1;
-            false
-        } else {
-            true
-        }
+    fn add_edge(&mut self, u: Node, v: Node) {
+        self.out_nbs[u as usize].add_neighbor(v);
+        self.num_edges += 1;
     }
+
+    impl_try_add_edge!(self);
 
     fn try_remove_edge(&mut self, u: Node, v: Node) -> bool {
         if self.out_nbs[u as usize].try_remove_neighbor(v) {
@@ -129,31 +130,34 @@ impl<OutNbs: Neighborhood, InNbs: Neighborhood> AdjacencyTest for DirectedGraphI
         // Without additional knowledge, checking `out_nbs` or `in_nbs` does not make a difference:
         // since we define `AdjArrayMatrix` which uses a `BitNeighborhood` for `in_nbs`, we default
         // to `in_nbs` here
-        self.in_nbs[u as usize].has_neighbor(v)
+        self.in_nbs[v as usize].has_neighbor(u)
     }
 
     fn has_neighbors<const N: usize>(&self, u: Node, neighbors: [Node; N]) -> [bool; N] {
         // Without additional knowledge, checking `out_nbs` or `in_nbs` does not make a difference:
         // since we define `AdjArrayMatrix` which uses a `BitNeighborhood` for `in_nbs`, we default
-        // to `in_nbs` here
-        self.in_nbs[u as usize].has_neighbors(neighbors)
+        // to `in_nbs` here.
+        //
+        // For larger `N`, it might make sense to implement this on `out_nbs` in case we want to
+        // leverage locality
+        neighbors.map(|v| self.has_edge(u, v))
     }
 }
 
 impl<OutNbs: Neighborhood, InNbs: Neighborhood> GraphEdgeEditing
     for DirectedGraphIn<OutNbs, InNbs>
 {
-    fn try_add_edge(&mut self, u: Node, v: Node) -> bool {
-        if !self.out_nbs[u as usize].try_add_neighbor(v) {
-            self.num_edges += 1;
-            false
-        } else {
-            true
-        }
+    fn add_edge(&mut self, u: Node, v: Node) {
+        self.out_nbs[u as usize].add_neighbor(v);
+        self.in_nbs[v as usize].add_neighbor(u);
+        self.num_edges += 1;
     }
+
+    impl_try_add_edge!(self);
 
     fn try_remove_edge(&mut self, u: Node, v: Node) -> bool {
         if self.out_nbs[u as usize].try_remove_neighbor(v) {
+            assert!(self.in_nbs[v as usize].try_remove_neighbor(u));
             self.num_edges -= 1;
             true
         } else {
@@ -166,19 +170,17 @@ impl<OutNbs: Neighborhood, InNbs: Neighborhood> GraphDirectedEdgeEditing
     for DirectedGraphIn<OutNbs, InNbs>
 {
     fn remove_edges_into_node(&mut self, u: Node) {
-        self.num_edges -= self
-            .vertices_range()
-            .map(|v| self.out_nbs[v as usize].try_remove_neighbor(u) as NumEdges)
-            .sum::<NumEdges>();
+        for v in self.vertices_range() {
+            self.out_nbs[v as usize].try_remove_neighbor(u);
+        }
         self.num_edges -= self.in_nbs[u as usize].num_of_neighbors() as NumEdges;
         self.in_nbs[u as usize].clear();
     }
 
     fn remove_edges_out_of_node(&mut self, u: Node) {
-        self.num_edges -= self
-            .vertices_range()
-            .map(|v| self.in_nbs[v as usize].try_remove_neighbor(u) as NumEdges)
-            .sum::<NumEdges>();
+        for v in self.vertices_range() {
+            self.in_nbs[v as usize].try_remove_neighbor(u);
+        }
         self.num_edges -= self.out_nbs[u as usize].num_of_neighbors() as NumEdges;
         self.out_nbs[u as usize].clear();
     }
@@ -192,3 +194,96 @@ impl<OutNbs: Neighborhood, InNbs: Neighborhood> GraphLocalEdgeEditing
         self.remove_edges_out_of_node(u);
     }
 }
+
+// ---------- Testing ----------
+
+test_graph_ops!(
+    test_adj_array,
+    AdjArray,
+    false,
+    (
+        GraphNew,
+        AdjacencyList,
+        DirectedAdjacencyList,
+        GraphEdgeEditing,
+        GraphDirectedEdgeEditing
+    )
+);
+
+test_graph_ops!(
+    test_adj_array_in,
+    AdjArrayIn,
+    false,
+    (
+        GraphNew,
+        AdjacencyList,
+        DirectedAdjacencyList,
+        GraphEdgeEditing,
+        GraphDirectedEdgeEditing
+    )
+);
+
+test_graph_ops!(
+    test_sparse_adj_array,
+    SparseAdjArray,
+    false,
+    (
+        GraphNew,
+        AdjacencyList,
+        DirectedAdjacencyList,
+        GraphEdgeEditing,
+        GraphDirectedEdgeEditing
+    )
+);
+
+test_graph_ops!(
+    test_sparse_adj_array_in,
+    SparseAdjArrayIn,
+    false,
+    (
+        GraphNew,
+        AdjacencyList,
+        DirectedAdjacencyList,
+        GraphEdgeEditing,
+        GraphDirectedEdgeEditing
+    )
+);
+
+test_graph_ops!(
+    test_adj_matrix,
+    AdjMatrix,
+    false,
+    (
+        GraphNew,
+        AdjacencyList,
+        DirectedAdjacencyList,
+        GraphEdgeEditing,
+        GraphDirectedEdgeEditing
+    )
+);
+
+test_graph_ops!(
+    test_adj_matrix_in,
+    AdjMatrixIn,
+    false,
+    (
+        GraphNew,
+        AdjacencyList,
+        DirectedAdjacencyList,
+        GraphEdgeEditing,
+        GraphDirectedEdgeEditing
+    )
+);
+
+test_graph_ops!(
+    test_adj_array_matrix,
+    AdjArrayMatrix,
+    false,
+    (
+        GraphNew,
+        AdjacencyList,
+        DirectedAdjacencyList,
+        GraphEdgeEditing,
+        GraphDirectedEdgeEditing
+    )
+);

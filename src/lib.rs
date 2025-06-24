@@ -6,6 +6,7 @@ pub mod log;
 pub mod node;
 pub mod ops;
 pub mod repr;
+pub(crate) mod testing;
 pub mod utils;
 
 pub use edge::*;

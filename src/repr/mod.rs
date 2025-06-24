@@ -49,7 +49,18 @@ pub trait Neighborhood: Clone {
     /// Tries to add a neighbor to the Neighborhood.
     /// Returns *true* if the node was in the Neighborhood before.
     /// ** Might panic if `u >= n` **
-    fn try_add_neighbor(&mut self, u: Node) -> bool;
+    fn try_add_neighbor(&mut self, u: Node) -> bool {
+        if self.has_neighbor(u) {
+            true
+        } else {
+            self.add_neighbor(u);
+            false
+        }
+    }
+
+    /// Adds a neighbor to the Neighborhood without checking if this neighbor exists beforehand.
+    /// For some implementations, this might lead to Multi-Edges
+    fn add_neighbor(&mut self, u: Node);
 
     /// Tries to remove a neighbor to the Neighborhood.
     /// Returns *true* if the node was in the Neighborhood before.
@@ -143,4 +154,19 @@ pub(crate) mod macros {
     }
 
     pub(super) use impl_common_graph_ops;
+
+    macro_rules! impl_try_add_edge {
+        ($self:ident) => {
+            fn try_add_edge(&mut $self, u: Node, v: Node) -> bool {
+                if $self.has_edge(u, v) {
+                    true
+                } else {
+                    $self.add_edge(u, v);
+                    false
+                }
+            }
+        };
+    }
+
+    pub(super) use impl_try_add_edge;
 }

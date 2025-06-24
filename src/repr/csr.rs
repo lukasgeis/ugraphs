@@ -1,4 +1,4 @@
-use crate::{ops::*, utils::SlicedBuffer, *};
+use crate::{ops::*, testing::test_graph_ops, utils::SlicedBuffer, *};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct NodeWithCrossPos {
@@ -20,11 +20,13 @@ pub struct CsrGraphIn {
 #[derive(Clone)]
 pub struct CsrGraphUndir {
     nbs: SlicedBuffer<Node, NumEdges>,
+    self_loops: NumNodes,
 }
 
 #[derive(Clone)]
 pub struct CrossCsrGraph {
     nbs: SlicedBuffer<NodeWithCrossPos, NumEdges>,
+    self_loops: NumNodes,
 }
 
 macro_rules! impl_common_csr_graph_ops {
@@ -32,12 +34,6 @@ macro_rules! impl_common_csr_graph_ops {
         impl GraphNodeOrder for $struct {
             fn number_of_nodes(&self) -> NumNodes {
                 self.$nbs.number_of_slices()
-            }
-        }
-
-        impl GraphEdgeOrder for $struct {
-            fn number_of_edges(&self) -> NumEdges {
-                self.$nbs.number_of_entries()
             }
         }
 
@@ -97,6 +93,24 @@ impl DirectedAdjacencyList for CsrGraphIn {
     }
 }
 
+impl GraphEdgeOrder for CsrGraph {
+    fn number_of_edges(&self) -> NumEdges {
+        self.out_nbs.number_of_entries()
+    }
+}
+
+impl GraphEdgeOrder for CsrGraphIn {
+    fn number_of_edges(&self) -> NumEdges {
+        self.out_nbs.number_of_entries()
+    }
+}
+
+impl GraphEdgeOrder for CsrGraphUndir {
+    fn number_of_edges(&self) -> NumEdges {
+        (self.nbs.number_of_entries() + self.self_loops as NumEdges) / 2
+    }
+}
+
 impl GraphNodeOrder for CrossCsrGraph {
     fn number_of_nodes(&self) -> NumNodes {
         self.nbs.number_of_slices()
@@ -105,7 +119,7 @@ impl GraphNodeOrder for CrossCsrGraph {
 
 impl GraphEdgeOrder for CrossCsrGraph {
     fn number_of_edges(&self) -> NumEdges {
-        self.nbs.number_of_entries()
+        (self.nbs.number_of_entries() + self.self_loops as NumEdges) / 2
     }
 }
 
@@ -157,6 +171,10 @@ impl GraphFromScratch for CsrGraph {
         Self {
             out_nbs: SlicedBuffer::new(edges, offsets),
         }
+    }
+
+    fn from_try_edges(n: NumNodes, edges: impl Iterator<Item = impl Into<Edge>>) -> Self {
+        Self::from_edges(n, edges)
     }
 }
 
@@ -220,6 +238,10 @@ impl GraphFromScratch for CsrGraphIn {
             in_nbs: SlicedBuffer::new(in_edges, in_offsets),
         }
     }
+
+    fn from_try_edges(n: NumNodes, edges: impl Iterator<Item = impl Into<Edge>>) -> Self {
+        Self::from_edges(n, edges)
+    }
 }
 
 impl GraphFromScratch for CsrGraphUndir {
@@ -236,6 +258,8 @@ impl GraphFromScratch for CsrGraphUndir {
         // Remove doubled Self-Loops
         edges.dedup();
 
+        let mut self_loops = 0;
+
         let mut offsets: Vec<NumEdges> = Vec::with_capacity(n as usize + 1);
         offsets.push(0);
 
@@ -249,6 +273,7 @@ impl GraphFromScratch for CsrGraphUndir {
                     curr_node += 1;
                 }
                 counter += 1;
+                self_loops += (u == v) as NumNodes;
 
                 v
             })
@@ -261,7 +286,12 @@ impl GraphFromScratch for CsrGraphUndir {
 
         Self {
             nbs: SlicedBuffer::new(edges, offsets),
+            self_loops,
         }
+    }
+
+    fn from_try_edges(n: NumNodes, edges: impl Iterator<Item = impl Into<Edge>>) -> Self {
+        Self::from_edges(n, edges)
     }
 }
 
@@ -298,7 +328,7 @@ impl GraphFromScratch for CrossCsrGraph {
 
         offsets.push(0);
 
-        let mut running_offset = num_of_neighbors[0] + 1;
+        let mut running_offset = num_of_neighbors[0];
         for num_nb_u in num_of_neighbors.iter_mut().skip(1) {
             offsets.push(running_offset as NumEdges);
             running_offset += *num_nb_u;
@@ -329,6 +359,31 @@ impl GraphFromScratch for CrossCsrGraph {
 
         Self {
             nbs: SlicedBuffer::new(edges, offsets),
+            self_loops: num_self_loops as NumNodes,
         }
     }
+
+    fn from_try_edges(n: NumNodes, edges: impl Iterator<Item = impl Into<Edge>>) -> Self {
+        Self::from_edges(n, edges)
+    }
 }
+
+// ---------- Testing ----------
+
+test_graph_ops!(
+    test_csr_graph,
+    CsrGraph,
+    false,
+    (AdjacencyList, DirectedAdjacencyList)
+);
+
+test_graph_ops!(
+    test_csr_graph_in,
+    CsrGraphIn,
+    false,
+    (AdjacencyList, DirectedAdjacencyList)
+);
+
+test_graph_ops!(test_csr_graph_undir, CsrGraphUndir, true, (AdjacencyList));
+
+test_graph_ops!(test_cross_csr_graph, CrossCsrGraph, true, (AdjacencyList));

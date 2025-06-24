@@ -403,6 +403,18 @@ pub trait GraphEdgeEditing: GraphNew {
         }
     }
 
+    /// Tries to add all edges `(u, v)` of the collection to the graph.
+    /// Returns the number of successfully added edges.
+    /// ** Panics if `u >= n || v >= n`  for any `(u, v)` in `edges` **
+    fn try_add_edges(&mut self, edges: impl Iterator<Item = impl Into<Edge>>) -> NumEdges {
+        edges
+            .map(|e| {
+                let Edge(u, v) = e.into();
+                self.try_add_edge(u, v) as NumEdges
+            })
+            .sum()
+    }
+
     /// Removes the directed edge *(u,v)* from the graph. I.e., the edge FROM u TO v.
     /// ** Panics if the edge is not present or u, v >= n **
     fn remove_edge(&mut self, u: Node, v: Node) {
@@ -453,12 +465,22 @@ pub trait GraphLocalEdgeEditing: GraphEdgeEditing {
 pub trait GraphFromScratch {
     /// Create a graph from a number of nodes and an iterator over Edges
     fn from_edges(n: NumNodes, edges: impl Iterator<Item = impl Into<Edge>>) -> Self;
+
+    /// Create a graph from a number of nodes and an iterator over Edges, adding edges via
+    /// `graph.try_add_edge` instead of `graph.add_edge`
+    fn from_try_edges(n: NumNodes, edges: impl Iterator<Item = impl Into<Edge>>) -> Self;
 }
 
 impl<G: GraphNew + GraphEdgeEditing> GraphFromScratch for G {
     fn from_edges(n: NumNodes, edges: impl Iterator<Item = impl Into<Edge>>) -> Self {
         let mut graph = Self::new(n);
         graph.add_edges(edges);
+        graph
+    }
+
+    fn from_try_edges(n: NumNodes, edges: impl Iterator<Item = impl Into<Edge>>) -> Self {
+        let mut graph = Self::new(n);
+        graph.try_add_edges(edges);
         graph
     }
 }

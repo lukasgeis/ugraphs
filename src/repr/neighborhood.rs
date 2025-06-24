@@ -21,13 +21,8 @@ impl Neighborhood for ArrNeighborhood {
         self.0.iter().copied()
     }
 
-    fn try_add_neighbor(&mut self, u: Node) -> bool {
-        if self.0.contains(&u) {
-            return true;
-        }
-
+    fn add_neighbor(&mut self, u: Node) {
         self.0.push(u);
-        false
     }
 
     fn try_remove_neighbor(&mut self, u: Node) -> bool {
@@ -85,13 +80,8 @@ where
         self.0.iter().copied()
     }
 
-    fn try_add_neighbor(&mut self, u: Node) -> bool {
-        if self.0.contains(&u) {
-            return true;
-        }
-
+    fn add_neighbor(&mut self, u: Node) {
         self.0.push(u);
-        false
     }
 
     fn try_remove_neighbor(&mut self, u: Node) -> bool {
@@ -163,6 +153,10 @@ impl Neighborhood for BitNeighborhood {
 
     fn try_add_neighbor(&mut self, u: Node) -> bool {
         self.0.set_bit(u)
+    }
+
+    fn add_neighbor(&mut self, u: Node) {
+        self.0.set_bit(u);
     }
 
     fn try_remove_neighbor(&mut self, u: Node) -> bool {

@@ -1,4 +1,7 @@
-use crate::repr::macros::impl_common_graph_ops;
+use crate::{
+    repr::macros::{impl_common_graph_ops, impl_try_add_edge},
+    testing::test_graph_ops,
+};
 
 use super::*;
 
@@ -31,17 +34,15 @@ impl<Nbs: Neighborhood> AdjacencyTest for UndirectedGraph<Nbs> {
 }
 
 impl<Nbs: Neighborhood> GraphEdgeEditing for UndirectedGraph<Nbs> {
-    fn try_add_edge(&mut self, u: Node, v: Node) -> bool {
-        if !self.nbs[u as usize].try_add_neighbor(v) {
-            if u != v {
-                assert!(!self.nbs[v as usize].try_add_neighbor(u));
-            }
-            self.num_edges += 1;
-            false
-        } else {
-            true
+    fn add_edge(&mut self, u: Node, v: Node) {
+        self.nbs[u as usize].add_neighbor(v);
+        if u != v {
+            self.nbs[v as usize].add_neighbor(u);
         }
+        self.num_edges += 1;
     }
+
+    impl_try_add_edge!(self);
 
     fn try_remove_edge(&mut self, u: Node, v: Node) -> bool {
         if self.nbs[u as usize].try_remove_neighbor(v) {
@@ -74,3 +75,26 @@ impl<Nbs: Neighborhood> GraphLocalEdgeEditing for UndirectedGraph<Nbs> {
         nbs.clear();
     }
 }
+
+// ---------- Testing ----------
+
+test_graph_ops!(
+    test_adj_array_undir,
+    AdjArrayUndir,
+    true,
+    (GraphNew, AdjacencyList, GraphEdgeEditing)
+);
+
+test_graph_ops!(
+    test_sparse_adj_array_undir,
+    SparseAdjArrayUndir,
+    true,
+    (GraphNew, AdjacencyList, GraphEdgeEditing)
+);
+
+test_graph_ops!(
+    test_adj_matrix_undir,
+    AdjMatrixUndir,
+    true,
+    (GraphNew, AdjacencyList, GraphEdgeEditing)
+);
