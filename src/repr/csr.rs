@@ -139,6 +139,14 @@ impl AdjacencyTest for CrossCsrGraph {
     }
 }
 
+impl IndexedAdjacencyList for CrossCsrGraph {
+    fn ith_neighbor(&self, u: Node, i: NumNodes) -> Node {
+        self.nbs[u][i as usize].node
+    }
+}
+
+// ---------- GraphFromScratch ----------
+
 impl GraphFromScratch for CsrGraph {
     fn from_edges(n: NumNodes, edges: impl Iterator<Item = impl Into<Edge>>) -> Self {
         let mut edges: Vec<Edge> = edges.map(|e| e.into()).collect();
