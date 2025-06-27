@@ -145,6 +145,19 @@ impl IndexedAdjacencyList for CrossCsrGraph {
     }
 }
 
+impl IndexedAdjacencySwap for CrossCsrGraph {
+    fn swap_neighbors(&mut self, u: Node, i: NumNodes, j: NumNodes) {
+        let nb1 = self.nbs[u][i as usize];
+        let nb2 = self.nbs[u][j as usize];
+
+        // Update CrossPositions
+        self.nbs[nb1.node][nb1.cross_pos as usize].cross_pos = j;
+        self.nbs[nb2.node][nb2.cross_pos as usize].cross_pos = i;
+
+        self.nbs[u].swap(i as usize, j as usize);
+    }
+}
+
 // ---------- GraphFromScratch ----------
 
 impl GraphFromScratch for CsrGraph {

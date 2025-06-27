@@ -359,6 +359,13 @@ pub trait IndexedAdjacencyList: AdjacencyList {
     fn ith_neighbor(&self, u: Node, i: NumNodes) -> Node;
 }
 
+/// Trait for swapping the order in Neighborhoods
+pub trait IndexedAdjacencySwap: IndexedAdjacencyList {
+    /// Swaps the ith and the jth neighbor of a given vertex
+    /// ** Panics if `u >= n || i >= deg(u) || j >= deg(u)`
+    fn swap_neighbors(&mut self, u: Node, i: NumNodes, j: NumNodes);
+}
+
 /// Trait for accessing the neighborhood of nodes as slices
 pub trait NeighborsSlice {
     /// Returns a slice-reference of the neighborhood of a given vertex
@@ -374,6 +381,12 @@ pub trait NeighborsSliceMut: NeighborsSlice {
 impl<G: NeighborsSlice + AdjacencyList> IndexedAdjacencyList for G {
     fn ith_neighbor(&self, u: Node, i: NumNodes) -> Node {
         self.as_neighbors_slice(u)[i as usize]
+    }
+}
+
+impl<G: NeighborsSliceMut + AdjacencyList> IndexedAdjacencySwap for G {
+    fn swap_neighbors(&mut self, u: Node, i: NumNodes, j: NumNodes) {
+        self.as_neighbors_slice_mut(u).swap(i as usize, j as usize);
     }
 }
 
