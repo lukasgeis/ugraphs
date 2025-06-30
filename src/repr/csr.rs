@@ -30,7 +30,11 @@ pub struct CrossCsrGraph {
 }
 
 macro_rules! impl_common_csr_graph_ops {
-    ($struct:ident, $nbs:ident) => {
+    ($struct:ident, $nbs:ident, $directed:literal) => {
+        impl GraphType for $struct {
+            const DIRECTED: bool = $directed;
+        }
+
         impl GraphNodeOrder for $struct {
             fn number_of_nodes(&self) -> NumNodes {
                 self.$nbs.number_of_slices()
@@ -67,9 +71,9 @@ macro_rules! impl_common_csr_graph_ops {
     };
 }
 
-impl_common_csr_graph_ops!(CsrGraph, out_nbs);
-impl_common_csr_graph_ops!(CsrGraphIn, out_nbs);
-impl_common_csr_graph_ops!(CsrGraphUndir, nbs);
+impl_common_csr_graph_ops!(CsrGraph, out_nbs, true);
+impl_common_csr_graph_ops!(CsrGraphIn, out_nbs, true);
+impl_common_csr_graph_ops!(CsrGraphUndir, nbs, false);
 
 impl DirectedAdjacencyList for CsrGraph {
     fn in_neighbors_of(&self, u: Node) -> impl Iterator<Item = Node> + '_ {
@@ -109,6 +113,10 @@ impl GraphEdgeOrder for CsrGraphUndir {
     fn number_of_edges(&self) -> NumEdges {
         (self.nbs.number_of_entries() + self.self_loops as NumEdges) / 2
     }
+}
+
+impl GraphType for CrossCsrGraph {
+    const DIRECTED: bool = false;
 }
 
 impl GraphNodeOrder for CrossCsrGraph {

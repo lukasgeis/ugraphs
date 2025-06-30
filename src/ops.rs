@@ -5,6 +5,21 @@ use stream_bitset::prelude::*;
 
 use crate::*;
 
+/// Trait for identifying whether a graph is directed/undirected
+pub trait GraphType {
+    const DIRECTED: bool;
+
+    /// Returns *true* if the graph is directed
+    fn is_directed(&self) -> bool {
+        Self::DIRECTED
+    }
+
+    /// Returns *true* if the graph is undirected
+    fn is_undirected(&self) -> bool {
+        !Self::DIRECTED
+    }
+}
+
 /// Provides getters pertaining to the node-size of a graph
 pub trait GraphNodeOrder {
     /// Returns the number of nodes of the graph

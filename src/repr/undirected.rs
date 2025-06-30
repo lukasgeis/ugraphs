@@ -21,7 +21,7 @@ pub type SparseAdjArrayUndir = UndirectedGraph<SparseNeighborhood>;
 /// Representation using an Adjacency-Matrix
 pub type AdjMatrixUndir = UndirectedGraph<BitNeighborhood>;
 
-impl_common_graph_ops!(UndirectedGraph<nbs : Nbs> => nbs);
+impl_common_graph_ops!(UndirectedGraph<nbs : Nbs> => nbs, false);
 
 impl<Nbs: Neighborhood> AdjacencyTest for UndirectedGraph<Nbs> {
     fn has_edge(&self, u: Node, v: Node) -> bool {

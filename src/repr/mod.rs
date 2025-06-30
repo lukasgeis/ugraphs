@@ -100,7 +100,11 @@ impl<N: NeighborhoodSlice> IndexedNeighborhood for N {
 
 pub(crate) mod macros {
     macro_rules! impl_common_graph_ops {
-        ($struct:ident<$($field:ident : $generic:ident),*> => $nbs:ident) => {
+        ($struct:ident<$($field:ident : $generic:ident),*> => $nbs:ident, $directed:literal) => {
+            impl<$($generic: Neighborhood),*> GraphType for $struct<$($generic),*> {
+                const DIRECTED: bool = $directed;
+            }
+
             impl<$($generic: Neighborhood),*> GraphNodeOrder for $struct<$($generic),*> {
                 fn number_of_nodes(&self) -> NumNodes {
                     self.$nbs.len() as NumNodes
