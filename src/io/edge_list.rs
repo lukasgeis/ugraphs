@@ -17,50 +17,46 @@ use crate::{
 
 /// A GraphReader for the EdgeList-Format
 #[derive(Debug, Clone)]
-pub struct EdgeListReader<'a, 'b> {
+pub struct EdgeListReader {
     /// HeaderFormat
-    header: Header<'a>,
+    header: Header,
     /// Lines starting with `comment_identifier` are skipped when reading
-    comment_identifier: &'b str,
+    comment_identifier: String,
 }
 
-impl<'a, 'b> Default for EdgeListReader<'a, 'b> {
+impl Default for EdgeListReader {
     /// Default to the Pace-Format
     fn default() -> Self {
         Self {
             header: Header::default(),
-            comment_identifier: "c",
+            comment_identifier: "c".to_string(),
         }
     }
 }
 
-impl<'a, 'b> EdgeListReader<'a, 'b> {
+impl EdgeListReader {
     /// Creates a new (default) reader
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Updates the header format
-    pub fn header_format<'c>(self, format: Header<'c>) -> EdgeListReader<'c, 'b> {
-        EdgeListReader {
-            header: format,
-            comment_identifier: self.comment_identifier,
-        }
+    pub fn header_format(mut self, format: Header) -> EdgeListReader {
+        self.header = format;
+        self
     }
 
     /// Updates the comment identifier
-    pub fn comment_identifier<'c>(self, c: &'c str) -> EdgeListReader<'a, 'c> {
-        EdgeListReader {
-            header: self.header,
-            comment_identifier: c,
-        }
+    pub fn comment_identifier<S: Into<String>>(mut self, c: S) -> EdgeListReader {
+        self.comment_identifier = c.into();
+        self
     }
 }
 
-impl<'a, 'b, G: GraphFromScratch> GraphReader<G> for EdgeListReader<'a, 'b> {
+impl<G: GraphFromScratch> GraphReader<G> for EdgeListReader {
     fn try_read_graph<R: BufRead>(&self, reader: R) -> std::io::Result<G> {
         let edges_reader =
-            EdgeListEdgesReader::try_new(reader, &self.header, self.comment_identifier)?;
+            EdgeListEdgesReader::try_new(reader, &self.header, &self.comment_identifier)?;
         let n = edges_reader.number_of_nodes();
         Ok(G::from_edges(n, edges_reader))
     }
@@ -178,24 +174,25 @@ impl<'a, R: BufRead> EdgeListEdgesReader<'a, R> {
 
 /// A writer for the EdgeList-Format
 #[derive(Debug, Clone, Default)]
-pub struct EdgeListWriter<'a> {
+pub struct EdgeListWriter {
     /// HeaderFormat
-    header: Header<'a>,
+    header: Header,
 }
 
-impl<'a> EdgeListWriter<'a> {
+impl EdgeListWriter {
     /// Shorthand for default
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Updates the header format
-    pub fn header_format<'b>(self, format: Header<'b>) -> EdgeListWriter<'b> {
-        EdgeListWriter { header: format }
+    pub fn header_format(mut self, format: Header) -> EdgeListWriter {
+        self.header = format;
+        self
     }
 }
 
-impl<'a, G: AdjacencyList + GraphEdgeOrder + GraphType> GraphWriter<G> for EdgeListWriter<'a> {
+impl<G: AdjacencyList + GraphEdgeOrder + GraphType> GraphWriter<G> for EdgeListWriter {
     fn try_write_graph<W: Write>(&self, graph: &G, mut writer: W) -> std::io::Result<()> {
         self.header.write_header(
             &mut writer,

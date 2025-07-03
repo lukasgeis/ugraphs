@@ -20,50 +20,46 @@ use crate::{
 
 /// A GraphReader for the Metis-Format
 #[derive(Debug, Clone)]
-pub struct MetisReader<'a, 'b> {
+pub struct MetisReader {
     /// HeaderFormat
-    header: Header<'a>,
+    header: Header,
     /// Lines starting with `comment_identifier` are skipped when reading
-    comment_identifier: &'b str,
+    comment_identifier: String,
 }
 
-impl<'a, 'b> Default for MetisReader<'a, 'b> {
+impl Default for MetisReader {
     /// Default to the Pace-Format
     fn default() -> Self {
         Self {
             header: Header::default(),
-            comment_identifier: "c",
+            comment_identifier: "c".to_string(),
         }
     }
 }
 
-impl<'a, 'b> MetisReader<'a, 'b> {
+impl MetisReader {
     /// Creates a new (default) reader
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Updates the header format
-    pub fn header_format<'c>(self, format: Header<'c>) -> MetisReader<'c, 'b> {
-        MetisReader {
-            header: format,
-            comment_identifier: self.comment_identifier,
-        }
+    pub fn header_format(mut self, format: Header) -> MetisReader {
+        self.header = format;
+        self
     }
 
     /// Updates the comment identifier
-    pub fn comment_identifier<'c>(self, c: &'c str) -> MetisReader<'a, 'c> {
-        MetisReader {
-            header: self.header,
-            comment_identifier: c,
-        }
+    pub fn comment_identifier<S: Into<String>>(mut self, c: S) -> MetisReader {
+        self.comment_identifier = c.into();
+        self
     }
 }
 
-impl<'a, 'b, G: GraphFromScratch> GraphReader<G> for MetisReader<'a, 'b> {
+impl<G: GraphFromScratch> GraphReader<G> for MetisReader {
     fn try_read_graph<R: BufRead>(&self, reader: R) -> std::io::Result<G> {
         let edges_reader =
-            MetisEdgesReader::try_new(reader, &self.header, self.comment_identifier)?;
+            MetisEdgesReader::try_new(reader, &self.header, &self.comment_identifier)?;
         let n = edges_reader.number_of_nodes();
         Ok(G::from_edges(n, edges_reader))
     }
@@ -211,24 +207,25 @@ impl<'a, R: BufRead> MetisEdgesReader<'a, R> {
 
 /// A writer for the Metis-Format
 #[derive(Debug, Clone, Default)]
-pub struct MetisWriter<'a> {
+pub struct MetisWriter {
     /// HeaderFormat
-    header: Header<'a>,
+    header: Header,
 }
 
-impl<'a> MetisWriter<'a> {
+impl MetisWriter {
     /// Shorthand for default
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Updates the header format
-    pub fn header_format<'b>(self, format: Header<'b>) -> MetisWriter<'b> {
-        MetisWriter { header: format }
+    pub fn header_format(mut self, format: Header) -> MetisWriter {
+        self.header = format;
+        self
     }
 }
 
-impl<'a, G: AdjacencyList + GraphEdgeOrder + GraphType> GraphWriter<G> for MetisWriter<'a> {
+impl<G: AdjacencyList + GraphEdgeOrder + GraphType> GraphWriter<G> for MetisWriter {
     fn try_write_graph<W: Write>(&self, graph: &G, mut writer: W) -> std::io::Result<()> {
         self.header.write_header(
             &mut writer,

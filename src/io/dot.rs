@@ -23,24 +23,24 @@ use crate::ops::{AdjacencyList, GraphType};
 use super::*;
 
 /// A writer for the Dot-Format
-#[derive(Debug, Copy, Clone)]
-pub struct DotWriter<'a> {
+#[derive(Debug, Clone)]
+pub struct DotWriter {
     /// Increment nodes by 1 before writing
     inc_nodes: bool,
     /// Prefix of a node (default: 'u')
-    prefix: &'a str,
+    prefix: String,
 }
 
-impl<'a> Default for DotWriter<'a> {
+impl Default for DotWriter {
     fn default() -> Self {
         Self {
             inc_nodes: true,
-            prefix: "u",
+            prefix: "u".to_string(),
         }
     }
 }
 
-impl<'a> DotWriter<'a> {
+impl DotWriter {
     /// Shorthand for default
     pub fn new() -> Self {
         Self::default()
@@ -54,10 +54,10 @@ impl<'a> DotWriter<'a> {
 
     /// Set the prefix of a node (`u` by default). Can also be changed while drawing to draw
     /// additional subgraphs apart from the original graph.
-    pub fn node_prefix<'b>(self, prefix: &'b str) -> DotWriter<'b> {
+    pub fn node_prefix<S: Into<String>>(self, prefix: S) -> DotWriter {
         DotWriter {
             inc_nodes: self.inc_nodes,
-            prefix,
+            prefix: prefix.into(),
         }
     }
 
@@ -128,7 +128,7 @@ impl<'a> DotWriter<'a> {
     }
 }
 
-impl<'a, G: AdjacencyList + GraphType> GraphWriter<G> for DotWriter<'a> {
+impl<G: AdjacencyList + GraphType> GraphWriter<G> for DotWriter {
     fn try_write_graph<W: Write>(&self, graph: &G, mut writer: W) -> std::io::Result<()> {
         let directed = graph.is_directed();
         self.start_graph(&mut writer, directed)?;
@@ -164,7 +164,7 @@ impl Display for DotColor {
 
 /// List of all permitted Colors in Svg-Dot taken from
 /// `https://graphviz.gitlab.io/doc/info/colors.html#svg`
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum DotColor {
     AliceBlue,
     AntiqueWhite,

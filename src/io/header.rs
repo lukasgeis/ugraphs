@@ -1,4 +1,4 @@
-//! # Graph Headers
+//! # Headers
 //!
 //! A header(-line) for a graph file is usually defined by a series of tokens (separated by " " most often),
 //! defining the size of the graph and/or the problem, the graph was 'created' for.
@@ -13,12 +13,12 @@ use smallvec::{SmallVec, smallvec};
 use super::*;
 
 /// Defining a single token in the header
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum HeaderToken<'a> {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HeaderToken {
     /// Ignore entry
     Any,
     /// Match entry to str
-    Str(&'a str),
+    Str(String),
     /// Parse number of nodes
     NumNodes,
     /// Parse number of edges
@@ -29,8 +29,12 @@ pub enum HeaderToken<'a> {
     Rest,
 }
 
-/// When writing a header, this is the representation for HeaderToken::Any
-const HEADER_TOKEN_ANY_STR: &str = "0";
+impl HeaderToken {
+    /// When writing a header, this is the representation for HeaderToken::Any
+    fn any_string() -> String {
+        "0".to_string()
+    }
+}
 
 /// Defines the complete format of the header.
 ///
@@ -42,7 +46,6 @@ const HEADER_TOKEN_ANY_STR: &str = "0";
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HeaderFormat<
-    'a,
     // Set to *true* if the position for number of nodes was set
     const NODES_SET: bool = false,
     // Set to *true* if the position for number of edges was set
@@ -50,12 +53,12 @@ pub struct HeaderFormat<
     // Set to *true* if `NODES_SET = true & EDGES_SET = true` and
     // the last entry matches `HeaderToken::End | HeaderToken::Rest`
     const END: bool = false,
->(SmallVec<[HeaderToken<'a>; 6]>);
+>(SmallVec<[HeaderToken; 6]>);
 
 /// A header is defined as a format that satisfies all prerequisites.
-pub type Header<'a> = HeaderFormat<'a, true, true, true>;
+pub type Header = HeaderFormat<true, true, true>;
 
-impl<'a> Default for HeaderFormat<'a, true, true, true> {
+impl Default for HeaderFormat<true, true, true> {
     /// Often (Pace...), number of nodes and edges are the third and fourth token in the header.
     /// We also ignore every other entry to not hard-code problem definitions.
     fn default() -> Self {
@@ -69,12 +72,12 @@ impl<'a> Default for HeaderFormat<'a, true, true, true> {
     }
 }
 
-impl<'a> HeaderFormat<'a, true, true, true> {
+impl Header {
     /// Creates a new HeaderFormat in the Pace-Style which is always valid
-    pub fn new_problem(problem: &'a str) -> Self {
+    pub fn new_problem<S: Into<String>>(problem: S) -> Self {
         Self(smallvec![
-            HeaderToken::Str("p"),
-            HeaderToken::Str(problem),
+            HeaderToken::Str("p".to_string()),
+            HeaderToken::Str(problem.into()),
             HeaderToken::NumNodes,
             HeaderToken::NumEdges,
             HeaderToken::End,
@@ -91,7 +94,7 @@ impl<'a> HeaderFormat<'a, true, true, true> {
         let mut index = 0;
 
         while let Some(entry) = parts.next() {
-            match self.0[index] {
+            match &self.0[index] {
                 HeaderToken::Any => continue,
                 HeaderToken::Str(p) => {
                     raise_error_unless!(entry == p, ErrorKind::InvalidData, "Invalid header found");
@@ -137,7 +140,7 @@ impl<'a> HeaderFormat<'a, true, true, true> {
             .iter()
             .take(self.0.len() - 1)
             .map(|token| match token {
-                HeaderToken::Any => HEADER_TOKEN_ANY_STR.to_string(),
+                HeaderToken::Any => HeaderToken::any_string(),
                 HeaderToken::Str(s) => s.to_string(),
                 HeaderToken::NumNodes => n.to_string(),
                 HeaderToken::NumEdges => m.to_string(),
@@ -150,11 +153,9 @@ impl<'a> HeaderFormat<'a, true, true, true> {
     }
 }
 
-impl<'a, const NODES_SET: bool, const EDGES_SET: bool>
-    HeaderFormat<'a, NODES_SET, EDGES_SET, false>
-{
+impl<const NODES_SET: bool, const EDGES_SET: bool> HeaderFormat<NODES_SET, EDGES_SET, false> {
     /// Creates a new empty format
-    pub fn new() -> HeaderFormat<'a, false, false, false> {
+    pub fn new() -> HeaderFormat<false, false, false> {
         HeaderFormat(smallvec![])
     }
 
@@ -165,37 +166,37 @@ impl<'a, const NODES_SET: bool, const EDGES_SET: bool>
     }
 
     /// Pushes a token that should match a string onto the stack
-    pub fn str(mut self, s: &'a str) -> Self {
-        self.0.push(HeaderToken::Str(s));
+    pub fn str<S: Into<String>>(mut self, s: S) -> Self {
+        self.0.push(HeaderToken::Str(s.into()));
         self
     }
 }
 
-impl<'a, const EDGES_SET: bool> HeaderFormat<'a, false, EDGES_SET, false> {
+impl<const EDGES_SET: bool> HeaderFormat<false, EDGES_SET, false> {
     /// Adds the number of nodes token onto the stack
-    pub fn number_of_nodes(mut self) -> HeaderFormat<'a, true, EDGES_SET, false> {
+    pub fn number_of_nodes(mut self) -> HeaderFormat<true, EDGES_SET, false> {
         self.0.push(HeaderToken::NumNodes);
         HeaderFormat(self.0)
     }
 }
 
-impl<'a, const NODES_SET: bool> HeaderFormat<'a, NODES_SET, false, false> {
+impl<const NODES_SET: bool> HeaderFormat<NODES_SET, false, false> {
     /// Adds the number of edges token onto the stack
-    pub fn number_of_edges(mut self) -> HeaderFormat<'a, NODES_SET, true, false> {
+    pub fn number_of_edges(mut self) -> HeaderFormat<NODES_SET, true, false> {
         self.0.push(HeaderToken::NumEdges);
         HeaderFormat(self.0)
     }
 }
 
-impl<'a> HeaderFormat<'a, true, true, false> {
+impl HeaderFormat<true, true, false> {
     /// Marks the header as finished ensuring that no further tokens follow
-    pub fn end(mut self) -> HeaderFormat<'a, true, true, true> {
+    pub fn end(mut self) -> HeaderFormat<true, true, true> {
         self.0.push(HeaderToken::End);
         HeaderFormat(self.0)
     }
 
     /// Marks the header as finished ignoring all further tokens
-    pub fn ignore_rest(mut self) -> HeaderFormat<'a, true, true, true> {
+    pub fn ignore_rest(mut self) -> HeaderFormat<true, true, true> {
         self.0.push(HeaderToken::Rest);
         HeaderFormat(self.0)
     }
