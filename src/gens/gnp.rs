@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use crate::{gens::*, utils::*};
 
-/// A G(n, p) graph can be defined by either a probability or the average degree which is more
+/// A G(n,p) graph can be defined by either a probability or the average degree which is more
 /// common in practice
 #[derive(Debug, Copy, Clone, Default)]
 enum GnpType {
@@ -44,7 +44,7 @@ impl Gnp {
 
 impl NumNodesGen for Gnp {
     /// Updates `n`
-    fn nodes(mut self, n: usize) -> Self {
+    fn nodes(mut self, n: NumNodes) -> Self {
         self.n = n as u64;
         self
     }
@@ -59,7 +59,7 @@ impl AverageDegreeGen for Gnp {
     }
 }
 
-impl StreamingGenerator for Gnp {
+impl GraphGenerator for Gnp {
     /// Creates a streaming generator over random `G(n,p)` edges
     fn stream<R: Rng>(&self, rng: &mut R) -> impl Iterator<Item = Edge> {
         assert!(self.n > 0, "At least one node must be generated!");
@@ -110,13 +110,13 @@ impl Gn {
 }
 
 impl NumNodesGen for Gn {
-    fn nodes(mut self, n: usize) -> Self {
+    fn nodes(mut self, n: NumEdges) -> Self {
         self.n = n as u64;
         self
     }
 }
 
-impl StreamingGenerator for Gn {
+impl GraphGenerator for Gn {
     fn stream<R: Rng>(&self, rng: &mut R) -> impl Iterator<Item = Edge> {
         assert!(self.n > 0, "At least one node must be generated!");
         GeometricJumper::new(0.5)

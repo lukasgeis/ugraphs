@@ -4,7 +4,10 @@
 
 use rand::Rng;
 
-use crate::*;
+use crate::{
+    ops::{GraphFromScratch, GraphType},
+    *,
+};
 
 mod gnp;
 
@@ -14,13 +17,13 @@ pub use gnp::*;
 // Should be almost (if not) all but we abstract anyway to keep the pattern.
 pub trait NumNodesGen {
     /// Set the number of nodes of this generator.
-    fn nodes(self, n: usize) -> Self;
+    fn nodes(self, n: NumNodes) -> Self;
 }
 
 /// Builder trait for generators that allow setting the number of edges.
 pub trait NumEdgesGen {
     /// Set the number of edges of this generator.
-    fn edges(self, m: usize) -> Self;
+    fn edges(self, m: NumEdges) -> Self;
 }
 
 /// Builder trait for generators that allow setting the average AverageDegree
@@ -29,21 +32,46 @@ pub trait AverageDegreeGen {
     fn avg_deg(self, deg: f64) -> Self;
 }
 
-/// General trait for a random graph generator: sample a list of edges.
-pub trait Generator {
+/// General trait for a random graph generator
+pub trait GraphGenerator {
     /// Create a list of random edges of this generator
-    fn generate<R: Rng>(&self, rng: &mut R) -> Vec<Edge>;
-}
+    fn generate<R: Rng>(&self, rng: &mut R) -> Vec<Edge> {
+        self.stream(rng).collect()
+    }
 
-/// General trait for a random graph generator that allows sampling edges as an iterator.
-pub trait StreamingGenerator {
     /// Create a stream over random edges of this generator
     fn stream<R: Rng>(&self, rng: &mut R) -> impl Iterator<Item = Edge>;
 }
 
-impl<SG: StreamingGenerator> Generator for SG {
-    #[inline]
-    fn generate<R: Rng>(&self, rng: &mut R) -> Vec<Edge> {
-        self.stream(rng).collect()
+/// Trait for generating a random graph
+pub trait RandomGraph {
+    /// Creates a random `G(n,p)` graph
+    fn new_gnp_graph<R: Rng>(rng: &mut R, n: NumNodes, p: f64) -> Self;
+
+    /// Creates a new `G(n,p)` graph with no loops
+    fn new_gnp_graph_no_loops<R: Rng>(rng: &mut R, n: NumNodes, p: f64) -> Self;
+}
+
+impl<G: GraphFromScratch + GraphType> RandomGraph for G {
+    fn new_gnp_graph<R: Rng>(rng: &mut R, n: NumNodes, p: f64) -> Self {
+        Self::from_edges(
+            n,
+            Gnp::new()
+                .nodes(n)
+                .prob(p)
+                .stream(rng)
+                .filter(|e| Self::DIRECTED || e.is_normalized()),
+        )
+    }
+
+    fn new_gnp_graph_no_loops<R: Rng>(rng: &mut R, n: NumNodes, p: f64) -> Self {
+        Self::from_edges(
+            n,
+            Gnp::new()
+                .nodes(n)
+                .prob(p)
+                .stream(rng)
+                .filter(|e| !e.is_loop() && (Self::DIRECTED || e.is_normalized())),
+        )
     }
 }
