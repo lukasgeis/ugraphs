@@ -200,7 +200,7 @@ impl<G: AdjacencyList + GraphEdgeOrder + GraphType> GraphWriter<G> for EdgeListW
             graph.number_of_edges(),
         )?;
 
-        for Edge(u, v) in graph.edges(graph.is_undirected()) {
+        for Edge(u, v) in graph.edges(G::is_undirected()) {
             writeln!(writer, "{} {}", u + 1, v + 1)?;
         }
 

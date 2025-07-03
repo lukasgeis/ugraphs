@@ -130,7 +130,7 @@ impl DotWriter {
 
 impl<G: AdjacencyList + GraphType> GraphWriter<G> for DotWriter {
     fn try_write_graph<W: Write>(&self, graph: &G, mut writer: W) -> std::io::Result<()> {
-        let directed = graph.is_directed();
+        let directed = G::is_directed();
         self.start_graph(&mut writer, directed)?;
         self.write_edges(&mut writer, graph.edges(!directed), directed, None)?;
         self.finish_graph(&mut writer)

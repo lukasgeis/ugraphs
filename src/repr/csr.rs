@@ -30,9 +30,9 @@ pub struct CrossCsrGraph {
 }
 
 macro_rules! impl_common_csr_graph_ops {
-    ($struct:ident, $nbs:ident, $directed:literal) => {
+    ($struct:ident, $nbs:ident, $directed:ident) => {
         impl GraphType for $struct {
-            const DIRECTED: bool = $directed;
+            type Dir = $directed;
         }
 
         impl GraphNodeOrder for $struct {
@@ -71,9 +71,9 @@ macro_rules! impl_common_csr_graph_ops {
     };
 }
 
-impl_common_csr_graph_ops!(CsrGraph, out_nbs, true);
-impl_common_csr_graph_ops!(CsrGraphIn, out_nbs, true);
-impl_common_csr_graph_ops!(CsrGraphUndir, nbs, false);
+impl_common_csr_graph_ops!(CsrGraph, out_nbs, GraphDirected);
+impl_common_csr_graph_ops!(CsrGraphIn, out_nbs, GraphDirected);
+impl_common_csr_graph_ops!(CsrGraphUndir, nbs, GraphUndirected);
 
 impl DirectedAdjacencyList for CsrGraph {
     fn in_neighbors_of(&self, u: Node) -> impl Iterator<Item = Node> + '_ {
@@ -116,7 +116,7 @@ impl GraphEdgeOrder for CsrGraphUndir {
 }
 
 impl GraphType for CrossCsrGraph {
-    const DIRECTED: bool = false;
+    type Dir = GraphUndirected;
 }
 
 impl GraphNodeOrder for CrossCsrGraph {

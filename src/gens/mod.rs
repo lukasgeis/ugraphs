@@ -60,7 +60,7 @@ impl<G: GraphFromScratch + GraphType> RandomGraph for G {
                 .nodes(n)
                 .prob(p)
                 .stream(rng)
-                .filter(|e| Self::DIRECTED || e.is_normalized()),
+                .filter(|e| Self::is_directed() || e.is_normalized()),
         )
     }
 
@@ -71,7 +71,7 @@ impl<G: GraphFromScratch + GraphType> RandomGraph for G {
                 .nodes(n)
                 .prob(p)
                 .stream(rng)
-                .filter(|e| !e.is_loop() && (Self::DIRECTED || e.is_normalized())),
+                .filter(|e| !e.is_loop() && (Self::is_directed() || e.is_normalized())),
         )
     }
 }

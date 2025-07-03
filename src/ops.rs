@@ -5,18 +5,58 @@ use stream_bitset::prelude::*;
 
 use crate::*;
 
+/// Possible values for graph directions
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum GraphDirection {
+    Directed,
+    Undirected,
+}
+
+/// Marker struct for directed graphs
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct GraphDirected;
+
+/// Marker struct for undirected graphs
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct GraphUndirected;
+
+/// Marker trait for direction of graphs
+pub trait GraphDir {
+    fn direction() -> GraphDirection;
+}
+
+impl GraphDir for GraphDirected {
+    #[inline(always)]
+    fn direction() -> GraphDirection {
+        GraphDirection::Directed
+    }
+}
+
+impl GraphDir for GraphUndirected {
+    #[inline(always)]
+    fn direction() -> GraphDirection {
+        GraphDirection::Undirected
+    }
+}
+
 /// Trait for identifying whether a graph is directed/undirected
 pub trait GraphType {
-    const DIRECTED: bool;
+    /// Getter for graph direction.
+    /// As `#![feature(associated_const_equality)]` is not stable yet,
+    /// this allows for (future) selective implementations of algorithms/generators
+    /// that are only meant for directed/undirected graphs.
+    type Dir: GraphDir;
 
     /// Returns *true* if the graph is directed
-    fn is_directed(&self) -> bool {
-        Self::DIRECTED
+    #[inline(always)]
+    fn is_directed() -> bool {
+        Self::Dir::direction() == GraphDirection::Directed
     }
 
     /// Returns *true* if the graph is undirected
-    fn is_undirected(&self) -> bool {
-        !Self::DIRECTED
+    #[inline(always)]
+    fn is_undirected() -> bool {
+        Self::Dir::direction() == GraphDirection::Undirected
     }
 }
 

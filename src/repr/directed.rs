@@ -43,8 +43,8 @@ pub type AdjMatrixIn = DirectedGraphIn<BitNeighborhood, BitNeighborhood>;
 /// - Adjacency-Matrix for incoming Neighborhoods
 pub type AdjArrayMatrix = DirectedGraphIn<ArrNeighborhood, BitNeighborhood>;
 
-impl_common_graph_ops!(DirectedGraph<out_nbs : OutNbs> => out_nbs, true);
-impl_common_graph_ops!(DirectedGraphIn<out_nbs : OutNbs, in_nbs: InNbs> => out_nbs, true);
+impl_common_graph_ops!(DirectedGraph<out_nbs : OutNbs> => out_nbs, GraphDirected);
+impl_common_graph_ops!(DirectedGraphIn<out_nbs : OutNbs, in_nbs: InNbs> => out_nbs, GraphDirected);
 
 impl<OutNbs: Neighborhood> DirectedAdjacencyList for DirectedGraph<OutNbs> {
     fn in_neighbors_of(&self, u: Node) -> impl Iterator<Item = Node> + '_ {
