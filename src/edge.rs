@@ -48,6 +48,13 @@ impl Edge {
     pub fn reverse(&self) -> Self {
         Edge(self.1, self.0)
     }
+
+    /// Simple bidirection from `0..n^2` to all possible (directed) edges of `n` nodes
+    pub fn from_u64(x: u64, n: u64) -> Self {
+        let u = x / n;
+        let v = x % n;
+        Edge(u as Node, v as Node)
+    }
 }
 
 impl From<(Node, Node)> for Edge {
