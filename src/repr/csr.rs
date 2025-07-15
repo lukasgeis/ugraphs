@@ -71,9 +71,9 @@ macro_rules! impl_common_csr_graph_ops {
     };
 }
 
-impl_common_csr_graph_ops!(CsrGraph, out_nbs, GraphDirected);
-impl_common_csr_graph_ops!(CsrGraphIn, out_nbs, GraphDirected);
-impl_common_csr_graph_ops!(CsrGraphUndir, nbs, GraphUndirected);
+impl_common_csr_graph_ops!(CsrGraph, out_nbs, Directed);
+impl_common_csr_graph_ops!(CsrGraphIn, out_nbs, Directed);
+impl_common_csr_graph_ops!(CsrGraphUndir, nbs, Undirected);
 
 impl DirectedAdjacencyList for CsrGraph {
     fn in_neighbors_of(&self, u: Node) -> impl Iterator<Item = Node> + '_ {
@@ -116,7 +116,7 @@ impl GraphEdgeOrder for CsrGraphUndir {
 }
 
 impl GraphType for CrossCsrGraph {
-    type Dir = GraphUndirected;
+    type Dir = Undirected;
 }
 
 impl GraphNodeOrder for CrossCsrGraph {

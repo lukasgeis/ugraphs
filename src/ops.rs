@@ -14,25 +14,25 @@ pub enum GraphDirection {
 
 /// Marker struct for directed graphs
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct GraphDirected;
+pub struct Directed;
 
 /// Marker struct for undirected graphs
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct GraphUndirected;
+pub struct Undirected;
 
 /// Marker trait for direction of graphs
 pub trait GraphDir {
     fn direction() -> GraphDirection;
 }
 
-impl GraphDir for GraphDirected {
+impl GraphDir for Directed {
     #[inline(always)]
     fn direction() -> GraphDirection {
         GraphDirection::Directed
     }
 }
 
-impl GraphDir for GraphUndirected {
+impl GraphDir for Undirected {
     #[inline(always)]
     fn direction() -> GraphDirection {
         GraphDirection::Undirected
