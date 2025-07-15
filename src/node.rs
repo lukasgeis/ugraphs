@@ -37,3 +37,28 @@ impl<const N: Node> OptionalNodeImpl<N> {
         self.0.get() ^ N
     }
 }
+
+/// As `Option<u64>` uses additional bytes for padding, it can be inefficient
+/// since we often need to use `Vec<Option<u64>>`. This instead uses the
+/// `NonZero`-Wrapper to assign a constant value (often)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(transparent)]
+pub struct OptionalU64Impl<const N: u64>(NonZero<u64>);
+
+/// Often, `u64::MAX` is safe to pick as the `None`-Value
+pub type OptionalU64 = OptionalU64Impl<{ u64::MAX }>;
+
+impl<const N: u64> OptionalU64Impl<N> {
+    /// Returns `Some(OptionalU64Impl)` if `n != N` and `None` otherwise
+    pub const fn new(n: u64) -> Option<Self> {
+        match NonZero::new(n ^ N) {
+            Some(inner) => Some(OptionalU64Impl(inner)),
+            None => None,
+        }
+    }
+
+    /// Gets the underlying u64-Value
+    pub const fn get(&self) -> u64 {
+        self.0.get() ^ N
+    }
+}

@@ -9,8 +9,10 @@ use crate::{
     *,
 };
 
+mod gnm;
 mod gnp;
 
+pub use gnm::*;
 pub use gnp::*;
 
 // Builder trait for generators that allow setting the number of nodes.
