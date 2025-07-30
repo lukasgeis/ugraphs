@@ -2,6 +2,7 @@
 //!
 //! Module probiding multiple (random) graph generators.
 
+use fxhash::FxHashMap;
 use rand::Rng;
 
 use crate::{
@@ -11,9 +12,11 @@ use crate::{
 
 mod gnm;
 mod gnp;
+mod rhg;
 
 pub use gnm::*;
 pub use gnp::*;
+pub use rhg::*;
 
 // Builder trait for generators that allow setting the number of nodes.
 // Should be almost (if not) all but we abstract anyway to keep the pattern.
@@ -46,12 +49,20 @@ pub trait GraphGenerator {
 }
 
 /// Trait for generating a random graph
-pub trait RandomGraph {
+pub trait RandomGraph: Sized {
     /// Creates a random `G(n,p)` graph
     fn new_gnp_graph<R: Rng>(rng: &mut R, n: NumNodes, p: f64) -> Self;
 
     /// Creates a new `G(n,p)` graph with no loops
     fn new_gnp_graph_no_loops<R: Rng>(rng: &mut R, n: NumNodes, p: f64) -> Self;
+
+    /// Creates a random `G(n,m)` graph
+    fn new_gnm_graph<R: Rng>(rng: &mut R, n: NumNodes, m: NumEdges) -> Self {
+        Self::new_gnm_graph_with_map::<R, FxHashMap<u64, OptionalU64>>(rng, n, m)
+    }
+
+    /// Creates a random `G(n,m)` graph with a custom Mapper
+    fn new_gnm_graph_with_map<R: Rng, H: GnmMap>(rng: &mut R, n: NumNodes, m: NumEdges) -> Self;
 }
 
 impl<G: GraphFromScratch + GraphType> RandomGraph for G {
@@ -74,6 +85,17 @@ impl<G: GraphFromScratch + GraphType> RandomGraph for G {
                 .prob(p)
                 .stream(rng)
                 .filter(|e| !e.is_loop() && (Self::is_directed() || e.is_normalized())),
+        )
+    }
+
+    fn new_gnm_graph_with_map<R: Rng, H: GnmMap>(rng: &mut R, n: NumNodes, m: NumEdges) -> Self {
+        Self::from_edges(
+            n,
+            Gnm::<H>::new()
+                .nodes(n)
+                .edges(m)
+                .undirected(Self::is_undirected())
+                .stream(rng),
         )
     }
 }

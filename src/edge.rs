@@ -51,9 +51,50 @@ impl Edge {
 
     /// Simple bidirection from `0..n^2` to all possible (directed) edges of `n` nodes
     pub fn from_u64(x: u64, n: u64) -> Self {
+        debug_assert!(x < n * n);
+
         let u = x / n;
         let v = x % n;
         Edge(u as Node, v as Node)
+    }
+
+    /// Simple bidirection from `0..(n choose 2)` to all possible normalized edges of `n` nodes.
+    ///
+    /// The bidirecton works by assigning each node the next `(n - 1)/2` neighbors modulo `n`
+    /// (up to rounding) and normalizing the resulting edge
+    pub fn from_u64_undir(mut x: u64, n: u64) -> Self {
+        debug_assert!(x < n * (n - 1) / 2);
+
+        let mut num_neighbors = (n - 1) / 2;
+        // Easy case where `n - 1` is even and no corner cases exist
+        if n & 1 == 1 {
+            let u = x / num_neighbors;
+            let v = (u + 1 + (x % num_neighbors)) % n;
+
+            Edge(u as Node, v as Node).normalized()
+        // Harder case where `n - 1` is odd and the number of checked neighbors alternates
+        } else {
+            let half_n = n / 2;
+            let lower_half = num_neighbors * half_n;
+
+            // x is in the half where we only enumerate `floor((n - 1) / 2)` neighbors
+            if x < lower_half {
+                let u = x / num_neighbors;
+                let v = (u + 1 + (x % num_neighbors)) % n;
+
+                // Edges are guaranteed to be normalized in the lower half
+                return Edge(u as Node, v as Node);
+            }
+
+            // x is the upper half where we enumerate `ceil((n - 1) / 2)` neighbors
+            x -= lower_half;
+            num_neighbors += 1;
+
+            let u = (x / num_neighbors) + half_n;
+            let v = (u + 1 + (x % num_neighbors)) % n;
+
+            Edge(u as Node, v as Node).normalized()
+        }
     }
 }
 
