@@ -5,10 +5,10 @@ macro_rules! impl_multi_iterators {
         $name:ident -> $($T:ident:$G:ident),+;
     )*) => {
         $(
-            pub enum $name<I, $($G),+>
+            pub enum $name<IterItem, $($G),+>
             where
                 $(
-                    $G: Iterator<Item = I>,
+                    $G: Iterator<Item = IterItem>,
                 )+
             {
                 $(
@@ -16,13 +16,13 @@ macro_rules! impl_multi_iterators {
                 )+
             }
 
-            impl<I, $($G),+> Iterator for $name<I, $($G),+>
+            impl<IterItem, $($G),+> Iterator for $name<IterItem, $($G),+>
             where
                 $(
-                    $G: Iterator<Item = I>,
+                    $G: Iterator<Item = IterItem>,
                 )+
             {
-                type Item = I;
+                type Item = IterItem;
                 fn next(&mut self) -> Option<Self::Item> {
                     match self {
                         $(

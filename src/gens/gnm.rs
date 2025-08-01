@@ -8,28 +8,49 @@ use crate::{
     utils::{FromCapacity, Map},
 };
 
-/// A G(n,m) graph can be defined by either the number of edges or the average degree
+/// Configuration type used by [`Gnm`] to determine how the graph should be parameterized.
+///
+/// This can be either:
+/// - a fixed number of edges, or
+/// - an average degree value, which is converted into an edge count during generation.
 #[derive(Debug, Copy, Clone, Default)]
 enum GnmType {
-    /// No value has been set yet
+    /// No value has been set yet; using this will panic at runtime.
     #[default]
     NotSet,
-    /// Number of Edges
+    /// Fixed number of edges `m`.
     Edges(NumEdges),
-    /// Average degree of a node
+    /// Average degree `d`, to be converted to `m = d*n`.
     AvgDeg(f64),
 }
 
+/// Marker trait to generalize over internal map implementations for tracking chosen edges.
+///
+/// This allows users to customize the underlying structure used to perform the edge shuffle
+/// in `G(n,m)` generation (e.g., [`FxHashMap`], `Vec`, or any other custom map-like container).
+///
+/// Must implement both [`FromCapacity`] and [`Map<K, V>`] with `K = u64`, `V = OptionalU64`.
 pub trait GnmMap: FromCapacity + Map<u64, OptionalU64> {}
 impl<H: FromCapacity + Map<u64, OptionalU64>> GnmMap for H {}
 
-/// `G(n,m)` graphs are uniform graphs with `n` nodes and `m` edges.
+/// Generator for uniform `G(n,m)` random graphs with `n` nodes and `m` edges.
+///
+/// The generator can be parameterized via:
+/// - `.nodes(n)` — total number of nodes
+/// - `.edges(m)` or `.avg_deg(d)` — total number of edges or average degree
+/// - `.directed(bool)` or `.undirected(bool)` — whether the graph is directed
+/// - `.with_mapper<T>()` — optionally override the internal map type
+///
+/// The choice of internal map structure (`GnmMap`) allows performance tuning:
+/// - [`FxHashMap`] (default) for general use
+/// - `Vec`-based maps for dense graphs
 #[derive(Debug, Copy, Clone)]
 pub struct Gnm<H: GnmMap = FxHashMap<u64, OptionalU64>> {
     n: u64,
     m: GnmType,
-    /// It is important to know beforehand whether the graph is supposed to be undirected or
-    /// not as this changes the workings of the generator itself.
+    /// Whether the graph is undirected or not.
+    ///
+    /// This affects how edges are interpreted and mapped.
     undirected: bool,
     _phantom: PhantomData<H>,
 }
@@ -46,24 +67,31 @@ impl<H: GnmMap> Default for Gnm<H> {
 }
 
 impl<H: GnmMap> Gnm<H> {
-    /// Creates a new empty `G(n,p)` generator
+    /// Creates a new empty `G(n,m)` generator.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Change whether the graph is directed or not
+    /// Marks the graph as directed (or not).
+    ///
+    /// Note: `.undirected(bool)` is preferred for clarity.
     pub fn directed(mut self, directed: bool) -> Self {
         self.undirected = !directed;
         self
     }
 
-    /// Change whether the graph is undirected or not
+    /// Marks the graph as undirected (or not).
+    ///
+    /// Affects how edges are interpreted internally (e.g., `u64 -> Edge` mapping).
     pub fn undirected(mut self, undirected: bool) -> Self {
         self.undirected = undirected;
         self
     }
 
-    /// Change the underlying mapper used
+    /// Switches the internal map implementation used for edge sampling.
+    ///
+    /// This allows replacing the default [`FxHashMap`] with a faster or more memory-efficient
+    /// structure for specific scenarios (e.g., `Vec` for dense graphs).
     pub fn with_mapper<M: FromCapacity + Map<u64, OptionalU64>>(self) -> Gnm<M> {
         Gnm {
             n: self.n,
@@ -75,7 +103,7 @@ impl<H: GnmMap> Gnm<H> {
 }
 
 impl<H: GnmMap> NumNodesGen for Gnm<H> {
-    /// Updates `n`
+    /// Sets the number of nodes `n` in the graph.
     fn nodes(mut self, n: NumNodes) -> Self {
         self.n = n as u64;
         self
@@ -83,7 +111,7 @@ impl<H: GnmMap> NumNodesGen for Gnm<H> {
 }
 
 impl<H: GnmMap> NumEdgesGen for Gnm<H> {
-    /// Updates `m`
+    /// Sets the number of edges `m` in the graph.
     fn edges(mut self, m: NumEdges) -> Self {
         self.m = GnmType::Edges(m);
         self
@@ -91,8 +119,9 @@ impl<H: GnmMap> NumEdgesGen for Gnm<H> {
 }
 
 impl<H: GnmMap> AverageDegreeGen for Gnm<H> {
-    /// Updates `p` such that `m = d * n` (accounts for direction of graph).
-    /// Note that this conversion will only be done when calling `stream/generate`.
+    /// Sets the average degree `d` in the graph.
+    ///
+    /// Internally converted to an edge count: `m = d*n`.
     fn avg_deg(mut self, deg: f64) -> Self {
         self.m = GnmType::AvgDeg(deg);
         self
@@ -100,6 +129,13 @@ impl<H: GnmMap> AverageDegreeGen for Gnm<H> {
 }
 
 impl<H: GnmMap> GraphGenerator for Gnm<H> {
+    /// Returns a streaming iterator over a random `G(n,m)` edge set.
+    ///
+    /// Internally, edges are uniformly sampled without replacement.
+    ///
+    /// # Panics
+    /// - If `n == 0`
+    /// - If neither `edges(m)` nor `avg_deg(d)` was set
     fn stream<R: Rng>(&self, rng: &mut R) -> impl Iterator<Item = Edge> {
         assert!(self.n > 0, "At least one node must be generated!");
         let m = match self.m {
@@ -126,6 +162,16 @@ impl<H: GnmMap> GraphGenerator for Gnm<H> {
     }
 }
 
+/// Given `n` nodes and a total edge space of size `end` (depending on whether the graph is
+/// directed or undirected), this iterator produces exactly `m` uniformly random and distinct
+/// edges without replacement.
+///
+/// The algorithm used is based on:
+/// > *V. Batagelj and U. Brandes. Efficient Generation of Large Random Networks.
+/// > Physical Review E 71.3 (2005): 036113.*
+///
+/// The implementation avoids full shuffling by using a partial mapping technique
+/// (sometimes called "hash-based sampling") to simulate an in-place permutation.
 pub struct GnmGenerator<'a, R: Rng, H: Map<u64, OptionalU64>> {
     n: u64,
     rem: u64,
@@ -137,7 +183,12 @@ pub struct GnmGenerator<'a, R: Rng, H: Map<u64, OptionalU64>> {
 }
 
 impl<'a, R: Rng, H: Map<u64, OptionalU64>> GnmGenerator<'a, R, H> {
-    /// Creates a new generator
+    /// Creates a new `GnmGenerator`.
+    ///
+    /// This generator yields exactly `m` random edge values in `[0, end)`, avoiding duplicates.
+    ///
+    /// # Panics
+    /// Panics if `m > end`, which would violate sampling without replacement.
     pub fn new(rng: &'a mut R, n: u64, m: u64, map: H, undirected: bool) -> Self {
         let end = if undirected { n * (n - 1) / 2 } else { n * n };
         debug_assert!(m <= end);
@@ -153,7 +204,10 @@ impl<'a, R: Rng, H: Map<u64, OptionalU64>> GnmGenerator<'a, R, H> {
         }
     }
 
-    /// Draws the next random edge as `u64` or returns None if no edges remain
+    /// Selects the next unique edge index using the Batagelj–Brandes partial mapping method.
+    ///
+    /// This method emulates a Fisher-Yates shuffle on-the-fly using a sparse map structure
+    /// to track remappings. Ensures `m` unique samples from `[0, end)`.
     fn next_step(&mut self) -> Option<u64> {
         // Stop if `m` values were generated
         if self.rem == 0 {
@@ -195,7 +249,7 @@ impl<'a, R: Rng, H: Map<u64, OptionalU64>> Iterator for GnmGenerator<'a, R, H> {
         })
     }
 
-    /// The exact size of a valid iterator is given by the number of remaining edges to be drawn
+    /// Returns the number of edges remaining to be generated.
     fn size_hint(&self) -> (usize, Option<usize>) {
         (self.rem as usize, Some(self.rem as usize))
     }

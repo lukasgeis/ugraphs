@@ -2,26 +2,37 @@ use std::fmt::Debug;
 
 use crate::{gens::*, utils::*};
 
-/// A G(n,p) graph can be defined by either a probability or the average degree which is more
-/// common in practice
+/// Internal representation of how a `G(n,p)` generator is parameterized.
+///
+/// This enum allows the generator to be configured using either:
+/// - a direct edge probability (`p`), or
+/// - an average node degree (`d`), which is internally converted to a probability.
+///
+/// Used internally by [`Gnp`] to delay parameter conversion until generation time.
 #[derive(Debug, Copy, Clone, Default)]
 enum GnpType {
-    /// No value has been set yet
+    /// No parameters set yet; using this will panic at runtime.
     #[default]
     NotSet,
-    /// Direct probability value
+    /// Explicit edge probability value.
     Prob(f64),
-    /// Average degree of a node
+    /// Average degree per node (converted internally to `p = d/n`).
     AvgDeg(f64),
 }
 
-/// `G(n,p)` graphs generate every possible edge in a graph with `n` nodes with probability `p`
-/// independent from each other.
+/// Generator for `G(n,p)` random graphs.
 ///
-/// Due to this independence, we do not need to incorporate normalized-checks for undirected graphs
-/// or self-loop checks in the generator itself as the overhead is minimal (`2 * n/(n - 1)` at most).
+/// In a `G(n,p)` graph, each of the `n*(n-1)/2` or `n*n` possible directed/undirected/self-loop
+/// edge combinations is included independently with probability `p`.
 ///
-/// Filterings of this sort are thus up to the caller.
+/// This generator can be parameterized either by setting a direct probability `p`
+/// or by specifying an average degree `d`, which will be converted to `p = d/n`.
+///
+/// > **Note:** No filtering is done automatically.
+/// > Callers are responsible for filtering if needed.
+///
+/// This generator produces edges lazily using the inversion method of [`GeometricJumper`] to
+/// sample edges efficiently.
 #[derive(Debug, Copy, Clone, Default)]
 pub struct Gnp {
     n: u64,
@@ -29,12 +40,17 @@ pub struct Gnp {
 }
 
 impl Gnp {
-    /// Creates a new empty `G(n,p)` generator
+    /// Creates a new, empty `G(n,p)` generator.
+    ///
+    /// By default, this has no parameters set. Use builder methods to configure it.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Updates `p` directly
+    /// Sets the probability `p` used for generating each edge independently.
+    ///
+    /// # Panics
+    /// Panics if `p` is not within the valid probability range `[0.0, 1.0]`.
     pub fn prob(mut self, prob: f64) -> Self {
         assert!(prob.is_valid_probility());
         self.p = GnpType::Prob(prob);
@@ -43,7 +59,7 @@ impl Gnp {
 }
 
 impl NumNodesGen for Gnp {
-    /// Updates `n`
+    /// Sets the number of nodes `n` in the graph.
     fn nodes(mut self, n: NumNodes) -> Self {
         self.n = n as u64;
         self
@@ -51,8 +67,9 @@ impl NumNodesGen for Gnp {
 }
 
 impl AverageDegreeGen for Gnp {
-    /// Updates `p` such that `p = d/n`.
-    /// Note that this conversion will only be done when calling `stream/generate`.
+    /// Sets the average degree `d` for the generator.
+    ///
+    /// This is internally converted to a probability `p = d/n` during edge generation.
     fn avg_deg(mut self, deg: f64) -> Self {
         self.p = GnpType::AvgDeg(deg);
         self
@@ -60,7 +77,17 @@ impl AverageDegreeGen for Gnp {
 }
 
 impl GraphGenerator for Gnp {
-    /// Creates a streaming generator over random `G(n,p)` edges
+    /// Returns a lazily-evaluated iterator over randomly generated `G(n,p)` edges.
+    ///
+    /// The generator handles the edge generation strategy depending on the value of `p`:
+    /// - `p = 0.0`: produces no edges
+    /// - `p = 1.0`: generates all possible edges
+    /// - `0.0 < p < 1.0`: samples edges using a [`GeometricJumper`] for efficiency
+    ///
+    /// # Panics
+    /// - If no node count is set (`n == 0`)
+    /// - If no valid probability is configured
+    /// - If average degree is invalid for the configured `n`
     fn stream<R: Rng>(&self, rng: &mut R) -> impl Iterator<Item = Edge> {
         assert!(self.n > 0, "At least one node must be generated!");
         let p = match self.p {
@@ -96,20 +123,28 @@ impl GraphGenerator for Gnp {
     }
 }
 
-/// `G(n) = G(n,1/2)` generators are uniform distributions over all graphs with `n` nodes.
+/// Generator for uniform `G(n)` graphs, equivalent to `G(n,0.5)`.
+///
+/// In `G(n)`, each possible edge is included independently with 50% probability,
+/// representing a uniform distribution over all graphs with `n` nodes.
+///
+/// This is a convenience wrapper for symmetric `G(n,p)` generation with `p = 0.5`.
 #[derive(Debug, Copy, Clone, Default)]
 pub struct Gn {
     n: u64,
 }
 
 impl Gn {
-    /// Creates a new `G(n)` generator
+    /// Creates a new `G(n)` generator.
+    ///
+    /// Defaults to zero nodes. Use `.nodes(n)` to set the node count.
     pub fn new() -> Self {
         Self::default()
     }
 }
 
 impl NumNodesGen for Gn {
+    /// Sets the number of nodes `n` in the graph.
     fn nodes(mut self, n: NumEdges) -> Self {
         self.n = n as u64;
         self
@@ -117,6 +152,9 @@ impl NumNodesGen for Gn {
 }
 
 impl GraphGenerator for Gn {
+    /// Returns a lazily-evaluated iterator over edges generated with 50% probability.
+    ///
+    /// Internally equivalent to `Gnp::new().nodes(n).prob(0.5).stream(rng)`.
     fn stream<R: Rng>(&self, rng: &mut R) -> impl Iterator<Item = Edge> {
         assert!(self.n > 0, "At least one node must be generated!");
         GeometricJumper::new(0.5)

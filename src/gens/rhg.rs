@@ -1,15 +1,30 @@
+//! # Random Hyperbolic Graph Generator (RHG)
+//!
+//! This module implements a generator for threshold-based random hyperbolic graphs (RHGs).
+//! RHGs embed nodes in a hyperbolic disk and connect pairs that lie within a distance threshold `R`.
+//! This reflects real-world network characteristics such as heavy-tailed degree distributions and high clustering.
+//!
+//! The implementation follows ideas from:
+//! - “Efficient Generation of Large-Scale Random Hyperbolic Graphs” by von Looz et al.
+//! - “Communication-free Massively Distributed Graph Generation” by Funke et al.
+//! - NetworKIT’s RHG generator (including safe region optimization)
+//!
+//! Nodes are sampled with:
+//! - Angular coordinate `phi ∈ [0, 2π)` uniformly
+//! - Radial coordinate `r` with probability density proportional to `sinh(αr)`
+//!
+//! The generator uses radial bands and angular slabs to reduce the number of pairwise distance checks.
+//! It supports fast preprocessing and streaming edge generation.
+
 use super::*;
 use std::f64::consts::{PI, TAU};
 
 use itertools::Itertools;
 
-/// A coordinate in hyperbolic space consists of
-/// - an angle `phi`
-/// - a radius `rad`
-/// - an `id` to identify the coordinate
+/// Struct representing a node coordinate in hyperbolic space with precomputed values.
 ///
-/// We precompute values such as `sinh(rad), cosh(rad), sin(phi), cos(phi)` as well as the id of
-/// the band in which `rad` lies. Thus we do not need to store `rad`.
+/// We precompute `sinh(rad)`, `cosh(rad)`, `sin(phi)`, `cos(phi)`, and assign the node to a
+/// radial band (`bid`). This avoids repeated computation and improves edge generation efficiency.
 #[derive(Debug, Clone, Copy)]
 struct Coord {
     id: Node,
@@ -52,34 +67,34 @@ pub enum RhgRadius {
 pub struct Rhg {
     /// Number of nodes
     nodes: NumNodes,
-    /// Radial dispersion
+    /// Radial dispersion parameter alpha controlling node distribution
     alpha: f64,
-    /// Radius of hyperbolic disk
+    /// Radius of hyperbolic disk, either set manually or computed from average degree
     radius: RhgRadius,
-    /// Optional specified number of bands used
+    /// Optional number of radial bands used for partitioning nodes
     num_bands: Option<usize>,
 }
 
 impl Rhg {
-    /// Creates a new generator
+    /// Creates a new generator with default parameters
     #[inline]
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Changes the alpha value
+    /// Sets the alpha parameter, which controls radial node distribution
     pub fn alpha(mut self, alpha: f64) -> Self {
         self.alpha = alpha;
         self
     }
 
-    /// Manually sets the radius of the disk
+    /// Manually sets the radius of the hyperbolic disk
     pub fn radius(mut self, radius: f64) -> Self {
         self.radius = RhgRadius::Radius(radius);
         self
     }
 
-    /// Manually sets the number of bands used
+    /// Sets the number of radial bands used for node partitioning
     pub fn num_bands(mut self, num_bands: usize) -> Self {
         self.num_bands = Some(num_bands);
         self
@@ -106,35 +121,35 @@ impl GraphGenerator for Rhg {
     }
 }
 
-/// Provides an iterator over edges between coordinates in hyperbolic space that are close to each other
+/// Iterator producing edges of the Random Hyperbolic Graph (threshold case)
 #[derive(Debug, Clone)]
 pub struct RhgGenerator {
-    /// List of already sampled coordinates for each node the graph
+    /// Coordinates of nodes in hyperbolic space, sorted by band and angular coordinate
     coordinates: Vec<Coord>,
-    /// Prefix-Sum over number of points in each band
+    /// Prefix sums over the number of nodes in each radial band (used for indexing)
     band_bounds: Vec<NumNodes>,
-    /// Pre-computed `cosh(x), sinh(x)` values for all band limits
+    /// Precomputed `(cosh(band_limit), sinh(band_limit))` for each band boundary
     band_cosh_sinh: Vec<(f64, f64)>,
-    /// Last `cosh` entry of `band_cosh_sinh`
+    /// `cosh(radius)` of the hyperbolic disk radius (distance threshold)
     radius_cosh: f64,
 
-    // --- Inner Iterator State
-    /// Current coordinate (index) to be considered
+    // --- Internal iteration state ---
+    /// Index of the current node being processed
     curr_coord_index: usize,
-    /// Phi-Range in the current band which has to be considered for the current coordinate
-    /// Structured as (size, u.phi - size, u.phi + size) with respect to module TAU
+    /// Angular range (safe_values) within which neighbors are guaranteed to be connected:
+    /// (angle_size, lower_bound_phi, upper_bound_phi), modulo TAU
     safe_values: (f64, f64, f64),
-    /// Current band that is considered
+    /// Current radial band ID being searched for neighbors
     curr_bid: usize,
-    /// Range bounds for self.coordinates for the current bound
+    /// Bounds (indices) in `coordinates` for nodes in the current band
     slab_bounds: (usize, usize),
-    /// Range bounds for self.coordinates for coordinates that must still be checked.
-    /// As the phi-range is to be taken modulo TAU, slab_pointer.0 > slab_pointer.1 is possible
+    /// Current search window within `slab_bounds` for candidate neighbors,
+    /// accounts for modular wrap-around of the angular coordinate
     slab_pointer: (usize, usize),
 }
 
 impl RhgGenerator {
-    /// Creates a new RhgGenerator by computing a radius and a set of coordinates in hyperbolic space
+    /// Constructs a new RhgGenerator, computing node coordinates and partitions by bands
     pub fn new<R: Rng>(
         rng: &mut R,
         n: NumNodes,
@@ -144,6 +159,7 @@ impl RhgGenerator {
     ) -> Self {
         assert!(alpha > 0.0);
 
+        // Determine radius either from provided value or compute from avg degree and alpha
         let radius = match radius {
             RhgRadius::Radius(radius) => radius,
             RhgRadius::AvgDeg(deg) => {
@@ -209,9 +225,9 @@ impl RhgGenerator {
         initial_state
     }
 
-    /// Computes for a given number of nodes `n`, average degree `k` and `alpha` the fitting radius
+    /// Computes the radius needed to achieve a target average degree `k` for given `n` and `alpha`.
     ///
-    /// Adopted from `NetworKIT`
+    /// Uses a numerical bisection method based on expected degree formula from NetworKit.
     fn get_target_radius(n: f64, k: f64, alpha: f64) -> Option<f64> {
         let gamma = 2.0 * alpha + 1.0;
         let xi_inv = (gamma - 2.0) / (gamma - 1.0);
@@ -255,9 +271,8 @@ impl RhgGenerator {
         }
     }
 
-    /// Samples `n` random coordinates (`Coord`) in hyperbolic space.
-    /// Returns these coordinates as well as a list that indicates how many points lie on a
-    /// specific band for given band limits.
+    /// Samples `n` node coordinates uniformly at random in hyperbolic space with given radius and alpha.
+    /// Returns the vector of `Coord` and a vector of counts of points per band.
     fn sample_coordinates(
         rng: &mut impl Rng,
         n: NumNodes,
@@ -303,8 +318,8 @@ impl RhgGenerator {
         )
     }
 
-    /// Binary-search a partition of points to find `val`
-    /// In previous benchmarks, this showed to be faster than the `std`-implementation
+    /// Performs a custom binary search over coordinates partitioned by phi to find the partition index of `val`.
+    /// Previously, benchmarks showed this to be faster than standard binary search for this use case.
     #[inline]
     fn binary_search_partition(val: f64, points: &[Coord]) -> usize {
         if points.is_empty() {
@@ -333,7 +348,9 @@ impl RhgGenerator {
         left
     }
 
-    /// `safe_values` are used to find the borders of the inner circle, wherein every node is definitely near enough to u.
+    /// Computes safe angular bounds around the current node that guarantee neighbors within radius.
+    ///
+    /// This avoids expensive distance checks for neighbors inside this range.
     fn recompute_safe_values(&mut self, bid: usize) {
         let u = &self.coordinates[self.curr_coord_index];
 
@@ -357,7 +374,7 @@ impl RhgGenerator {
         }
     }
 
-    /// Searches for the next edge in the current State.
+    /// Searches for the next edge in the current slab.
     /// If it finds one, it returns it, otherwise return None;
     fn next_edge(&mut self) -> Option<Edge> {
         let u = &self.coordinates[self.curr_coord_index];
@@ -397,8 +414,7 @@ impl RhgGenerator {
         }
     }
 
-    /// Computes the bounds (in terms of indexes in `self.coordinates`) for which we have to
-    /// consider neighbors for the current node
+    /// Recomputes the index range (slab) of coordinates in the current radial band.
     fn recompute_slab(&mut self) {
         self.slab_bounds = (
             self.band_bounds[self.curr_bid] as usize,
