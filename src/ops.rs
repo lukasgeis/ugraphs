@@ -465,8 +465,8 @@ pub trait GraphEdgeEditing: GraphNew {
     fn try_add_edge(&mut self, u: Node, v: Node) -> bool;
 
     /// Adds all edges in the collection
-    fn add_edges(&mut self, edges: impl Iterator<Item = impl Into<Edge>>) {
-        for Edge(u, v) in edges.map(|d| d.into()) {
+    fn add_edges(&mut self, edges: impl IntoIterator<Item = impl Into<Edge>>) {
+        for Edge(u, v) in edges.into_iter().map(|d| d.into()) {
             self.add_edge(u, v);
         }
     }
@@ -474,8 +474,9 @@ pub trait GraphEdgeEditing: GraphNew {
     /// Tries to add all edges `(u, v)` of the collection to the graph.
     /// Returns the number of successfully added edges.
     /// ** Panics if `u >= n || v >= n`  for any `(u, v)` in `edges` **
-    fn try_add_edges(&mut self, edges: impl Iterator<Item = impl Into<Edge>>) -> NumEdges {
+    fn try_add_edges(&mut self, edges: impl IntoIterator<Item = impl Into<Edge>>) -> NumEdges {
         edges
+            .into_iter()
             .map(|e| {
                 let Edge(u, v) = e.into();
                 self.try_add_edge(u, v) as NumEdges
@@ -532,21 +533,21 @@ pub trait GraphLocalEdgeEditing: GraphEdgeEditing {
 /// A super trait for creating a graph from scratch from a set of edges and a number of nodes
 pub trait GraphFromScratch {
     /// Create a graph from a number of nodes and an iterator over Edges
-    fn from_edges(n: NumNodes, edges: impl Iterator<Item = impl Into<Edge>>) -> Self;
+    fn from_edges(n: NumNodes, edges: impl IntoIterator<Item = impl Into<Edge>>) -> Self;
 
     /// Create a graph from a number of nodes and an iterator over Edges, adding edges via
     /// `graph.try_add_edge` instead of `graph.add_edge`
-    fn from_try_edges(n: NumNodes, edges: impl Iterator<Item = impl Into<Edge>>) -> Self;
+    fn from_try_edges(n: NumNodes, edges: impl IntoIterator<Item = impl Into<Edge>>) -> Self;
 }
 
 impl<G: GraphNew + GraphEdgeEditing> GraphFromScratch for G {
-    fn from_edges(n: NumNodes, edges: impl Iterator<Item = impl Into<Edge>>) -> Self {
+    fn from_edges(n: NumNodes, edges: impl IntoIterator<Item = impl Into<Edge>>) -> Self {
         let mut graph = Self::new(n);
         graph.add_edges(edges);
         graph
     }
 
-    fn from_try_edges(n: NumNodes, edges: impl Iterator<Item = impl Into<Edge>>) -> Self {
+    fn from_try_edges(n: NumNodes, edges: impl IntoIterator<Item = impl Into<Edge>>) -> Self {
         let mut graph = Self::new(n);
         graph.try_add_edges(edges);
         graph

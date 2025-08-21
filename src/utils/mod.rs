@@ -8,13 +8,16 @@ use num::{One, Zero};
 
 mod geometric;
 mod multi_traits;
+mod node_mapper;
 mod set_map;
 mod sliced_buffer;
 
 pub use geometric::*;
 pub use multi_traits::*;
+pub use node_mapper::*;
 pub use set_map::*;
 pub use sliced_buffer::*;
+
 use stream_bitset::{PrimIndex, bitset::BitSetImpl};
 
 /// Helper trait for probalities

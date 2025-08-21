@@ -169,8 +169,8 @@ impl IndexedAdjacencySwap for CrossCsrGraph {
 // ---------- GraphFromScratch ----------
 
 impl GraphFromScratch for CsrGraph {
-    fn from_edges(n: NumNodes, edges: impl Iterator<Item = impl Into<Edge>>) -> Self {
-        let mut edges: Vec<Edge> = edges.map(|e| e.into()).collect();
+    fn from_edges(n: NumNodes, edges: impl IntoIterator<Item = impl Into<Edge>>) -> Self {
+        let mut edges: Vec<Edge> = edges.into_iter().map(|e| e.into()).collect();
         edges.sort_unstable();
         edges.dedup();
 
@@ -202,14 +202,14 @@ impl GraphFromScratch for CsrGraph {
         }
     }
 
-    fn from_try_edges(n: NumNodes, edges: impl Iterator<Item = impl Into<Edge>>) -> Self {
+    fn from_try_edges(n: NumNodes, edges: impl IntoIterator<Item = impl Into<Edge>>) -> Self {
         Self::from_edges(n, edges)
     }
 }
 
 impl GraphFromScratch for CsrGraphIn {
-    fn from_edges(n: NumNodes, edges: impl Iterator<Item = impl Into<Edge>>) -> Self {
-        let mut edges: Vec<Edge> = edges.map(|e| e.into()).collect();
+    fn from_edges(n: NumNodes, edges: impl IntoIterator<Item = impl Into<Edge>>) -> Self {
+        let mut edges: Vec<Edge> = edges.into_iter().map(|e| e.into()).collect();
         edges.sort_unstable();
         edges.dedup();
 
@@ -268,14 +268,14 @@ impl GraphFromScratch for CsrGraphIn {
         }
     }
 
-    fn from_try_edges(n: NumNodes, edges: impl Iterator<Item = impl Into<Edge>>) -> Self {
+    fn from_try_edges(n: NumNodes, edges: impl IntoIterator<Item = impl Into<Edge>>) -> Self {
         Self::from_edges(n, edges)
     }
 }
 
 impl GraphFromScratch for CsrGraphUndir {
-    fn from_edges(n: NumNodes, edges: impl Iterator<Item = impl Into<Edge>>) -> Self {
-        let mut edges: Vec<Edge> = edges.map(|e| e.into().normalized()).collect();
+    fn from_edges(n: NumNodes, edges: impl IntoIterator<Item = impl Into<Edge>>) -> Self {
+        let mut edges: Vec<Edge> = edges.into_iter().map(|e| e.into().normalized()).collect();
         edges.sort_unstable();
         edges.dedup();
 
@@ -319,13 +319,13 @@ impl GraphFromScratch for CsrGraphUndir {
         }
     }
 
-    fn from_try_edges(n: NumNodes, edges: impl Iterator<Item = impl Into<Edge>>) -> Self {
+    fn from_try_edges(n: NumNodes, edges: impl IntoIterator<Item = impl Into<Edge>>) -> Self {
         Self::from_edges(n, edges)
     }
 }
 
 impl GraphFromScratch for CrossCsrGraph {
-    fn from_edges(n: NumNodes, edges: impl Iterator<Item = impl Into<Edge>>) -> Self {
+    fn from_edges(n: NumNodes, edges: impl IntoIterator<Item = impl Into<Edge>>) -> Self {
         assert!(n > 0);
         let n = n as usize;
 
@@ -392,7 +392,7 @@ impl GraphFromScratch for CrossCsrGraph {
         }
     }
 
-    fn from_try_edges(n: NumNodes, edges: impl Iterator<Item = impl Into<Edge>>) -> Self {
+    fn from_try_edges(n: NumNodes, edges: impl IntoIterator<Item = impl Into<Edge>>) -> Self {
         Self::from_edges(n, edges)
     }
 }
