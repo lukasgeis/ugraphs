@@ -268,7 +268,7 @@ macro_rules! propagate {
 }
 
 /// Extends AdjacencyList for directed graphs
-pub trait DirectedAdjacencyList: AdjacencyList {
+pub trait DirectedAdjacencyList: AdjacencyList + GraphType<Dir = Directed> {
     propagate!(out_neighbors_of => neighbors_of(u : Node) -> impl Iterator<Item = Node> + '_);
     propagate!(out_degree_of => degree_of(u : Node) -> NumNodes);
     propagate!(vertices_with_out_neighbors => vertices_with_neighbors() -> impl Iterator<Item = Node> + '_);
@@ -505,7 +505,7 @@ pub trait GraphEdgeEditing: GraphNew {
 }
 
 /// Trait extending the methods of the GraphEdgeEditing trait for directed graphs.
-pub trait GraphDirectedEdgeEditing: GraphEdgeEditing {
+pub trait GraphDirectedEdgeEditing: GraphEdgeEditing + GraphType<Dir = Directed> {
     /// Removes all directed edges (v,u) where v is any predecessor of u in the graph.
     /// ** Panics if `u >= n` **
     fn remove_edges_into_node(&mut self, u: Node);
