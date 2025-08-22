@@ -18,8 +18,12 @@ pub trait Neighborhood: Clone {
     /// Returns the number of neighbors in the Neighborhood
     fn num_of_neighbors(&self) -> NumNodes;
 
+    type NeighborhoodIter<'a>: Iterator<Item = Node> + 'a
+    where
+        Self: 'a;
+
     /// Returns an iterator over all neighbors in the Neighborhood
-    fn neighbors(&self) -> impl Iterator<Item = Node> + '_;
+    fn neighbors(&self) -> Self::NeighborhoodIter<'_>;
 
     /// Returns a BitmaskStream over the Neighborhood for a given maximum number of nodes
     fn neighbors_as_stream(&self, n: NumNodes) -> impl BitmaskStream + '_ {
@@ -100,25 +104,29 @@ impl<N: NeighborhoodSlice> IndexedNeighborhood for N {
 
 pub(crate) mod macros {
     macro_rules! impl_common_graph_ops {
-        ($struct:ident<$($field:ident : $generic:ident),*> => $nbs:ident, $directed:ident) => {
-            impl<$($generic: Neighborhood),*> GraphType for $struct<$($generic),*> {
+        ($struct:ident<$first_field:ident : $first_generic:ident $(, $field:ident : $generic:ident)*> => $nbs:ident, $directed:ident) => {
+            impl<$first_generic: Neighborhood, $($generic: Neighborhood),*> GraphType for $struct<$first_generic, $($generic),*> {
                 type Dir = $directed;
             }
 
-            impl<$($generic: Neighborhood),*> GraphNodeOrder for $struct<$($generic),*> {
+            impl<$first_generic: Neighborhood,$($generic: Neighborhood),*> GraphNodeOrder for $struct<$first_generic, $($generic),*> {
                 fn number_of_nodes(&self) -> NumNodes {
                     self.$nbs.len() as NumNodes
                 }
             }
 
-            impl<$($generic: Neighborhood),*> GraphEdgeOrder for $struct<$($generic),*> {
+            impl<$first_generic: Neighborhood,$($generic: Neighborhood),*> GraphEdgeOrder for $struct<$first_generic, $($generic),*> {
                 fn number_of_edges(&self) -> NumEdges {
                     self.num_edges
                 }
             }
 
-            impl<$($generic: Neighborhood),*> AdjacencyList for $struct<$($generic),*> {
-                fn neighbors_of(&self, u: Node) -> impl Iterator<Item = Node> + '_ {
+            impl<$first_generic: Neighborhood,$($generic: Neighborhood),*> AdjacencyList for $struct<$first_generic, $($generic),*> {
+                type NeighborIter<'a> = <$first_generic as Neighborhood>::NeighborhoodIter<'a>
+                where
+                    Self: 'a;
+
+                fn neighbors_of(&self, u: Node) -> Self::NeighborIter<'_> {
                     self.$nbs[u as usize].neighbors()
                 }
 
@@ -132,10 +140,11 @@ pub(crate) mod macros {
                 }
             }
 
-            impl<$($generic: Neighborhood),*> GraphNew for $struct<$($generic),*> {
+            impl<$first_generic: Neighborhood,$($generic: Neighborhood),*> GraphNew for $struct<$first_generic, $($generic),*> {
                 fn new(n: NumNodes) -> Self {
                     Self {
                         num_edges: 0,
+                        $first_field: vec![$first_generic::new(n); n as usize],
                         $(
                             $field: vec![$generic::new(n); n as usize],
                         )*
@@ -143,13 +152,13 @@ pub(crate) mod macros {
                 }
             }
 
-            impl<$($generic: NeighborhoodSlice),*> NeighborsSlice for $struct<$($generic),*> {
+            impl<$first_generic: NeighborhoodSlice, $($generic: NeighborhoodSlice),*> NeighborsSlice for $struct<$first_generic, $($generic),*> {
                 fn as_neighbors_slice(&self, u: Node) -> &[Node] {
                     self.$nbs[u as usize].as_slice()
                 }
             }
 
-            impl<$($generic: NeighborhoodSliceMut),*> NeighborsSliceMut for $struct<$($generic),*> {
+            impl<$first_generic: NeighborhoodSliceMut,$($generic: NeighborhoodSliceMut),*> NeighborsSliceMut for $struct<$first_generic, $($generic),*> {
                 fn as_neighbors_slice_mut(&mut self, u: Node) -> &mut [Node] {
                     self.$nbs[u as usize].as_slice_mut()
                 }

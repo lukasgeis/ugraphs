@@ -1,6 +1,11 @@
+use std::{iter::Copied, slice::Iter};
+
 use itertools::Itertools;
 use smallvec::{Array, SmallVec};
-use stream_bitset::prelude::{BitmaskStream, IntoBitmaskStream};
+use stream_bitset::prelude::{
+    BitmaskSliceStream, BitmaskStream, BitmaskStreamConsumer, BitmaskStreamToIndices,
+    IntoBitmaskStream, ToBitmaskStream,
+};
 
 use super::*;
 
@@ -17,7 +22,12 @@ impl Neighborhood for ArrNeighborhood {
         self.0.len() as NumNodes
     }
 
-    fn neighbors(&self) -> impl Iterator<Item = Node> + '_ {
+    type NeighborhoodIter<'a>
+        = Copied<Iter<'a, Node>>
+    where
+        Self: 'a;
+
+    fn neighbors(&self) -> Self::NeighborhoodIter<'_> {
         self.0.iter().copied()
     }
 
@@ -76,7 +86,12 @@ where
         self.0.len() as NumNodes
     }
 
-    fn neighbors(&self) -> impl Iterator<Item = Node> + '_ {
+    type NeighborhoodIter<'a>
+        = Copied<Iter<'a, Node>>
+    where
+        Self: 'a;
+
+    fn neighbors(&self) -> Self::NeighborhoodIter<'_> {
         self.0.iter().copied()
     }
 
@@ -135,8 +150,14 @@ impl Neighborhood for BitNeighborhood {
         self.0.cardinality()
     }
 
-    fn neighbors(&self) -> impl Iterator<Item = Node> + '_ {
-        self.0.iter_set_bits()
+    type NeighborhoodIter<'a>
+        = BitmaskStreamToIndices<BitmaskSliceStream<'a>, Node, true>
+    where
+        Self: 'a;
+
+    fn neighbors(&self) -> Self::NeighborhoodIter<'_> {
+        // `self.0.iter_set_bits()` is a wrapper with an opaque type so it does not work here
+        self.0.bitmask_stream().iter_set_bits()
     }
 
     fn neighbors_as_stream(&self, _n: NumNodes) -> impl BitmaskStream + '_ {

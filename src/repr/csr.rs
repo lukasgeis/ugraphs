@@ -1,4 +1,5 @@
 use crate::{ops::*, testing::test_graph_ops, utils::SlicedBuffer, *};
+use std::{iter::Copied, slice::Iter};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct NodeWithCrossPos {
@@ -42,7 +43,12 @@ macro_rules! impl_common_csr_graph_ops {
         }
 
         impl AdjacencyList for $struct {
-            fn neighbors_of(&self, u: Node) -> impl Iterator<Item = Node> + '_ {
+            type NeighborIter<'a>
+                = Copied<Iter<'a, Node>>
+            where
+                Self: 'a;
+
+            fn neighbors_of(&self, u: Node) -> Self::NeighborIter<'_> {
                 self.$nbs[u].iter().copied()
             }
 
@@ -132,8 +138,13 @@ impl GraphEdgeOrder for CrossCsrGraph {
 }
 
 impl AdjacencyList for CrossCsrGraph {
-    fn neighbors_of(&self, u: Node) -> impl Iterator<Item = Node> + '_ {
-        self.nbs[u].iter().map(|cp| cp.node)
+    type NeighborIter<'a>
+        = CrossPosNeighborIter<'a>
+    where
+        Self: 'a;
+
+    fn neighbors_of(&self, u: Node) -> Self::NeighborIter<'_> {
+        CrossPosNeighborIter(self.nbs[u].iter())
     }
 
     fn degree_of(&self, u: Node) -> NumNodes {
@@ -163,6 +174,22 @@ impl IndexedAdjacencySwap for CrossCsrGraph {
         self.nbs[nb2.node][nb2.cross_pos as usize].cross_pos = i;
 
         self.nbs[u].swap(i as usize, j as usize);
+    }
+}
+
+// ---------- Custom Iterators ----------
+//
+// As of now `#![feature(impl_trait_in_assoc_type)]` is not stable yet which is why we rely on
+// custom Wrappers around iterators if the *real* type is obfuscated by a closure.
+
+pub struct CrossPosNeighborIter<'a>(Iter<'a, NodeWithCrossPos>);
+
+impl<'a> Iterator for CrossPosNeighborIter<'a> {
+    type Item = Node;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next().map(|cp| cp.node)
     }
 }
 

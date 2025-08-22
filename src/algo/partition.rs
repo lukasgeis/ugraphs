@@ -51,6 +51,8 @@ impl Partition {
     pub fn move_node(&mut self, node: Node, new_class: PartitionClass) {
         if let Some(old_class) = self.classes[node as usize].map(|old_class| old_class.get()) {
             self.class_sizes[old_class as usize] -= 1;
+        } else {
+            self.unassigned -= 1;
         }
         self.classes[node as usize] = OptionalNode::new(new_class);
         self.class_sizes[new_class as usize] += 1;

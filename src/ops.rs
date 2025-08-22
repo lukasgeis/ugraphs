@@ -137,11 +137,15 @@ macro_rules! node_bitset_of {
 
 /// Traits pertaining getters for neighborhoods & edges
 pub trait AdjacencyList: GraphNodeOrder + Sized {
+    type NeighborIter<'a>: Iterator<Item = Node> + 'a
+    where
+        Self: 'a;
+
     /// Returns an iterator over the (open) neighborhood of a given vertex.
     /// ** Panics if `u >= n` **
     ///
     /// Note that for directed graphs, this should be equivalent to `out_neighbors_of`
-    fn neighbors_of(&self, u: Node) -> impl Iterator<Item = Node> + '_;
+    fn neighbors_of(&self, u: Node) -> Self::NeighborIter<'_>;
 
     /// Returns an iterator over the closed neighborhood of a given vertex.
     /// ** Panics if `u >= n` **
@@ -269,7 +273,7 @@ macro_rules! propagate {
 
 /// Extends AdjacencyList for directed graphs
 pub trait DirectedAdjacencyList: AdjacencyList + GraphType<Dir = Directed> {
-    propagate!(out_neighbors_of => neighbors_of(u : Node) -> impl Iterator<Item = Node> + '_);
+    propagate!(out_neighbors_of => neighbors_of(u : Node) -> Self::NeighborIter<'_>);
     propagate!(out_degree_of => degree_of(u : Node) -> NumNodes);
     propagate!(vertices_with_out_neighbors => vertices_with_neighbors() -> impl Iterator<Item = Node> + '_);
     propagate!(number_of_nodes_with_out_neighbors => number_of_nodes_with_neighbors() -> NumNodes);
