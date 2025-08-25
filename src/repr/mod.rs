@@ -6,6 +6,8 @@ mod directed;
 mod neighborhood;
 mod undirected;
 
+pub mod digest;
+
 pub use csr::*;
 pub use directed::*;
 pub use neighborhood::*;
