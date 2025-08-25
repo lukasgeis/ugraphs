@@ -496,8 +496,8 @@ pub trait GraphEdgeEditing: GraphNew {
 
     /// Removes all edges in the collection
     /// ** Panics if the any edge (u, v) in `edges` is not present or u, v >= n **
-    fn remove_edges(&mut self, edges: impl Iterator<Item = impl Into<Edge>>) {
-        for Edge(u, v) in edges.map(|d| d.into()) {
+    fn remove_edges(&mut self, edges: impl IntoIterator<Item = impl Into<Edge>>) {
+        for Edge(u, v) in edges.into_iter().map(|d| d.into()) {
             self.remove_edge(u, v);
         }
     }
