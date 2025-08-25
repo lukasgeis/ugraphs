@@ -1,4 +1,4 @@
-use crate::{ops::*, repr::AdjArrayUndir, utils::Set, *};
+use crate::{algo::STFlow, ops::*, repr::AdjArray, utils::Set, *};
 use itertools::Itertools;
 
 pub trait Matching {
@@ -72,15 +72,15 @@ where
 
         // labels
         let labels = [self.number_of_nodes(), self.number_of_nodes() + 1]
-            .iter()
-            .copied()
+            .into_iter()
             .chain(class_a.iter().chain(class_b.iter()).map(|u| u as Node))
             .collect_vec();
 
-        let mut network = AdjArrayUndir::new(n as NumNodes);
+        let mut network = AdjArray::new(n as NumNodes);
         // edges s -> all nodes in class_a
         for i in 0..class_a.len() {
             network.add_edge(0, 2 + i as Node);
+            network.add_edge(2 + i as Node, 0);
         }
 
         // edges class_a -> class_b
@@ -99,7 +99,7 @@ where
                     .map(|v| mapping_b[v as usize])
                     .filter(|&v| v < n)
                 {
-                    network.add_edge(2 + ui as Node, v as Node)
+                    network.add_edge(2 + ui as Node, v as Node);
                 }
             }
         }
@@ -107,9 +107,10 @@ where
         // edges class_b -> t
         for v in 0..class_b.len() {
             network.add_edge((2 + class_a.len() + v) as Node, 1);
+            network.add_edge(1, (2 + class_a.len() + v) as Node);
         }
 
-        // TBD: for _ in network.st_flow_keep_changes(|u| labels[u as usize], 0, 1) {} // execute EK to completion
+        for _ in network.st_flow_keep_changes(|u| labels[u as usize], 0, 1) {} // execute EK to completion
 
         // iterate over all nodes of class b -- each should have exactly one out neighbor; if its
         // the target t (id = 1), then the node is unmatched; otherwise it's the matching partner
@@ -134,6 +135,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::repr::AdjArrayUndir;
 
     #[test]
     fn maximal_undirected_matching() {
@@ -149,7 +151,7 @@ mod tests {
         assert_eq!(matching, vec![(2, 3)]);
     }
 
-    // TBD: #[test]
+    #[test]
     fn maximum_bipartite_matching() {
         let graph = AdjArrayUndir::from_edges(4, [(0, 1), (1, 0), (1, 2), (2, 1), (2, 3), (3, 2)]); // 0 <=> 1 <=> 2 <=> 3
         let matching = graph.maximum_bipartite_matching(
