@@ -2,6 +2,7 @@ mod bipartite;
 mod connectivity;
 mod cuthill_mckee;
 mod partition;
+mod path_iterator;
 mod subgraph;
 mod traversal;
 
@@ -9,5 +10,6 @@ pub use bipartite::*;
 pub use connectivity::*;
 pub use cuthill_mckee::*;
 pub use partition::*;
+pub use path_iterator::*;
 pub use subgraph::*;
 pub use traversal::*;
