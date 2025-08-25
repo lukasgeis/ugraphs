@@ -8,8 +8,11 @@ use std::{
     hash::{BuildHasher, Hash},
 };
 
+use itertools::Itertools;
 use num::ToPrimitive;
 use stream_bitset::{PrimIndex, bitset::BitSetImpl};
+
+use crate::{Node, NumNodes, OptionalNode};
 
 /// A minimalist generalization over basic Set-Functionality
 pub trait Set<T> {
@@ -111,6 +114,78 @@ impl<I: PrimIndex> Set<I> for BitSetImpl<I> {
 
     fn len(&self) -> usize {
         self.cardinality().to_usize().unwrap()
+    }
+}
+
+/// Custom Set-Datastructure that allows for constant additions/removals/queries as well as an
+/// output-sensitive iterator over its elements. Similar to `BitSetImpl<I>`, values are confined to
+/// a predefined range `0..n`
+pub struct NodeSet {
+    data: Vec<Node>,
+    positions: Vec<Option<OptionalNode>>,
+}
+
+impl NodeSet {
+    pub fn new(n: NumNodes) -> Self {
+        Self {
+            data: Vec::new(),
+            positions: vec![None; n as usize],
+        }
+    }
+
+    pub fn new_with_all(n: NumNodes) -> Self {
+        Self {
+            data: (0..(n as Node)).collect_vec(),
+            positions: (0..n).map(OptionalNode::new).collect_vec(),
+        }
+    }
+}
+
+impl Set<Node> for NodeSet {
+    fn insert(&mut self, value: Node) -> bool {
+        let index = value.to_usize().unwrap();
+        if self.positions[index].is_some() {
+            return true;
+        }
+
+        self.positions[index] = OptionalNode::new(self.data.len() as Node);
+        self.data.push(value);
+
+        false
+    }
+
+    fn remove(&mut self, value: &Node) -> bool {
+        let index = value.to_usize().unwrap();
+        let pos = match self.positions[index] {
+            Some(pos) => pos.get() as usize,
+            None => return false,
+        };
+
+        self.data.swap_remove(pos);
+        if pos < self.data.len() {
+            self.positions[self.data[pos] as usize] = self.positions[index];
+        }
+
+        self.positions[index] = None;
+
+        true
+    }
+
+    fn iter(&self) -> impl Iterator<Item = Node> {
+        self.data.iter().copied()
+    }
+
+    fn contains(&self, value: &Node) -> bool {
+        self.positions[*value as usize].is_some()
+    }
+
+    fn clear(&mut self) {
+        self.data.clear();
+        self.positions.iter_mut().for_each(|p| *p = None);
+    }
+
+    fn len(&self) -> usize {
+        self.data.len()
     }
 }
 
