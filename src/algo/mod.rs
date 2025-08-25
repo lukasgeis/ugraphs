@@ -1,4 +1,5 @@
 mod bipartite;
+mod bridges;
 mod connectivity;
 mod cuthill_mckee;
 mod matching;
@@ -9,6 +10,7 @@ mod subgraph;
 mod traversal;
 
 pub use bipartite::*;
+pub use bridges::*;
 pub use connectivity::*;
 pub use cuthill_mckee::*;
 pub use matching::*;
