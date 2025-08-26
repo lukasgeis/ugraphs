@@ -1,3 +1,5 @@
+use std::{iter::Enumerate, slice::Iter};
+
 use itertools::Itertools;
 
 use crate::{
@@ -15,6 +17,21 @@ pub struct Partition {
     classes: Vec<Option<OptionalNode>>,
     class_sizes: Vec<NumNodes>,
     unassigned: NumNodes,
+}
+
+pub struct ClassMemberIter<'a> {
+    classes: Enumerate<Iter<'a, Option<OptionalNode>>>,
+    class_id: Option<OptionalNode>,
+}
+
+impl<'a> Iterator for ClassMemberIter<'a> {
+    type Item = Node;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.classes
+            .find(|(_, c)| **c == self.class_id)
+            .map(|(u, _)| u as Node)
+    }
 }
 
 impl Partition {
@@ -94,13 +111,13 @@ impl Partition {
     /// # Warning
     /// This operation is expensive and requires time linear in the total number of nodes, i.e. it
     /// is roughly independent of the actual size of partition class `class_id`.
-    pub fn members_of_class(&self, class_id: Node) -> impl Iterator<Item = Node> + '_ {
+    pub fn members_of_class(&self, class_id: Node) -> ClassMemberIter<'_> {
         let class = OptionalNode::new(class_id);
         assert!(self.class_sizes.len() > class_id as usize);
-        self.classes
-            .iter()
-            .enumerate()
-            .filter_map(move |(i, &c)| (c == class).then_some(i as Node))
+        ClassMemberIter {
+            classes: self.classes.iter().enumerate(),
+            class_id: class,
+        }
     }
 
     /// Splits the input graph `graph` (has to have the same number of nodes as `self`) into

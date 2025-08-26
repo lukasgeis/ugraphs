@@ -49,6 +49,33 @@ pub trait Setter: Sized {
     }
 }
 
+pub struct GetIdIter<'a, G, I, const FILTER: bool>
+where
+    I: Iterator<Item = Node> + 'a,
+{
+    ids: I,
+    getter: &'a G,
+    mapper: fn(&'a G, Node) -> Option<Node>,
+}
+
+impl<'a, G, I, const FILTER: bool> Iterator for GetIdIter<'a, G, I, FILTER>
+where
+    I: Iterator<Item = Node> + 'a,
+{
+    type Item = Node;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let next_id = self.ids.next()?;
+            if let Some(mapped_id) = (self.mapper)(self.getter, next_id) {
+                return Some(mapped_id);
+            } else if !FILTER {
+                return Some(next_id);
+            }
+        }
+    }
+}
+
 pub trait Getter {
     /// If the mapping (old, new) exists, returns Some(new), otherwise None
     fn new_id_of(&self, old: Node) -> Option<Node>;
@@ -66,40 +93,68 @@ pub trait Getter {
 
     /// Applies [`Getter::old_id_of`] to each iterator item. Uses the iterator item (new) as a fallback
     /// if the mapping(old, new) doesn't exist.
-    fn get_old_ids<'a, I>(&'a self, new_ids: I) -> impl Iterator<Item = Node> + 'a
+    fn get_old_ids<'a, I>(
+        &self,
+        new_ids: I,
+    ) -> GetIdIter<'_, Self, <I as IntoIterator>::IntoIter, false>
     where
         I: IntoIterator<Item = Node> + 'a,
+        Self: Sized,
     {
-        new_ids
-            .into_iter()
-            .map(|new| self.old_id_of(new).unwrap_or(new))
+        GetIdIter {
+            ids: new_ids.into_iter(),
+            getter: self,
+            mapper: Self::old_id_of,
+        }
     }
 
     /// Applies [`Getter::old_id_of`] to each iterator item and returns the items for which a new id is known.
-    fn get_filtered_old_ids<'a, I>(&'a self, new_ids: I) -> impl Iterator<Item = Node> + 'a
+    fn get_filtered_old_ids<'a, I>(
+        &self,
+        new_ids: I,
+    ) -> GetIdIter<'_, Self, <I as IntoIterator>::IntoIter, true>
     where
         I: IntoIterator<Item = Node> + 'a,
+        Self: Sized,
     {
-        new_ids.into_iter().filter_map(|new| self.old_id_of(new))
+        GetIdIter {
+            ids: new_ids.into_iter(),
+            getter: self,
+            mapper: Self::old_id_of,
+        }
     }
 
     /// Applies [`Getter::new_id_of`] to each iterator item. Uses the iterator item (old) as a fallback
     /// if the mapping(old, new) doesn't exist.
-    fn get_new_ids<'a, I>(&'a self, old_ids: I) -> impl Iterator<Item = Node> + 'a
+    fn get_new_ids<'a, I>(
+        &self,
+        old_ids: I,
+    ) -> GetIdIter<'_, Self, <I as IntoIterator>::IntoIter, false>
     where
         I: IntoIterator<Item = Node> + 'a,
+        Self: Sized,
     {
-        old_ids
-            .into_iter()
-            .map(|old| self.new_id_of(old).unwrap_or(old))
+        GetIdIter {
+            ids: old_ids.into_iter(),
+            getter: self,
+            mapper: Self::new_id_of,
+        }
     }
 
     /// Applies [`Getter::new_id_of`] to each iterator item and returns the items for which a new id is known.
-    fn get_filtered_new_ids<'a, I>(&'a self, old_ids: I) -> impl Iterator<Item = Node> + 'a
+    fn get_filtered_new_ids<'a, I>(
+        &self,
+        old_ids: I,
+    ) -> GetIdIter<'_, Self, <I as IntoIterator>::IntoIter, true>
     where
         I: IntoIterator<Item = Node> + 'a,
+        Self: Sized,
     {
-        old_ids.into_iter().filter_map(|old| self.new_id_of(old))
+        GetIdIter {
+            ids: old_ids.into_iter(),
+            getter: self,
+            mapper: Self::new_id_of,
+        }
     }
 
     /// Create a 'copy' of type `GO` from the input graph where all nodes are relabelled according to this mapper.
