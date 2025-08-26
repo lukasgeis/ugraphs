@@ -13,10 +13,9 @@ pub trait Matching {
     /// the matching is returned only once as `(u, v)` where `u <= v`. The output is sorted lexicographically.
     /// Observe that the original graph may contain directed edges, only the subgraph must not contain any
     /// edge `(u, v)` without a matching (v, u).
-    fn maximal_undirected_matching_excluding<I: Iterator<Item = Node>>(
-        &self,
-        excl: I,
-    ) -> Vec<(Node, Node)>;
+    fn maximal_undirected_matching_excluding<I>(&self, excl: I) -> Vec<(Node, Node)>
+    where
+        I: IntoIterator<Item = Node>;
 
     /// Computes a maximum matching on a bipartite (sub)graph. The subgraph consists of two classes
     /// A and B and contains all edges of the original graph pointing from A to B; edges of the original
@@ -24,21 +23,20 @@ pub trait Matching {
     /// pointing from B to A are ignored.
     ///
     /// The maximum matching is returned as tuples of form (node of A, node of B) in no deterministic order.
-    fn maximum_bipartite_matching<A: Set<Node>, B: Set<Node>>(
-        &self,
-        class_a: &A,
-        class_b: &B,
-    ) -> Vec<(Node, Node)>;
+    fn maximum_bipartite_matching<A, B>(&self, class_a: &A, class_b: &B) -> Vec<(Node, Node)>
+    where
+        A: Set<Node>,
+        B: Set<Node>;
 }
 
 impl<G> Matching for G
 where
     G: AdjacencyList + GraphType<Dir = Undirected>,
 {
-    fn maximal_undirected_matching_excluding<I: Iterator<Item = Node>>(
-        &self,
-        excl: I,
-    ) -> Vec<(Node, Node)> {
+    fn maximal_undirected_matching_excluding<I>(&self, excl: I) -> Vec<(Node, Node)>
+    where
+        I: IntoIterator<Item = Node>,
+    {
         let mut matching = Vec::new();
         let mut matched = NodeBitSet::new_with_bits_set(self.number_of_nodes(), excl);
 
@@ -57,11 +55,11 @@ where
         matching
     }
 
-    fn maximum_bipartite_matching<A: Set<Node>, B: Set<Node>>(
-        &self,
-        class_a: &A,
-        class_b: &B,
-    ) -> Vec<(Node, Node)> {
+    fn maximum_bipartite_matching<A, B>(&self, class_a: &A, class_b: &B) -> Vec<(Node, Node)>
+    where
+        A: Set<Node>,
+        B: Set<Node>,
+    {
         if class_a.is_empty() || class_b.is_empty() {
             return Vec::new();
         }

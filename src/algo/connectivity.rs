@@ -88,14 +88,17 @@ pub trait Connectivity: AdjacencyList + Traversal + Sized {
     }
 }
 
-impl<G: AdjacencyList + Sized> Connectivity for G {}
+impl<G> Connectivity for G where G: AdjacencyList + Sized {}
 
 /// Implementation of Tarjan's Algorithm for Strongly Connected Components.
 /// It is designed as an iterator that emits the nodes of one strongly connected component at a
 /// time. Observe that the order of nodes within a component is non-deterministic; the order of the
 /// components themselves are in the reverse topological order of the SCCs (i.e. if each SCC
 /// were contracted into a single node).
-pub struct StronglyConnected<'a, G: DirectedAdjacencyList> {
+pub struct StronglyConnected<'a, G>
+where
+    G: DirectedAdjacencyList,
+{
     graph: &'a G,
     idx: Node,
 
@@ -109,7 +112,10 @@ pub struct StronglyConnected<'a, G: DirectedAdjacencyList> {
     call_stack: Vec<StackFrame<'a, G>>,
 }
 
-impl<'a, G: DirectedAdjacencyList> StronglyConnected<'a, G> {
+impl<'a, G> StronglyConnected<'a, G>
+where
+    G: DirectedAdjacencyList,
+{
     /// Construct the iterator for some graph
     pub fn new(graph: &'a G) -> Self {
         Self {
@@ -247,7 +253,10 @@ impl<'a, G: DirectedAdjacencyList> StronglyConnected<'a, G> {
     }
 }
 
-impl<'a, G: DirectedAdjacencyList> Iterator for StronglyConnected<'a, G> {
+impl<'a, G> Iterator for StronglyConnected<'a, G>
+where
+    G: DirectedAdjacencyList,
+{
     type Item = Vec<Node>;
 
     /// Returns either a vector of node ids that form an SCC or None if no further SCC was found
@@ -262,10 +271,13 @@ impl<'a, G: DirectedAdjacencyList> Iterator for StronglyConnected<'a, G> {
     }
 }
 
-impl<'a, G: DirectedAdjacencyList> FusedIterator for StronglyConnected<'a, G> {}
+impl<'a, G> FusedIterator for StronglyConnected<'a, G> where G: DirectedAdjacencyList {}
 
 #[derive(Debug, Clone)]
-struct StackFrame<'a, T: DirectedAdjacencyList + 'a> {
+struct StackFrame<'a, T>
+where
+    T: DirectedAdjacencyList + 'a,
+{
     node: Node,
     parent: Node,
     initial_stack_len: Node,

@@ -117,8 +117,13 @@ macro_rules! test_graph_ops {
                             Edge(u, v)
                         }));
 
+                        println!("{adj_matrix_in:?}");
+                        println!("{:?}", graph.ordered_edges(false).collect_vec());
+
                         for u in 0..n {
+                            println!("AAA {u}");
                             assert_eq!(graph.in_neighbors_of_as_bitset(u), adj_matrix_in[u as usize]);
+                            println!("BBB");
                             assert_eq!(graph.in_degree_of(u), adj_matrix_in[u as usize].cardinality());
                         }
                     }

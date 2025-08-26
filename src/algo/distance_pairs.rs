@@ -1,6 +1,9 @@
 use crate::{ops::*, *};
 
-pub struct DistancePairsIterator<'a, G: AdjacencyList + GraphType> {
+pub struct DistancePairsIterator<'a, G>
+where
+    G: AdjacencyList + GraphType,
+{
     graph: &'a G,
     node: Node,
     distance: usize,
@@ -13,14 +16,20 @@ pub trait DistancePairs: AdjacencyList + GraphType {
     fn distance_pairs(&self, distance: usize) -> DistancePairsIterator<'_, Self>;
 }
 
-impl<G: AdjacencyList + GraphType> DistancePairs for G {
+impl<G> DistancePairs for G
+where
+    G: AdjacencyList + GraphType,
+{
     fn distance_pairs(&self, distance: usize) -> DistancePairsIterator<'_, Self> {
         assert!(distance > 1);
         DistancePairsIterator::new(self, distance)
     }
 }
 
-impl<'a, G: AdjacencyList + GraphType> DistancePairsIterator<'a, G> {
+impl<'a, G> DistancePairsIterator<'a, G>
+where
+    G: AdjacencyList + GraphType,
+{
     pub fn new(graph: &'a G, distance: usize) -> Self {
         let n = graph.number_of_nodes();
 
@@ -59,7 +68,10 @@ impl<'a, G: AdjacencyList + GraphType> DistancePairsIterator<'a, G> {
     }
 }
 
-impl<G: AdjacencyList + GraphType> Iterator for DistancePairsIterator<'_, G> {
+impl<G> Iterator for DistancePairsIterator<'_, G>
+where
+    G: AdjacencyList + GraphType,
+{
     type Item = (Node, Node);
 
     fn next(&mut self) -> Option<Self::Item> {

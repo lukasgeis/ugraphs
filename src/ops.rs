@@ -43,7 +43,7 @@ impl GraphDir for Undirected {
 pub trait GraphType {
     /// Getter for graph direction.
     /// As `#![feature(associated_const_equality)]` is not stable yet,
-    /// this allows for (future) selective implementations of algorithms/generators
+    /// this allows for selective implementations of algorithms/generators
     /// that are only meant for directed/undirected graphs.
     type Dir: GraphDir;
 
@@ -62,6 +62,10 @@ pub trait GraphType {
 
 /// Provides getters pertaining to the node-size of a graph
 pub trait GraphNodeOrder {
+    type VertexIter<'a>: Iterator<Item = Node> + 'a
+    where
+        Self: 'a;
+
     /// Returns the number of nodes of the graph
     fn number_of_nodes(&self) -> NumNodes;
 
@@ -71,9 +75,7 @@ pub trait GraphNodeOrder {
     }
 
     /// Returns an iterator over V.
-    fn vertices(&self) -> impl Iterator<Item = Node> + '_ {
-        self.vertices_range()
-    }
+    fn vertices(&self) -> Self::VertexIter<'_>;
 
     /// Returns empty bitset with one entry per node
     fn vertex_bitset_unset(&self) -> NodeBitSet {
@@ -119,10 +121,35 @@ pub trait GraphEdgeOrder {
     }
 }
 
+pub struct NodeMapIter<'a, G, T, I>
+where
+    I: Iterator<Item = Node>,
+{
+    node_iter: I,
+    graph: &'a G,
+    map_fn: fn(&'a G, Node) -> T,
+}
+
+impl<'a, G, T, I> Iterator for NodeMapIter<'a, G, T, I>
+where
+    I: Iterator<Item = Node>,
+{
+    type Item = T;
+
+    #[inline(always)]
+    fn next(&mut self) -> Option<Self::Item> {
+        Some((self.map_fn)(self.graph, self.node_iter.next()?))
+    }
+}
+
 macro_rules! node_iterator {
     ($iter : ident, $single : ident, $type : ty) => {
-        fn $iter(&self) -> impl Iterator<Item = $type> + '_ {
-            self.vertices().map(|u| self.$single(u))
+        fn $iter(&self) -> $type {
+            NodeMapIter {
+                node_iter: self.vertices(),
+                graph: self,
+                map_fn: Self::$single,
+            }
         }
     };
 }
@@ -135,9 +162,118 @@ macro_rules! node_bitset_of {
     };
 }
 
+pub struct EdgesOfIterImpl<I, const IN_EDGES: bool = false>
+where
+    I: Iterator<Item = Node>,
+{
+    iter: I,
+    node: Node,
+    only_normalized: bool,
+}
+
+impl<I, const IN_EDGES: bool> Iterator for EdgesOfIterImpl<I, IN_EDGES>
+where
+    I: Iterator<Item = Node>,
+{
+    type Item = Edge;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        for u in self.iter.by_ref() {
+            if IN_EDGES {
+                return Some(Edge(u, self.node));
+            } else {
+                let edge = Edge(self.node, u);
+                if edge.is_normalized() || !self.only_normalized {
+                    return Some(edge);
+                }
+            }
+        }
+
+        None
+    }
+}
+
+pub struct EdgesIterImpl<'a, G, I>
+where
+    I: Iterator<Item = Edge>,
+{
+    iter: I,
+    graph: &'a G,
+    edges_of_fn: fn(&'a G, Node, bool) -> I,
+    node_range: Range<Node>,
+    only_normalized: bool,
+}
+
+impl<'a, G: AdjacencyList, I> Iterator for EdgesIterImpl<'a, G, I>
+where
+    I: Iterator<Item = Edge>,
+{
+    type Item = Edge;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(edge) = self.iter.next() {
+            return Some(edge);
+        }
+
+        loop {
+            let next_node = self.node_range.next()?;
+            self.iter = (self.edges_of_fn)(self.graph, next_node, self.only_normalized);
+
+            if let Some(edge) = self.iter.next() {
+                return Some(edge);
+            }
+        }
+    }
+}
+
+pub struct VerticesWithNeighborsIterImpl<'a, G>
+where
+    G: GraphNodeOrder + 'a,
+{
+    node_iter: <G as GraphNodeOrder>::VertexIter<'a>,
+    graph: &'a G,
+    degree_fn: fn(&'a G, Node) -> NumNodes,
+}
+
+impl<'a, G> Iterator for VerticesWithNeighborsIterImpl<'a, G>
+where
+    G: GraphNodeOrder + 'a,
+{
+    type Item = Node;
+
+    #[inline(always)]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.node_iter
+            .by_ref()
+            .find(|&next_node| (self.degree_fn)(self.graph, next_node) > 0)
+    }
+}
+
+pub type VerticesWithNeighbors<'a, G> = VerticesWithNeighborsIterImpl<'a, G>;
+
+pub type DegreesIter<'a, G> = NodeMapIter<'a, G, NumNodes, <G as GraphNodeOrder>::VertexIter<'a>>;
+pub type NeighborsIter<'a, G> = NodeMapIter<
+    'a,
+    G,
+    <G as AdjacencyList>::NeighborIter<'a>,
+    <G as GraphNodeOrder>::VertexIter<'a>,
+>;
+pub type NeighborsBitSetIter<'a, G> =
+    NodeMapIter<'a, G, NodeBitSet, <G as GraphNodeOrder>::VertexIter<'a>>;
+
+pub type EdgesOf<'a, G> = EdgesOfIterImpl<<G as AdjacencyList>::NeighborIter<'a>, false>;
+pub type OrderedEdgesOf = std::vec::IntoIter<Edge>;
+
+pub type Edges<'a, G> = EdgesIterImpl<'a, G, EdgesOf<'a, G>>;
+pub type OrderedEdges<'a, G> = EdgesIterImpl<'a, G, OrderedEdgesOf>;
+
 /// Traits pertaining getters for neighborhoods & edges
 pub trait AdjacencyList: GraphNodeOrder + Sized {
     type NeighborIter<'a>: Iterator<Item = Node> + 'a
+    where
+        Self: 'a;
+
+    type ClosedNeighborIter<'a>: Iterator<Item = Node> + 'a
     where
         Self: 'a;
 
@@ -149,9 +285,7 @@ pub trait AdjacencyList: GraphNodeOrder + Sized {
 
     /// Returns an iterator over the closed neighborhood of a given vertex.
     /// ** Panics if `u >= n` **
-    fn closed_neighbors_of(&self, u: Node) -> impl Iterator<Item = Node> + '_ {
-        std::iter::once(u).chain(self.neighbors_of(u))
-    }
+    fn closed_neighbors_of(&self, u: Node) -> Self::ClosedNeighborIter<'_>;
 
     /// If v has degree two (i.e. neighbors [u, w]), this function continues
     /// the walk `u`, `v`, `w` and returns `Some(w)`. Otherwise it returns `None`.
@@ -165,10 +299,12 @@ pub trait AdjacencyList: GraphNodeOrder + Sized {
     fn degree_of(&self, u: Node) -> NumNodes;
 
     /// Returns an iterator to all vertices with non-zero degree
-    fn vertices_with_neighbors(&self) -> impl Iterator<Item = Node> + '_ {
-        self.degrees()
-            .enumerate()
-            .filter_map(|(u, d)| (d > 0).then_some(u as Node))
+    fn vertices_with_neighbors(&self) -> VerticesWithNeighbors<'_, Self> {
+        VerticesWithNeighborsIterImpl {
+            node_iter: self.vertices(),
+            graph: self,
+            degree_fn: Self::degree_of,
+        }
     }
 
     /// Returns the number of nodes with non-zero degree
@@ -193,16 +329,22 @@ pub trait AdjacencyList: GraphNodeOrder + Sized {
         self.degrees().max().unwrap_or(0)
     }
 
-    node_iterator!(degrees, degree_of, NumNodes);
-    node_iterator!(neighbors, neighbors_of, impl Iterator<Item = Node> + '_);
+    node_iterator!(degrees, degree_of, DegreesIter<'_, Self>);
+    node_iterator!(neighbors, neighbors_of, NeighborsIter<'_, Self>);
     node_bitset_of!(neighbors_of_as_bitset, neighbors_of);
-    node_iterator!(neighbors_as_bitset, neighbors_of_as_bitset, NodeBitSet);
+    node_iterator!(
+        neighbors_as_bitset,
+        neighbors_of_as_bitset,
+        NeighborsBitSetIter<'_, Self>
+    );
+
+    type NeighborsStream<'a>: BitmaskStream + 'a
+    where
+        Self: 'a;
 
     /// Returns a BitmaskStream over the neighbors of a given vertex.
     /// ** Panics if `u >= n` **
-    fn neighbors_of_as_stream(&self, u: Node) -> impl BitmaskStream + '_ {
-        self.neighbors_of_as_bitset(u).into_bitmask_stream()
-    }
+    fn neighbors_of_as_stream(&self, u: Node) -> Self::NeighborsStream<'_>;
 
     /// Returns a NodeBitSet with bit `v` set to *true* if `u`
     /// is at most 2 hops away from a given vertex.
@@ -233,16 +375,18 @@ pub trait AdjacencyList: GraphNodeOrder + Sized {
     /// Returns an iterator over outgoing edges of a given vertex.
     /// If `only_normalized`, then only edges `(u, v)` with `u <= v` are considered.
     /// ** Panics if `u >= n` **
-    fn edges_of(&self, u: Node, only_normalized: bool) -> impl Iterator<Item = Edge> + '_ {
-        self.neighbors_of(u)
-            .map(move |v| Edge(u, v))
-            .filter(move |e| !only_normalized || e.is_normalized())
+    fn edges_of(&self, u: Node, only_normalized: bool) -> EdgesOf<'_, Self> {
+        EdgesOfIterImpl {
+            iter: self.neighbors_of(u),
+            node: u,
+            only_normalized,
+        }
     }
 
     /// Returns an iterator over outgoing edges of a given vertex in sorted order.
     /// If `only_normalized`, then only edges `(u, v)` with `u <= v` are considered.
     /// ** Panics if `u >= n` **
-    fn ordered_edges_of(&self, u: Node, only_normalized: bool) -> impl Iterator<Item = Edge> {
+    fn ordered_edges_of(&self, u: Node, only_normalized: bool) -> OrderedEdgesOf {
         let mut edges = self.edges_of(u, only_normalized).collect_vec();
         edges.sort();
         edges.into_iter()
@@ -250,16 +394,26 @@ pub trait AdjacencyList: GraphNodeOrder + Sized {
 
     /// Returns an iterator over all edges in the graph.
     /// If `only_normalized`, then only edges `(u, v)` with `u <= v` are considered.
-    fn edges(&self, only_normalized: bool) -> impl Iterator<Item = Edge> + '_ {
-        self.vertices_range()
-            .flat_map(move |u| self.edges_of(u, only_normalized))
+    fn edges(&self, only_normalized: bool) -> Edges<'_, Self> {
+        EdgesIterImpl {
+            iter: self.edges_of(0, only_normalized),
+            graph: self,
+            edges_of_fn: Self::edges_of,
+            node_range: 1..self.number_of_nodes(),
+            only_normalized,
+        }
     }
 
     /// Returns an iterator over all edges in the graph in sorted order.
     /// If `only_normalized`, then only edges `(u, v)` with `u <= v` are considered.
-    fn ordered_edges(&self, only_normalized: bool) -> impl Iterator<Item = Edge> + '_ {
-        self.vertices_range()
-            .flat_map(move |u| self.ordered_edges_of(u, only_normalized))
+    fn ordered_edges(&self, only_normalized: bool) -> OrderedEdges<'_, Self> {
+        EdgesIterImpl {
+            iter: self.ordered_edges_of(0, only_normalized),
+            graph: self,
+            edges_of_fn: Self::ordered_edges_of,
+            node_range: 1..self.number_of_nodes(),
+            only_normalized,
+        }
     }
 }
 
@@ -271,40 +425,74 @@ macro_rules! propagate {
     };
 }
 
+pub type VerticesWithOutNeighbors<'a, G> = VerticesWithNeighborsIterImpl<'a, G>;
+pub type VerticesWithInNeighbors<'a, G> = VerticesWithNeighborsIterImpl<'a, G>;
+
+pub type OutDegreesIter<'a, G> =
+    NodeMapIter<'a, G, NumNodes, <G as GraphNodeOrder>::VertexIter<'a>>;
+pub type OutNeighborsIter<'a, G> = NodeMapIter<
+    'a,
+    G,
+    <G as AdjacencyList>::NeighborIter<'a>,
+    <G as GraphNodeOrder>::VertexIter<'a>,
+>;
+pub type OutNeighborsBitSetIter<'a, G> =
+    NodeMapIter<'a, G, NodeBitSet, <G as GraphNodeOrder>::VertexIter<'a>>;
+
+pub type InDegreesIter<'a, G> = NodeMapIter<'a, G, NumNodes, <G as GraphNodeOrder>::VertexIter<'a>>;
+pub type InNeighborsIter<'a, G> = NodeMapIter<
+    'a,
+    G,
+    <G as DirectedAdjacencyList>::InNeighborIter<'a>,
+    <G as GraphNodeOrder>::VertexIter<'a>,
+>;
+pub type InNeighborsBitSetIter<'a, G> =
+    NodeMapIter<'a, G, NodeBitSet, <G as GraphNodeOrder>::VertexIter<'a>>;
+
+pub type OutEdgesOf<'a, G> = EdgesOfIterImpl<<G as AdjacencyList>::NeighborIter<'a>, false>;
+pub type OrderedOutEdgesOf = std::vec::IntoIter<Edge>;
+
+pub type OutEdges<'a, G> = EdgesIterImpl<'a, G, EdgesOf<'a, G>>;
+pub type OrderedOutEdges<'a, G> = EdgesIterImpl<'a, G, OrderedEdgesOf>;
+
+pub type InEdgesOf<'a, G> =
+    EdgesOfIterImpl<<G as DirectedAdjacencyList>::InNeighborIter<'a>, false>;
+pub type OrderedInEdgesOf = std::vec::IntoIter<Edge>;
+
 /// Extends AdjacencyList for directed graphs
 pub trait DirectedAdjacencyList: AdjacencyList + GraphType<Dir = Directed> {
     propagate!(out_neighbors_of => neighbors_of(u : Node) -> Self::NeighborIter<'_>);
     propagate!(out_degree_of => degree_of(u : Node) -> NumNodes);
-    propagate!(vertices_with_out_neighbors => vertices_with_neighbors() -> impl Iterator<Item = Node> + '_);
+    propagate!(vertices_with_out_neighbors => vertices_with_neighbors() -> VerticesWithOutNeighbors<'_, Self>);
     propagate!(number_of_nodes_with_out_neighbors => number_of_nodes_with_neighbors() -> NumNodes);
     propagate!(out_degree_distribution => degree_distribution() -> Vec<(NumNodes, NumNodes)>);
     propagate!(max_out_degree => max_degree() -> NumNodes);
-    propagate!(out_neighbors_of_as_stream => neighbors_of_as_stream(u: Node) -> impl BitmaskStream + '_);
+    propagate!(out_neighbors_of_as_stream => neighbors_of_as_stream(u: Node) -> Self::NeighborsStream<'_>);
 
-    node_iterator!(out_degrees, out_degree_of, NumNodes);
-    node_iterator!(
-        out_neighbors,
-        out_neighbors_of,
-        impl Iterator<Item = Node> + '_
-    );
+    node_iterator!(out_degrees, out_degree_of, OutDegreesIter<'_, Self>);
+    node_iterator!(out_neighbors, out_neighbors_of, OutNeighborsIter<'_, Self>);
     node_bitset_of!(out_neighbors_of_as_bitset, out_neighbors_of);
     node_iterator!(
         out_neighbors_as_bitset,
         out_neighbors_of_as_bitset,
-        NodeBitSet
+        OutNeighborsBitSetIter<'_, Self>
     );
 
-    fn out_edges_of(&self, u: Node) -> impl Iterator<Item = Edge> + '_ {
+    fn out_edges_of(&self, u: Node) -> OutEdgesOf<'_, Self> {
         self.edges_of(u, false)
     }
 
-    fn ordered_out_edges_of(&self, u: Node) -> impl Iterator<Item = Edge> + '_ {
+    fn ordered_out_edges_of(&self, u: Node) -> OrderedOutEdgesOf {
         self.ordered_edges_of(u, false)
     }
 
+    type InNeighborIter<'a>: Iterator<Item = Node> + 'a
+    where
+        Self: 'a;
+
     /// Returns an iterator over nodes `v` with edges `(v, u)`
     /// ** Panics if `u >= n` **
-    fn in_neighbors_of(&self, u: Node) -> impl Iterator<Item = Node> + '_;
+    fn in_neighbors_of(&self, u: Node) -> Self::InNeighborIter<'_>;
 
     /// If v has degree two (i.e. neighbors [u, w]), this function backtracks
     /// the walk `u`, `v`, `w` and returns `Some(w)`. Otherwise it returns `None`.
@@ -324,10 +512,12 @@ pub trait DirectedAdjacencyList: AdjacencyList + GraphType<Dir = Directed> {
     }
 
     /// Returns an iterator to all vertices with non-zero in-degree
-    fn vertices_with_in_neighbors(&self) -> impl Iterator<Item = Node> + '_ {
-        self.in_degrees()
-            .enumerate()
-            .filter_map(|(u, d)| (d > 0).then_some(u as Node))
+    fn vertices_with_in_neighbors(&self) -> VerticesWithInNeighbors<'_, Self> {
+        VerticesWithNeighborsIterImpl {
+            node_iter: self.vertices(),
+            graph: self,
+            degree_fn: Self::in_degree_of,
+        }
     }
 
     /// Returns the number of nodes with non-zero in-degree
@@ -352,34 +542,36 @@ pub trait DirectedAdjacencyList: AdjacencyList + GraphType<Dir = Directed> {
         self.in_degrees().max().unwrap_or(0)
     }
 
-    node_iterator!(in_degrees, in_degree_of, NumNodes);
-    node_iterator!(
-        in_neighbors,
-        in_neighbors_of,
-        impl Iterator<Item = Node> + '_
-    );
+    node_iterator!(in_degrees, in_degree_of, InDegreesIter<'_, Self>);
+    node_iterator!(in_neighbors, in_neighbors_of, InNeighborsIter<'_, Self>);
     node_bitset_of!(in_neighbors_of_as_bitset, in_neighbors_of);
     node_iterator!(
         in_neighbors_as_bitset,
         in_neighbors_of_as_bitset,
-        NodeBitSet
+        InNeighborsBitSetIter<'_, Self>
     );
+
+    type InNeighborsStream<'a>: BitmaskStream + 'a
+    where
+        Self: 'a;
 
     /// Returns a BitmaskStream over the in-neighbors of a given vertex.
     /// ** Panics if `u >= n` **
-    fn in_neighbors_of_as_stream(&self, u: Node) -> impl BitmaskStream + '_ {
-        self.in_neighbors_of_as_bitset(u).into_bitmask_stream()
-    }
+    fn in_neighbors_of_as_stream(&self, u: Node) -> Self::InNeighborsStream<'_>;
 
     /// Returns an iterator over incoming edges of a given vertex.
     /// ** Panics if `u >= n` **
-    fn in_edges_of(&self, u: Node) -> impl Iterator<Item = Edge> + '_ {
-        self.in_neighbors_of(u).map(move |v| Edge(u, v))
+    fn in_edges_of(&self, u: Node) -> InEdgesOf<'_, Self> {
+        EdgesOfIterImpl {
+            iter: self.in_neighbors_of(u),
+            node: u,
+            only_normalized: false,
+        }
     }
 
     /// Returns an iterator over incoming edges of a given vertex in sorted order.
     /// ** Panics if `u >= n` **
-    fn ordered_in_edges_of(&self, u: Node) -> impl Iterator<Item = Edge> {
+    fn ordered_in_edges_of(&self, u: Node) -> OrderedInEdgesOf {
         let mut edges = self.in_edges_of(u).collect_vec();
         edges.sort();
         edges.into_iter()
@@ -437,13 +629,19 @@ pub trait NeighborsSliceMut: NeighborsSlice {
     fn as_neighbors_slice_mut(&mut self, u: Node) -> &mut [Node];
 }
 
-impl<G: NeighborsSlice + AdjacencyList> IndexedAdjacencyList for G {
+impl<G> IndexedAdjacencyList for G
+where
+    G: NeighborsSlice + AdjacencyList,
+{
     fn ith_neighbor(&self, u: Node, i: NumNodes) -> Node {
         self.as_neighbors_slice(u)[i as usize]
     }
 }
 
-impl<G: NeighborsSliceMut + AdjacencyList> IndexedAdjacencySwap for G {
+impl<G> IndexedAdjacencySwap for G
+where
+    G: NeighborsSliceMut + AdjacencyList,
+{
     fn swap_neighbors(&mut self, u: Node, i: NumNodes, j: NumNodes) {
         self.as_neighbors_slice_mut(u).swap(i as usize, j as usize);
     }
@@ -451,7 +649,8 @@ impl<G: NeighborsSliceMut + AdjacencyList> IndexedAdjacencySwap for G {
 
 /// Trait for creating a new empty graph
 pub trait GraphNew {
-    /// Creates an empty graph with n singleton nodes
+    /// Creates an empty graph with n singleton nodes.
+    /// ** Panics if `n = 0` **
     fn new(n: NumNodes) -> Self;
 }
 
@@ -469,7 +668,11 @@ pub trait GraphEdgeEditing: GraphNew {
     fn try_add_edge(&mut self, u: Node, v: Node) -> bool;
 
     /// Adds all edges in the collection
-    fn add_edges(&mut self, edges: impl IntoIterator<Item = impl Into<Edge>>) {
+    fn add_edges<I, E>(&mut self, edges: I)
+    where
+        E: Into<Edge>,
+        I: IntoIterator<Item = E>,
+    {
         for Edge(u, v) in edges.into_iter().map(|d| d.into()) {
             self.add_edge(u, v);
         }
@@ -478,7 +681,11 @@ pub trait GraphEdgeEditing: GraphNew {
     /// Tries to add all edges `(u, v)` of the collection to the graph.
     /// Returns the number of successfully added edges.
     /// ** Panics if `u >= n || v >= n`  for any `(u, v)` in `edges` **
-    fn try_add_edges(&mut self, edges: impl IntoIterator<Item = impl Into<Edge>>) -> NumEdges {
+    fn try_add_edges<I, E>(&mut self, edges: I) -> NumEdges
+    where
+        E: Into<Edge>,
+        I: IntoIterator<Item = E>,
+    {
         edges
             .into_iter()
             .map(|e| {
@@ -496,7 +703,11 @@ pub trait GraphEdgeEditing: GraphNew {
 
     /// Removes all edges in the collection
     /// ** Panics if the any edge (u, v) in `edges` is not present or u, v >= n **
-    fn remove_edges(&mut self, edges: impl IntoIterator<Item = impl Into<Edge>>) {
+    fn remove_edges<I, E>(&mut self, edges: I)
+    where
+        E: Into<Edge>,
+        I: IntoIterator<Item = E>,
+    {
         for Edge(u, v) in edges.into_iter().map(|d| d.into()) {
             self.remove_edge(u, v);
         }
@@ -527,7 +738,10 @@ pub trait GraphLocalEdgeEditing: GraphEdgeEditing {
 
     /// Removes all edges adjacent to any node u in an iterator in the graph.
     /// ** Panics if any node in `nodes` is `>= n` **
-    fn remove_edges_at_nodes<I: Iterator<Item = Node>>(&mut self, nodes: I) {
+    fn remove_edges_at_nodes<I>(&mut self, nodes: I)
+    where
+        I: IntoIterator<Item = Node>,
+    {
         for node in nodes {
             self.remove_edges_at_node(node);
         }
@@ -537,21 +751,38 @@ pub trait GraphLocalEdgeEditing: GraphEdgeEditing {
 /// A super trait for creating a graph from scratch from a set of edges and a number of nodes
 pub trait GraphFromScratch {
     /// Create a graph from a number of nodes and an iterator over Edges
-    fn from_edges(n: NumNodes, edges: impl IntoIterator<Item = impl Into<Edge>>) -> Self;
+    fn from_edges<I, E>(n: NumNodes, edges: I) -> Self
+    where
+        E: Into<Edge>,
+        I: IntoIterator<Item = E>;
 
     /// Create a graph from a number of nodes and an iterator over Edges, adding edges via
     /// `graph.try_add_edge` instead of `graph.add_edge`
-    fn from_try_edges(n: NumNodes, edges: impl IntoIterator<Item = impl Into<Edge>>) -> Self;
+    fn from_try_edges<I, E>(n: NumNodes, edges: I) -> Self
+    where
+        E: Into<Edge>,
+        I: IntoIterator<Item = E>;
 }
 
-impl<G: GraphNew + GraphEdgeEditing> GraphFromScratch for G {
-    fn from_edges(n: NumNodes, edges: impl IntoIterator<Item = impl Into<Edge>>) -> Self {
+impl<G> GraphFromScratch for G
+where
+    G: GraphNew + GraphEdgeEditing,
+{
+    fn from_edges<I, E>(n: NumNodes, edges: I) -> Self
+    where
+        E: Into<Edge>,
+        I: IntoIterator<Item = E>,
+    {
         let mut graph = Self::new(n);
         graph.add_edges(edges);
         graph
     }
 
-    fn from_try_edges(n: NumNodes, edges: impl IntoIterator<Item = impl Into<Edge>>) -> Self {
+    fn from_try_edges<I, E>(n: NumNodes, edges: I) -> Self
+    where
+        E: Into<Edge>,
+        I: IntoIterator<Item = E>,
+    {
         let mut graph = Self::new(n);
         graph.try_add_edges(edges);
         graph

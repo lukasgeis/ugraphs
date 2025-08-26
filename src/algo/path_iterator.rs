@@ -15,7 +15,10 @@ pub trait PathIterator: AdjacencyList {
     fn path_iter_with_atleast_path_nodes(&self, min_path_nodes: NumNodes) -> Paths<'_, Self>;
 }
 
-impl<G: AdjacencyList> PathIterator for G {
+impl<G> PathIterator for G
+where
+    G: AdjacencyList,
+{
     fn path_iter(&self) -> Paths<'_, Self> {
         Paths::new(self)
     }
@@ -31,14 +34,20 @@ impl<G: AdjacencyList> PathIterator for G {
     }
 }
 
-pub struct Paths<'a, G: AdjacencyList> {
+pub struct Paths<'a, G>
+where
+    G: AdjacencyList,
+{
     graph: &'a G,
     min_length: NumNodes,
     visited: NodeBitSet,
     search_at: Node,
 }
 
-impl<'a, G: AdjacencyList> Paths<'a, G> {
+impl<'a, G> Paths<'a, G>
+where
+    G: AdjacencyList,
+{
     fn new(graph: &'a G) -> Self {
         Self {
             graph,
@@ -73,7 +82,10 @@ impl<'a, G: AdjacencyList> Paths<'a, G> {
     }
 }
 
-impl<G: AdjacencyList> Iterator for Paths<'_, G> {
+impl<G> Iterator for Paths<'_, G>
+where
+    G: AdjacencyList,
+{
     type Item = Vec<Node>;
 
     fn next(&mut self) -> Option<Self::Item> {

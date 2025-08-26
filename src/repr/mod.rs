@@ -1,5 +1,6 @@
-use super::{ops::*, *};
-use stream_bitset::prelude::{BitmaskStream, IntoBitmaskStream};
+use crate::{ops::*, *};
+use std::ops::Range;
+use stream_bitset::prelude::BitmaskStream;
 
 mod csr;
 mod directed;
@@ -27,10 +28,12 @@ pub trait Neighborhood: Clone {
     /// Returns an iterator over all neighbors in the Neighborhood
     fn neighbors(&self) -> Self::NeighborhoodIter<'_>;
 
+    type NeighborhoodStream<'a>: BitmaskStream + 'a
+    where
+        Self: 'a;
+
     /// Returns a BitmaskStream over the Neighborhood for a given maximum number of nodes
-    fn neighbors_as_stream(&self, n: NumNodes) -> impl BitmaskStream + '_ {
-        NodeBitSet::new_with_bits_set(n, self.neighbors()).into_bitmask_stream()
-    }
+    fn neighbors_as_stream(&self, n: NumNodes) -> Self::NeighborhoodStream<'_>;
 
     /// Returns *true* if `u` is in the Neighborhood
     /// ** Might panic if `u >= n` **
@@ -112,6 +115,14 @@ pub(crate) mod macros {
             }
 
             impl<$first_generic: Neighborhood,$($generic: Neighborhood),*> GraphNodeOrder for $struct<$first_generic, $($generic),*> {
+                type VertexIter<'a> = Range<Node>
+                where
+                    Self: 'a;
+
+                fn vertices(&self) -> Self::VertexIter<'_> {
+                    self.vertices_range()
+                }
+
                 fn number_of_nodes(&self) -> NumNodes {
                     self.$nbs.len() as NumNodes
                 }
@@ -128,22 +139,35 @@ pub(crate) mod macros {
                 where
                     Self: 'a;
 
+                type ClosedNeighborIter<'a> = std::iter::Chain<std::iter::Once<Node>, Self::NeighborIter<'a>>
+                where
+                    Self: 'a;
+
                 fn neighbors_of(&self, u: Node) -> Self::NeighborIter<'_> {
                     self.$nbs[u as usize].neighbors()
+                }
+
+                fn closed_neighbors_of(&self, u: Node) -> Self::ClosedNeighborIter<'_> {
+                    std::iter::once(u).chain(self.neighbors_of(u))
                 }
 
                 fn degree_of(&self, u: Node) -> NumNodes {
                     self.$nbs[u as usize].num_of_neighbors()
                 }
 
+                type NeighborsStream<'a> = <$first_generic as Neighborhood>::NeighborhoodStream<'a>
+                where
+                    Self: 'a;
+
                 // Redefine to make use of `AdjMatrix` BitSet-Representation
-                fn neighbors_of_as_stream(&self, u: Node) -> impl stream_bitset::prelude::BitmaskStream + '_ {
+                fn neighbors_of_as_stream(&self, u: Node) -> Self::NeighborsStream<'_> {
                     self.$nbs[u as usize].neighbors_as_stream(self.number_of_nodes())
                 }
             }
 
             impl<$first_generic: Neighborhood,$($generic: Neighborhood),*> GraphNew for $struct<$first_generic, $($generic),*> {
                 fn new(n: NumNodes) -> Self {
+                    assert!(n > 0);
                     Self {
                         num_edges: 0,
                         $first_field: vec![$first_generic::new(n); n as usize],

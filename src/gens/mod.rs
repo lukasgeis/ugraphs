@@ -79,7 +79,10 @@ pub trait GraphGenerator {
     /// Generates a list of random edges.
     ///
     /// This collects the full result from `stream()` into a `Vec<Edge>` as default.
-    fn generate<R: Rng>(&self, rng: &mut R) -> Vec<Edge> {
+    fn generate<R>(&self, rng: &mut R) -> Vec<Edge>
+    where
+        R: Rng,
+    {
         self.stream(rng).collect()
     }
 
@@ -88,7 +91,9 @@ pub trait GraphGenerator {
     /// Preferred for large graphs or pipelined filtering. Depending on the underlying graph
     /// model, this might also be just an iterator over the already generated list of edges if
     /// a direct iterator is not feasible in the model.
-    fn stream<R: Rng>(&self, rng: &mut R) -> impl Iterator<Item = Edge>;
+    fn stream<R>(&self, rng: &mut R) -> impl Iterator<Item = Edge>
+    where
+        R: Rng;
 }
 
 /// Trait for building full graph instances from common random models.
@@ -97,35 +102,57 @@ pub trait GraphGenerator {
 /// Provided implementations use the corresponding edge generators under the hood.
 pub trait RandomGraph: Sized {
     /// Creates a random `G(n)` graph.
-    fn gn<R: Rng>(rng: &mut R, n: NumNodes) -> Self;
+    fn gn<R>(rng: &mut R, n: NumNodes) -> Self
+    where
+        R: Rng;
 
     /// Creates a random `G(n,p)` graph using edge probability `p`.
-    fn gnp<R: Rng>(rng: &mut R, n: NumNodes, p: f64) -> Self;
+    fn gnp<R>(rng: &mut R, n: NumNodes, p: f64) -> Self
+    where
+        R: Rng;
 
     /// Creates a `G(n,p)` graph with no self-loops.
-    fn gnp_no_loops<R: Rng>(rng: &mut R, n: NumNodes, p: f64) -> Self;
+    fn gnp_no_loops<R>(rng: &mut R, n: NumNodes, p: f64) -> Self
+    where
+        R: Rng;
 
     /// Creates a random `G(n,m)` graph with exactly `m` edges.
     ///
     /// Internally uses a default hash map-based edge selector.
-    fn gnm<R: Rng>(rng: &mut R, n: NumNodes, m: NumEdges) -> Self {
+    fn gnm<R>(rng: &mut R, n: NumNodes, m: NumEdges) -> Self
+    where
+        R: Rng,
+    {
         Self::gnm_with_map::<R, FxHashMap<u64, OptionalU64>>(rng, n, m)
     }
 
     /// Creates a random `G(n,m)` graph using a custom hash map-like type for sampling.
     ///
     /// This allows external control over memory layout or hashing strategy.
-    fn gnm_with_map<R: Rng, H: GnmMap>(rng: &mut R, n: NumNodes, m: NumEdges) -> Self;
+    fn gnm_with_map<R, H>(rng: &mut R, n: NumNodes, m: NumEdges) -> Self
+    where
+        R: Rng,
+        H: GnmMap;
 
     /// Creates a random `Rhg(alpha = 1.0, T = 0)` graph with `n` nodes and specified average degree.
-    fn rhg<R: Rng>(rng: &mut R, n: NumNodes, avg_deg: f64) -> Self;
+    fn rhg<R>(rng: &mut R, n: NumNodes, avg_deg: f64) -> Self
+    where
+        R: Rng;
 
     /// Creates a random Mst with `n` nodes and root node `0`
-    fn mst<R: Rng>(rng: &mut R, n: NumNodes) -> Self;
+    fn mst<R>(rng: &mut R, n: NumNodes) -> Self
+    where
+        R: Rng;
 }
 
-impl<G: GraphFromScratch + GraphType> RandomGraph for G {
-    fn gn<R: Rng>(rng: &mut R, n: NumNodes) -> Self {
+impl<G> RandomGraph for G
+where
+    G: GraphFromScratch + GraphType,
+{
+    fn gn<R>(rng: &mut R, n: NumNodes) -> Self
+    where
+        R: Rng,
+    {
         Self::from_edges(
             n,
             Gn::new()
@@ -135,7 +162,10 @@ impl<G: GraphFromScratch + GraphType> RandomGraph for G {
         )
     }
 
-    fn gnp<R: Rng>(rng: &mut R, n: NumNodes, p: f64) -> Self {
+    fn gnp<R>(rng: &mut R, n: NumNodes, p: f64) -> Self
+    where
+        R: Rng,
+    {
         Self::from_edges(
             n,
             Gnp::new()
@@ -146,7 +176,10 @@ impl<G: GraphFromScratch + GraphType> RandomGraph for G {
         )
     }
 
-    fn gnp_no_loops<R: Rng>(rng: &mut R, n: NumNodes, p: f64) -> Self {
+    fn gnp_no_loops<R>(rng: &mut R, n: NumNodes, p: f64) -> Self
+    where
+        R: Rng,
+    {
         Self::from_edges(
             n,
             Gnp::new()
@@ -157,7 +190,11 @@ impl<G: GraphFromScratch + GraphType> RandomGraph for G {
         )
     }
 
-    fn gnm_with_map<R: Rng, H: GnmMap>(rng: &mut R, n: NumNodes, m: NumEdges) -> Self {
+    fn gnm_with_map<R, H>(rng: &mut R, n: NumNodes, m: NumEdges) -> Self
+    where
+        R: Rng,
+        H: GnmMap,
+    {
         Self::from_edges(
             n,
             Gnm::<H>::new()
@@ -168,11 +205,17 @@ impl<G: GraphFromScratch + GraphType> RandomGraph for G {
         )
     }
 
-    fn rhg<R: Rng>(rng: &mut R, n: NumNodes, avg_deg: f64) -> Self {
+    fn rhg<R>(rng: &mut R, n: NumNodes, avg_deg: f64) -> Self
+    where
+        R: Rng,
+    {
         Self::from_edges(n, Rhg::new().nodes(n).avg_deg(avg_deg).stream(rng))
     }
 
-    fn mst<R: Rng>(rng: &mut R, n: NumNodes) -> Self {
+    fn mst<R>(rng: &mut R, n: NumNodes) -> Self
+    where
+        R: Rng,
+    {
         Self::from_edges(n, Mst::new().nodes(n).stream(rng))
     }
 }

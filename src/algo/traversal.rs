@@ -9,7 +9,10 @@ pub trait WithGraphRef<G> {
     fn graph(&self) -> &G;
 }
 
-pub trait TraversalState<S: Set<Node>> {
+pub trait TraversalState<S>
+where
+    S: Set<Node>,
+{
     fn visited(&self) -> &S;
 
     fn did_visit_node(&self, u: Node) -> bool {
@@ -113,13 +116,13 @@ where
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////// BFS & DFS
-pub struct TraversalSearch<
-    'a,
+pub struct TraversalSearch<'a, G, S, I, V>
+where
     G: AdjacencyList,
     S: NodeSequencer<I>,
     I: SequencedItem,
     V: Set<Node>,
-> {
+{
     graph: &'a G,
     visited: V,
     sequencer: S,
@@ -137,24 +140,36 @@ pub type BFSWithPredecessor<'a, G> =
 pub type DFSWithPredecessor<'a, G> =
     TraversalSearch<'a, G, Vec<PredecessorOfNode>, PredecessorOfNode, NodeBitSet>;
 
-impl<G: AdjacencyList, S: NodeSequencer<I>, I: SequencedItem, V: Set<Node>> WithGraphRef<G>
-    for TraversalSearch<'_, G, S, I, V>
+impl<G, S, I, V> WithGraphRef<G> for TraversalSearch<'_, G, S, I, V>
+where
+    G: AdjacencyList,
+    S: NodeSequencer<I>,
+    I: SequencedItem,
+    V: Set<Node>,
 {
     fn graph(&self) -> &G {
         self.graph
     }
 }
 
-impl<G: AdjacencyList, S: NodeSequencer<I>, I: SequencedItem, V: Set<Node>> TraversalState<V>
-    for TraversalSearch<'_, G, S, I, V>
+impl<G, S, I, V> TraversalState<V> for TraversalSearch<'_, G, S, I, V>
+where
+    G: AdjacencyList,
+    S: NodeSequencer<I>,
+    I: SequencedItem,
+    V: Set<Node>,
 {
     fn visited(&self) -> &V {
         &self.visited
     }
 }
 
-impl<G: AdjacencyList, S: NodeSequencer<I>, I: SequencedItem, V: Set<Node>> Iterator
-    for TraversalSearch<'_, G, S, I, V>
+impl<G, S, I, V> Iterator for TraversalSearch<'_, G, S, I, V>
+where
+    G: AdjacencyList,
+    S: NodeSequencer<I>,
+    I: SequencedItem,
+    V: Set<Node>,
 {
     type Item = I;
 
@@ -184,8 +199,12 @@ impl<G: AdjacencyList, S: NodeSequencer<I>, I: SequencedItem, V: Set<Node>> Iter
     }
 }
 
-impl<'a, G: AdjacencyList, S: NodeSequencer<I>, I: SequencedItem, V: Set<Node> + FromCapacity>
-    TraversalSearch<'a, G, S, I, V>
+impl<'a, G, S, I, V> TraversalSearch<'a, G, S, I, V>
+where
+    G: AdjacencyList,
+    S: NodeSequencer<I>,
+    I: SequencedItem,
+    V: Set<Node> + FromCapacity,
 {
     pub fn new(graph: &'a G, start: Node) -> Self {
         let len = graph.len();
@@ -201,8 +220,12 @@ impl<'a, G: AdjacencyList, S: NodeSequencer<I>, I: SequencedItem, V: Set<Node> +
     }
 }
 
-impl<'a, G: AdjacencyList, S: NodeSequencer<I>, I: SequencedItem, V: Set<Node>>
-    TraversalSearch<'a, G, S, I, V>
+impl<'a, G, S, I, V> TraversalSearch<'a, G, S, I, V>
+where
+    G: AdjacencyList,
+    S: NodeSequencer<I>,
+    I: SequencedItem,
+    V: Set<Node>,
 {
     /// Tries to restart the search at an yet unvisited node and returns
     /// true iff successful. Requires that search came to a hold earlier,
@@ -264,8 +287,9 @@ impl<'a, G: AdjacencyList, S: NodeSequencer<I>, I: SequencedItem, V: Set<Node>>
 }
 
 //////////////////////////////////////////////////////////////////////////////////////// Convenience
-pub trait RankFromOrder<'a, G: 'a + AdjacencyList>:
-    WithGraphRef<G> + Iterator<Item = Node> + Sized
+pub trait RankFromOrder<'a, G>: WithGraphRef<G> + Iterator<Item = Node> + Sized
+where
+    G: 'a + AdjacencyList,
 {
     /// Consumes a graph traversal iterator and returns a mapping, where the i-th
     /// item contains the rank (starting from 0) as which it was iterated over.
@@ -288,13 +312,18 @@ pub trait RankFromOrder<'a, G: 'a + AdjacencyList>:
     }
 }
 
-impl<'a, G: AdjacencyList, S: NodeSequencer<Node>, V: Set<Node>> RankFromOrder<'a, G>
-    for TraversalSearch<'a, G, S, Node, V>
+impl<'a, G, S, V> RankFromOrder<'a, G> for TraversalSearch<'a, G, S, Node, V>
+where
+    G: AdjacencyList,
+    S: NodeSequencer<Node>,
+    V: Set<Node>,
 {
 }
 
-pub trait TraversalTree<'a, G: 'a + AdjacencyList>:
+pub trait TraversalTree<'a, G>:
     WithGraphRef<G> + Iterator<Item = PredecessorOfNode> + Sized
+where
+    G: 'a + AdjacencyList,
 {
     /// Consumes the underlying graph traversal iterator and records the implied tree structure
     /// into an parent-array, i.e. `result[i]` stores the predecessor of node `i`. It is the
@@ -337,8 +366,11 @@ pub trait TraversalTree<'a, G: 'a + AdjacencyList>:
     }
 }
 
-impl<'a, G: AdjacencyList, S: NodeSequencer<PredecessorOfNode>, V: Set<Node>> TraversalTree<'a, G>
-    for TraversalSearch<'a, G, S, PredecessorOfNode, V>
+impl<'a, G, S, V> TraversalTree<'a, G> for TraversalSearch<'a, G, S, PredecessorOfNode, V>
+where
+    G: AdjacencyList,
+    S: NodeSequencer<PredecessorOfNode>,
+    V: Set<Node>,
 {
 }
 
@@ -349,13 +381,19 @@ pub struct TopoSearch<'a, G> {
     stack: Vec<Node>,
 }
 
-impl<'a, G: DirectedAdjacencyList> WithGraphRef<G> for TopoSearch<'a, G> {
+impl<'a, G> WithGraphRef<G> for TopoSearch<'a, G>
+where
+    G: DirectedAdjacencyList,
+{
     fn graph(&self) -> &G {
         self.graph
     }
 }
 
-impl<'a, G: DirectedAdjacencyList> Iterator for TopoSearch<'a, G> {
+impl<'a, G> Iterator for TopoSearch<'a, G>
+where
+    G: DirectedAdjacencyList,
+{
     type Item = Node;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -376,7 +414,10 @@ impl<'a, G: DirectedAdjacencyList> Iterator for TopoSearch<'a, G> {
     }
 }
 
-impl<'a, G: DirectedAdjacencyList> TopoSearch<'a, G> {
+impl<'a, G> TopoSearch<'a, G>
+where
+    G: DirectedAdjacencyList,
+{
     fn new(graph: &'a G) -> Self {
         // add an in_degree getter to each graph?
         let mut in_degs: Vec<Node> = vec![0; graph.len()];
@@ -401,7 +442,7 @@ impl<'a, G: DirectedAdjacencyList> TopoSearch<'a, G> {
     }
 }
 
-impl<'a, G: DirectedAdjacencyList> RankFromOrder<'a, G> for TopoSearch<'a, G> {}
+impl<'a, G> RankFromOrder<'a, G> for TopoSearch<'a, G> where G: DirectedAdjacencyList {}
 
 /// Offers graph traversal algorithms as methods of the graph representation
 pub trait Traversal: AdjacencyList + Sized {
@@ -470,11 +511,11 @@ pub trait Traversal: AdjacencyList + Sized {
     }
 
     /// Computes the shortest path from `start` to `end` using BFS and returns the path if it exists.
-    fn shortest_path<S: Set<Node> + FromCapacity, M: Map<Node, Node> + FromCapacity>(
-        &self,
-        start: Node,
-        end: Node,
-    ) -> Option<Vec<Node>> {
+    fn shortest_path<S, M>(&self, start: Node, end: Node) -> Option<Vec<Node>>
+    where
+        S: Set<Node> + FromCapacity,
+        M: Map<Node, Node> + FromCapacity,
+    {
         let mut bfs =
             TraversalSearch::<'_, Self, VecDeque<PredecessorOfNode>, PredecessorOfNode, S>::new(
                 self, start,
@@ -509,7 +550,7 @@ pub trait Traversal: AdjacencyList + Sized {
     }
 }
 
-impl<T: AdjacencyList + Sized> Traversal for T {}
+impl<T> Traversal for T where T: AdjacencyList + Sized {}
 
 #[cfg(test)]
 pub mod tests {

@@ -54,7 +54,10 @@ impl DotWriter {
 
     /// Set the prefix of a node (`u` by default). Can also be changed while drawing to draw
     /// additional subgraphs apart from the original graph.
-    pub fn node_prefix<S: Into<String>>(self, prefix: S) -> DotWriter {
+    pub fn node_prefix<S>(self, prefix: S) -> DotWriter
+    where
+        S: Into<String>,
+    {
         DotWriter {
             inc_nodes: self.inc_nodes,
             prefix: prefix.into(),
@@ -63,7 +66,10 @@ impl DotWriter {
 
     /// Writes the opening brackets of the graph.
     /// Must know if the graph is undirected
-    pub fn start_graph<W: Write>(&self, writer: &mut W, directed: bool) -> Result<()> {
+    pub fn start_graph<W>(&self, writer: &mut W, directed: bool) -> Result<()>
+    where
+        W: Write,
+    {
         let graph_name = if directed { "digraph" } else { "graph" };
 
         writeln!(writer, "{graph_name} {{")
@@ -77,13 +83,17 @@ impl DotWriter {
 
     /// Writes an iterator of edges to `writer`. Must know if the edges are directed and if they
     /// should be colored.
-    pub fn write_edges<W: Write, I: IntoIterator<Item = Edge>>(
+    pub fn write_edges<W, I>(
         &self,
         writer: &mut W,
         edges: I,
         directed: bool,
         color: Option<DotColor>,
-    ) -> Result<()> {
+    ) -> Result<()>
+    where
+        W: Write,
+        I: IntoIterator<Item = Edge>,
+    {
         let edge_dir = if directed { "->" } else { "--" };
 
         let edge_color = if let Some(c) = color {
@@ -106,12 +116,11 @@ impl DotWriter {
     /// Writes a list of colored nodes to `writer`.
     /// This method should only be needed when wanting to color additional nodes which is why
     /// `color` is not optional.
-    pub fn color_nodes<W: Write, I: IntoIterator<Item = Node>>(
-        &self,
-        writer: &mut W,
-        nodes: I,
-        color: DotColor,
-    ) -> Result<()> {
+    pub fn color_nodes<W, I>(&self, writer: &mut W, nodes: I, color: DotColor) -> Result<()>
+    where
+        W: Write,
+        I: IntoIterator<Item = Node>,
+    {
         for u in nodes.into_iter() {
             write!(
                 writer,
@@ -123,13 +132,22 @@ impl DotWriter {
     }
 
     /// Closes the Dot-Graph, thus finishing the graph
-    pub fn finish_graph<W: Write>(&self, writer: &mut W) -> Result<()> {
+    pub fn finish_graph<W>(&self, writer: &mut W) -> Result<()>
+    where
+        W: Write,
+    {
         writeln!(writer, "}}")
     }
 }
 
-impl<G: AdjacencyList + GraphType> GraphWriter<G> for DotWriter {
-    fn try_write_graph<W: Write>(&self, graph: &G, mut writer: W) -> std::io::Result<()> {
+impl<G> GraphWriter<G> for DotWriter
+where
+    G: AdjacencyList + GraphType,
+{
+    fn try_write_graph<W>(&self, graph: &G, mut writer: W) -> std::io::Result<()>
+    where
+        W: Write,
+    {
         let directed = G::is_directed();
         self.start_graph(&mut writer, directed)?;
         self.write_edges(&mut writer, graph.edges(!directed), directed, None)?;
@@ -141,17 +159,28 @@ impl<G: AdjacencyList + GraphType> GraphWriter<G> for DotWriter {
 /// Shorthand for default settings.
 pub trait DotWrite {
     /// Tries to write the graph to a writer
-    fn try_write_dot<W: Write>(&self, writer: W) -> Result<()>;
+    fn try_write_dot<W>(&self, writer: W) -> Result<()>
+    where
+        W: Write;
 
     /// Tries to write the graph to a file
-    fn try_write_dot_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
+    fn try_write_dot_file<P>(&self, path: P) -> Result<()>
+    where
+        P: AsRef<Path>,
+    {
         let writer = BufWriter::new(File::create(path)?);
         self.try_write_dot(writer)
     }
 }
 
-impl<G: AdjacencyList + GraphType> DotWrite for G {
-    fn try_write_dot<W: Write>(&self, writer: W) -> Result<()> {
+impl<G> DotWrite for G
+where
+    G: AdjacencyList + GraphType,
+{
+    fn try_write_dot<W>(&self, writer: W) -> Result<()>
+    where
+        W: Write,
+    {
         DotWriter::default().try_write_graph(self, writer)
     }
 }

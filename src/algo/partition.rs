@@ -29,7 +29,10 @@ impl Partition {
 
     /// Creates a new partition class and assigns all provided nodes to it; we require that these
     /// nodes were previously unassigned.
-    pub fn add_class<I: IntoIterator<Item = Node>>(&mut self, nodes: I) -> PartitionClass {
+    pub fn add_class<I>(&mut self, nodes: I) -> PartitionClass
+    where
+        I: IntoIterator<Item = Node>,
+    {
         let raw_class_id = self.class_sizes.len();
         let class_id = OptionalNode::new(raw_class_id as Node);
         self.class_sizes.push(0);

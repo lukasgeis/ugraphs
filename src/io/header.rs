@@ -74,7 +74,10 @@ impl Default for HeaderFormat<true, true, true> {
 
 impl Header {
     /// Creates a new HeaderFormat in the Pace-Style which is always valid
-    pub fn new_problem<S: Into<String>>(problem: S) -> Self {
+    pub fn new_problem<S>(problem: S) -> Self
+    where
+        S: Into<String>,
+    {
         Self(smallvec![
             HeaderToken::Str("p".to_string()),
             HeaderToken::Str(problem.into()),
@@ -134,7 +137,10 @@ impl Header {
         Ok((number_of_nodes, number_of_edges))
     }
 
-    pub fn write_header<W: Write>(&self, writer: &mut W, n: NumNodes, m: NumEdges) -> Result<()> {
+    pub fn write_header<W>(&self, writer: &mut W, n: NumNodes, m: NumEdges) -> Result<()>
+    where
+        W: Write,
+    {
         let header_str = self
             .0
             .iter()
@@ -166,7 +172,10 @@ impl<const NODES_SET: bool, const EDGES_SET: bool> HeaderFormat<NODES_SET, EDGES
     }
 
     /// Pushes a token that should match a string onto the stack
-    pub fn str<S: Into<String>>(mut self, s: S) -> Self {
+    pub fn str<S>(mut self, s: S) -> Self
+    where
+        S: Into<String>,
+    {
         self.0.push(HeaderToken::Str(s.into()));
         self
     }

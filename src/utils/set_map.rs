@@ -4,13 +4,18 @@
 //! additional information, the user knows (for example use-cases where the values of elements are bounded) but the compiler does not.
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, hash_set::Iter},
     hash::{BuildHasher, Hash},
+    iter::{Cloned, Copied},
 };
 
 use itertools::Itertools;
 use num::ToPrimitive;
-use stream_bitset::{PrimIndex, bitset::BitSetImpl};
+use stream_bitset::{
+    PrimIndex,
+    bitset::BitSetImpl,
+    prelude::{BitmaskSliceStream, BitmaskStreamConsumer, BitmaskStreamToIndices, ToBitmaskStream},
+};
 
 use crate::{Node, NumNodes, OptionalNode};
 
@@ -21,7 +26,10 @@ pub trait Set<T> {
     fn insert(&mut self, value: T) -> bool;
 
     /// Inserts multiple elements into the Set
-    fn insert_multiple<I: Iterator<Item = T>>(&mut self, iter: I) {
+    fn insert_multiple<I>(&mut self, iter: I)
+    where
+        I: IntoIterator<Item = T>,
+    {
         for value in iter {
             self.insert(value);
         }
@@ -32,18 +40,24 @@ pub trait Set<T> {
     fn remove(&mut self, value: &T) -> bool;
 
     /// Removes multiple elements from the Set
-    fn remove_multiple<'a, I: Iterator<Item = &'a T> + 'a>(&mut self, iter: I)
+    fn remove_multiple<'a, I>(&mut self, iter: I)
     where
         T: 'a,
+        I: IntoIterator<Item = &'a T> + 'a,
     {
         for value in iter {
             self.remove(value);
         }
     }
 
+    type SetIter<'a>: Iterator<Item = T>
+    where
+        Self: 'a,
+        T: Clone;
+
     /// Iterates over all elements in the Set
     /// Depending on the underlying datastructure, this might clone each value
-    fn iter(&self) -> impl Iterator<Item = T>
+    fn iter(&self) -> Self::SetIter<'_>
     where
         T: Clone;
 
@@ -62,7 +76,11 @@ pub trait Set<T> {
     }
 }
 
-impl<T: Eq + Hash, S: BuildHasher> Set<T> for HashSet<T, S> {
+impl<T, S> Set<T> for HashSet<T, S>
+where
+    T: Eq + Hash,
+    S: BuildHasher,
+{
     fn insert(&mut self, value: T) -> bool {
         HashSet::insert(self, value)
     }
@@ -71,7 +89,13 @@ impl<T: Eq + Hash, S: BuildHasher> Set<T> for HashSet<T, S> {
         HashSet::remove(self, value)
     }
 
-    fn iter(&self) -> impl Iterator<Item = T>
+    type SetIter<'a>
+        = Cloned<Iter<'a, T>>
+    where
+        Self: 'a,
+        T: Clone;
+
+    fn iter(&self) -> Self::SetIter<'_>
     where
         T: Clone,
     {
@@ -91,7 +115,10 @@ impl<T: Eq + Hash, S: BuildHasher> Set<T> for HashSet<T, S> {
     }
 }
 
-impl<I: PrimIndex> Set<I> for BitSetImpl<I> {
+impl<I> Set<I> for BitSetImpl<I>
+where
+    I: PrimIndex,
+{
     fn insert(&mut self, value: I) -> bool {
         self.set_bit(value)
     }
@@ -100,8 +127,14 @@ impl<I: PrimIndex> Set<I> for BitSetImpl<I> {
         self.clear_bit(*value)
     }
 
-    fn iter(&self) -> impl Iterator<Item = I> {
-        self.iter_set_bits()
+    type SetIter<'a>
+        = BitmaskStreamToIndices<BitmaskSliceStream<'a>, I, true>
+    where
+        Self: 'a,
+        I: Clone;
+
+    fn iter(&self) -> Self::SetIter<'_> {
+        self.bitmask_stream().iter_set_bits()
     }
 
     fn contains(&self, value: &I) -> bool {
@@ -171,7 +204,13 @@ impl Set<Node> for NodeSet {
         true
     }
 
-    fn iter(&self) -> impl Iterator<Item = Node> {
+    type SetIter<'a>
+        = Copied<std::slice::Iter<'a, Node>>
+    where
+        Self: 'a,
+        Node: Clone;
+
+    fn iter(&self) -> Self::SetIter<'_> {
         self.data.iter().copied()
     }
 
@@ -213,7 +252,11 @@ pub trait Map<K, V> {
     }
 }
 
-impl<K: Eq + Hash, V, S: BuildHasher> Map<K, V> for HashMap<K, V, S> {
+impl<K, V, S> Map<K, V> for HashMap<K, V, S>
+where
+    K: Eq + Hash,
+    S: BuildHasher,
+{
     fn insert(&mut self, key: K, value: V) -> Option<V> {
         HashMap::insert(self, key, value)
     }
@@ -235,7 +278,10 @@ impl<K: Eq + Hash, V, S: BuildHasher> Map<K, V> for HashMap<K, V, S> {
     }
 }
 
-impl<I: ToPrimitive, T> Map<I, T> for [Option<T>] {
+impl<I, T> Map<I, T> for [Option<T>]
+where
+    I: ToPrimitive,
+{
     fn insert(&mut self, key: I, value: T) -> Option<T> {
         let key = key.to_usize().unwrap();
         self[key].replace(value)

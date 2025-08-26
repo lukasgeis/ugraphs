@@ -6,9 +6,10 @@ use ::digest::{Digest, Output};
 pub trait GraphDigest {
     /// Computes a Hash-Digest of a graph that is independent of the
     /// graph data structure used and returns it as a hex string.
-    fn digest<D: Digest>(&self) -> String
+    fn digest<D>(&self) -> String
     where
-        Output<D>: LowerHex;
+        Output<D>: LowerHex,
+        D: Digest;
 
     /// Computes a SHA256 digest using [GraphDigest::digest]. The
     /// returned string is 64 characters long.
@@ -17,10 +18,14 @@ pub trait GraphDigest {
     }
 }
 
-impl<G: AdjacencyList> GraphDigest for G {
-    fn digest<D: Digest>(&self) -> String
+impl<G> GraphDigest for G
+where
+    G: AdjacencyList,
+{
+    fn digest<D>(&self) -> String
     where
         Output<D>: LowerHex,
+        D: Digest,
     {
         let mut hasher = D::new();
         let mut buffer = [0u8; 8];

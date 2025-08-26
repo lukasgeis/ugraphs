@@ -71,10 +71,15 @@ impl FromStr for FileFormat {
 /// Trait for Readers to implement
 pub trait GraphReader<G> {
     /// Read a graph a reader according to settings in `self`
-    fn try_read_graph<R: BufRead>(&self, reader: R) -> Result<G>;
+    fn try_read_graph<R>(&self, reader: R) -> Result<G>
+    where
+        R: BufRead;
 
     /// Read a graph from file according to settings in `self`
-    fn try_read_graph_file<P: AsRef<Path>>(&self, path: P) -> Result<G> {
+    fn try_read_graph_file<P>(&self, path: P) -> Result<G>
+    where
+        P: AsRef<Path>,
+    {
         self.try_read_graph(BufReader::new(File::open(path)?))
     }
 }
@@ -82,10 +87,15 @@ pub trait GraphReader<G> {
 /// Trait for Writers to implement
 pub trait GraphWriter<G> {
     /// Write a graph to a writer according to settings in `self`
-    fn try_write_graph<W: Write>(&self, graph: &G, writer: W) -> Result<()>;
+    fn try_write_graph<W>(&self, graph: &G, writer: W) -> Result<()>
+    where
+        W: Write;
 
     /// Write a graph to a file according to settings in `self`
-    fn try_write_graph_file<P: AsRef<Path>>(&self, graph: &G, path: P) -> Result<()> {
+    fn try_write_graph_file<P>(&self, graph: &G, path: P) -> Result<()>
+    where
+        P: AsRef<Path>,
+    {
         self.try_write_graph(graph, BufWriter::new(File::create(path)?))
     }
 }
@@ -93,16 +103,27 @@ pub trait GraphWriter<G> {
 /// Trait for reading a graph specified by a given FileFormat
 pub trait GraphRead: Sized {
     /// Read a graph from a reader according to FileFormat
-    fn try_from_reader<R: BufRead>(reader: R, format: FileFormat) -> Result<Self>;
+    fn try_from_reader<R>(reader: R, format: FileFormat) -> Result<Self>
+    where
+        R: BufRead;
 
     /// Read a graph from file according to FileFormat
-    fn try_from_file<P: AsRef<Path>>(path: P, format: FileFormat) -> Result<Self> {
+    fn try_from_file<P>(path: P, format: FileFormat) -> Result<Self>
+    where
+        P: AsRef<Path>,
+    {
         Self::try_from_reader(BufReader::new(File::open(path)?), format)
     }
 }
 
-impl<G: MetisRead + EdgeListRead> GraphRead for G {
-    fn try_from_reader<R: BufRead>(reader: R, format: FileFormat) -> Result<Self> {
+impl<G> GraphRead for G
+where
+    G: MetisRead + EdgeListRead,
+{
+    fn try_from_reader<R>(reader: R, format: FileFormat) -> Result<Self>
+    where
+        R: BufRead,
+    {
         match format {
             FileFormat::Metis => Self::try_read_metis(reader),
             FileFormat::EdgeList => Self::try_read_edge_list(reader),
@@ -117,16 +138,27 @@ impl<G: MetisRead + EdgeListRead> GraphRead for G {
 /// Trait for writing a graph specified by a given FileFormat
 pub trait GraphWrite {
     /// Write a graph to a writer according to FileFormat
-    fn try_write_to_writer<W: Write>(&self, writer: W, format: FileFormat) -> Result<()>;
+    fn try_write_to_writer<W>(&self, writer: W, format: FileFormat) -> Result<()>
+    where
+        W: Write;
 
     /// Write a graph to file according to FileFormat
-    fn try_write_to_file<P: AsRef<Path>>(&self, path: P, format: FileFormat) -> Result<()> {
+    fn try_write_to_file<P>(&self, path: P, format: FileFormat) -> Result<()>
+    where
+        P: AsRef<Path>,
+    {
         self.try_write_to_writer(BufWriter::new(File::create(path)?), format)
     }
 }
 
-impl<G: MetisWrite + EdgeListWrite + DotWrite> GraphWrite for G {
-    fn try_write_to_writer<W: Write>(&self, writer: W, format: FileFormat) -> Result<()> {
+impl<G> GraphWrite for G
+where
+    G: MetisWrite + EdgeListWrite + DotWrite,
+{
+    fn try_write_to_writer<W>(&self, writer: W, format: FileFormat) -> Result<()>
+    where
+        W: Write,
+    {
         match format {
             FileFormat::Metis => self.try_write_metis(writer),
             FileFormat::EdgeList => self.try_write_edge_list(writer),

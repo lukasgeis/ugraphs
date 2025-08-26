@@ -25,7 +25,10 @@ where
     }
 }
 
-pub struct ArticulationPointSearch<'a, T: AdjacencyList> {
+pub struct ArticulationPointSearch<'a, T>
+where
+    T: AdjacencyList,
+{
     graph: &'a T,
     low_point: Vec<Node>,
     dfs_num: Vec<Node>,
@@ -35,7 +38,10 @@ pub struct ArticulationPointSearch<'a, T: AdjacencyList> {
     parent: Vec<Option<Node>>,
 }
 
-impl<'a, T: AdjacencyList> ArticulationPointSearch<'a, T> {
+impl<'a, T> ArticulationPointSearch<'a, T>
+where
+    T: AdjacencyList,
+{
     /// Assumes the graph is connected, and for each edge (u, v) the edge (v, u) exists
     pub fn new(graph: &'a T) -> Self {
         let n = graph.number_of_nodes();
@@ -99,7 +105,10 @@ impl<'a, T: AdjacencyList> ArticulationPointSearch<'a, T> {
     }
 }
 
-pub struct GraphCutBuilder<'a, G: AdjacencyList + ArticluationPoint + Traversal> {
+pub struct GraphCutBuilder<'a, G>
+where
+    G: AdjacencyList + ArticluationPoint + Traversal,
+{
     graph: &'a G,
     enabled_cuts: Vec<CutType>,
     min_cc_size: Option<NumNodes>, // Minimum connected component size to keep
@@ -119,7 +128,10 @@ pub enum CutType {
 /// minimum connected component size requirements.
 /// If a cut produces >=2 components where the second largest component does
 /// not contain > threshold nodes, it is filtered out.
-impl<'a, G: AdjacencyList + ArticluationPoint + Traversal> GraphCutBuilder<'a, G> {
+impl<'a, G> GraphCutBuilder<'a, G>
+where
+    G: AdjacencyList + ArticluationPoint + Traversal,
+{
     /// Creates a new GraphCutBuilder with all cut types enabled by default.
     ///
     /// # Arguments

@@ -116,7 +116,10 @@ impl AverageDegreeGen for Rhg {
 }
 
 impl GraphGenerator for Rhg {
-    fn stream<R: Rng>(&self, rng: &mut R) -> impl Iterator<Item = Edge> {
+    fn stream<R>(&self, rng: &mut R) -> impl Iterator<Item = Edge>
+    where
+        R: Rng,
+    {
         RhgGenerator::new(rng, self.nodes, self.radius, self.alpha, self.num_bands)
     }
 }
@@ -150,13 +153,16 @@ pub struct RhgGenerator {
 
 impl RhgGenerator {
     /// Constructs a new RhgGenerator, computing node coordinates and partitions by bands
-    pub fn new<R: Rng>(
+    pub fn new<R>(
         rng: &mut R,
         n: NumNodes,
         radius: RhgRadius,
         alpha: f64,
         num_bands: Option<usize>,
-    ) -> Self {
+    ) -> Self
+    where
+        R: Rng,
+    {
         assert!(alpha > 0.0);
 
         // Determine radius either from provided value or compute from avg degree and alpha
@@ -273,13 +279,16 @@ impl RhgGenerator {
 
     /// Samples `n` node coordinates uniformly at random in hyperbolic space with given radius and alpha.
     /// Returns the vector of `Coord` and a vector of counts of points per band.
-    fn sample_coordinates(
-        rng: &mut impl Rng,
+    fn sample_coordinates<R>(
+        rng: &mut R,
         n: NumNodes,
         disk_rad: f64,
         alpha: f64,
         band_limits: &[f64],
-    ) -> (Vec<Coord>, Vec<NumNodes>) {
+    ) -> (Vec<Coord>, Vec<NumNodes>)
+    where
+        R: Rng,
+    {
         let min = 1.0_f64.next_up();
         let max = (alpha * disk_rad).cosh();
         let mut band_sizes = vec![0; band_limits.len()];

@@ -7,23 +7,27 @@ use crate::{
 /// Trait for creating subgraphs
 pub trait Subgraph: Sized {
     /// Create a new vertex-induced subgraph with remapped nodes
-    fn vertex_induced_as<M: Getter + Setter, GO: GraphFromScratch + GraphType, S: Set<Node>>(
-        &self,
-        vertices: &S,
-    ) -> (GO, M);
+    fn vertex_induced_as<M, GO, S>(&self, vertices: &S) -> (GO, M)
+    where
+        M: Getter + Setter,
+        GO: GraphFromScratch + GraphType,
+        S: Set<Node>;
 
     /// Like `vertex_induced_as` but the output graph has the same type as `Self`
-    fn vertex_induced<M: Getter + Setter, S: Set<Node>>(&self, vertices: &S) -> (Self, M)
+    fn vertex_induced<M, S>(&self, vertices: &S) -> (Self, M)
     where
         Self: GraphFromScratch + GraphType,
+        M: Getter + Setter,
+        S: Set<Node>,
     {
         self.vertex_induced_as(vertices)
     }
 
     /// Remaps the graph to only include nodes with degree greater than 0
-    fn subgraph_without_singletons<M: Getter + Setter>(&self) -> (Self, M)
+    fn subgraph_without_singletons<M>(&self) -> (Self, M)
     where
         Self: GraphFromScratch + AdjacencyList + GraphType,
+        M: Getter + Setter,
     {
         self.vertex_induced(&NodeBitSet::new_with_bits_cleared(
             self.number_of_nodes(),
@@ -33,14 +37,22 @@ pub trait Subgraph: Sized {
 
     /// Creates a subgraph of `Self` that only contains edges between specified nodes without
     /// deleting other nodes from the graph.
-    fn subgraph_of<GO: GraphFromScratch + GraphType, S: Set<Node>>(&self, vertices: &S) -> GO;
+    fn subgraph_of<GO, S>(&self, vertices: &S) -> GO
+    where
+        GO: GraphFromScratch + GraphType,
+        S: Set<Node>;
 }
 
-impl<G: GraphFromScratch + AdjacencyList + GraphType> Subgraph for G {
-    fn vertex_induced_as<M: Getter + Setter, GO: GraphFromScratch + GraphType, S: Set<Node>>(
-        &self,
-        vertices: &S,
-    ) -> (GO, M) {
+impl<G> Subgraph for G
+where
+    G: GraphFromScratch + AdjacencyList + GraphType,
+{
+    fn vertex_induced_as<M, GO, S>(&self, vertices: &S) -> (GO, M)
+    where
+        M: Getter + Setter,
+        GO: GraphFromScratch + GraphType,
+        S: Set<Node>,
+    {
         let new_n = vertices.len() as NumNodes;
         let mut mapping = M::with_capacity(new_n);
 
@@ -69,7 +81,11 @@ impl<G: GraphFromScratch + AdjacencyList + GraphType> Subgraph for G {
         (graph, mapping)
     }
 
-    fn subgraph_of<GO: GraphFromScratch + GraphType, S: Set<Node>>(&self, vertices: &S) -> GO {
+    fn subgraph_of<GO, S>(&self, vertices: &S) -> GO
+    where
+        GO: GraphFromScratch + GraphType,
+        S: Set<Node>,
+    {
         GO::from_edges(
             self.number_of_nodes(),
             vertices.iter().flat_map(|u| {
@@ -89,15 +105,21 @@ pub trait Concat {
     /// Takes a list of graphs and outputs a single graph containing disjoint copies of them all
     /// Let n_1, ..., n_k be the number of nodes in the input graph. Then node i of graph G_j becomes
     /// sum(n_1 + .. + n_{j-1}) + i
-    fn concat<'a, IG: 'a + AdjacencyList + GraphType, T: IntoIterator<Item = &'a IG> + Clone>(
-        graphs: T,
-    ) -> Self;
+    fn concat<'a, IG, T>(graphs: T) -> Self
+    where
+        IG: 'a + AdjacencyList + GraphType,
+        T: IntoIterator<Item = &'a IG> + Clone;
 }
 
-impl<G: GraphFromScratch + GraphType> Concat for G {
-    fn concat<'a, IG: 'a + AdjacencyList + GraphType, T: IntoIterator<Item = &'a IG> + Clone>(
-        graphs: T,
-    ) -> Self {
+impl<G> Concat for G
+where
+    G: GraphFromScratch + GraphType,
+{
+    fn concat<'a, IG, T>(graphs: T) -> Self
+    where
+        IG: 'a + AdjacencyList + GraphType,
+        T: IntoIterator<Item = &'a IG> + Clone,
+    {
         let total_n = graphs
             .clone()
             .into_iter()

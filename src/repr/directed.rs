@@ -1,3 +1,5 @@
+use stream_bitset::{bitset::BitsetStream, prelude::IntoBitmaskStream};
+
 use crate::{
     repr::macros::{impl_common_graph_ops, impl_try_add_edge},
     testing::test_graph_ops,
@@ -7,14 +9,21 @@ use super::*;
 
 /// A directed graph representation storing only outgoing Neighborhoods
 #[derive(Clone)]
-pub struct DirectedGraph<OutNbs: Neighborhood> {
+pub struct DirectedGraph<OutNbs>
+where
+    OutNbs: Neighborhood,
+{
     out_nbs: Vec<OutNbs>,
     num_edges: NumEdges,
 }
 
 /// A directed graph representation storing both outgoing & incoming Neighborhoods
 #[derive(Clone)]
-pub struct DirectedGraphIn<OutNbs: Neighborhood, InNbs: Neighborhood> {
+pub struct DirectedGraphIn<OutNbs, InNbs>
+where
+    OutNbs: Neighborhood,
+    InNbs: Neighborhood,
+{
     out_nbs: Vec<OutNbs>,
     in_nbs: Vec<InNbs>,
     num_edges: NumEdges,
@@ -46,20 +55,71 @@ pub type AdjArrayMatrix = DirectedGraphIn<ArrNeighborhood, BitNeighborhood>;
 impl_common_graph_ops!(DirectedGraph<out_nbs : OutNbs> => out_nbs, Directed);
 impl_common_graph_ops!(DirectedGraphIn<out_nbs : OutNbs, in_nbs: InNbs> => out_nbs, Directed);
 
-impl<OutNbs: Neighborhood> DirectedAdjacencyList for DirectedGraph<OutNbs> {
-    fn in_neighbors_of(&self, u: Node) -> impl Iterator<Item = Node> + '_ {
-        // Should be avoided as this is very costly
-        self.vertices()
-            .filter(move |&v| self.out_nbs[v as usize].has_neighbor(u))
+impl<OutNbs> DirectedAdjacencyList for DirectedGraph<OutNbs>
+where
+    OutNbs: Neighborhood,
+{
+    type InNeighborIter<'a>
+        = DirectedInNeighborIter<'a, OutNbs>
+    where
+        Self: 'a;
+
+    fn in_neighbors_of(&self, u: Node) -> Self::InNeighborIter<'_> {
+        DirectedInNeighborIter {
+            graph: self,
+            node: u,
+            lb: 0,
+        }
     }
 
     fn in_degree_of(&self, u: Node) -> NumNodes {
         // Should be avoided as this is very costly
         self.in_neighbors_of(u).count() as NumNodes
     }
+
+    type InNeighborsStream<'a>
+        = BitsetStream<Node>
+    where
+        Self: 'a;
+
+    fn in_neighbors_of_as_stream(&self, u: Node) -> Self::InNeighborsStream<'_> {
+        NodeBitSet::new_with_bits_set(self.number_of_nodes(), self.in_neighbors_of(u))
+            .into_bitmask_stream()
+    }
 }
 
-impl<OutNbs: Neighborhood> AdjacencyTest for DirectedGraph<OutNbs> {
+pub struct DirectedInNeighborIter<'a, OutNbs>
+where
+    OutNbs: Neighborhood,
+{
+    graph: &'a DirectedGraph<OutNbs>,
+    node: Node,
+    lb: Node,
+}
+
+impl<'a, OutNbs> Iterator for DirectedInNeighborIter<'a, OutNbs>
+where
+    OutNbs: Neighborhood,
+{
+    type Item = Node;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while self.lb < self.graph.number_of_nodes() {
+            self.lb += 1;
+
+            if self.graph.has_edge(self.lb - 1, self.node) {
+                return Some(self.lb - 1);
+            }
+        }
+
+        None
+    }
+}
+
+impl<OutNbs> AdjacencyTest for DirectedGraph<OutNbs>
+where
+    OutNbs: Neighborhood,
+{
     fn has_edge(&self, u: Node, v: Node) -> bool {
         self.out_nbs[u as usize].has_neighbor(v)
     }
@@ -69,7 +129,10 @@ impl<OutNbs: Neighborhood> AdjacencyTest for DirectedGraph<OutNbs> {
     }
 }
 
-impl<OutNbs: Neighborhood> GraphEdgeEditing for DirectedGraph<OutNbs> {
+impl<OutNbs> GraphEdgeEditing for DirectedGraph<OutNbs>
+where
+    OutNbs: Neighborhood,
+{
     fn add_edge(&mut self, u: Node, v: Node) {
         self.out_nbs[u as usize].add_neighbor(v);
         self.num_edges += 1;
@@ -87,7 +150,10 @@ impl<OutNbs: Neighborhood> GraphEdgeEditing for DirectedGraph<OutNbs> {
     }
 }
 
-impl<OutNbs: Neighborhood> GraphDirectedEdgeEditing for DirectedGraph<OutNbs> {
+impl<OutNbs> GraphDirectedEdgeEditing for DirectedGraph<OutNbs>
+where
+    OutNbs: Neighborhood,
+{
     fn remove_edges_into_node(&mut self, u: Node) {
         // Should be avoided as this is very costly
         self.num_edges -= self
@@ -102,17 +168,27 @@ impl<OutNbs: Neighborhood> GraphDirectedEdgeEditing for DirectedGraph<OutNbs> {
     }
 }
 
-impl<OutNbs: Neighborhood> GraphLocalEdgeEditing for DirectedGraph<OutNbs> {
+impl<OutNbs> GraphLocalEdgeEditing for DirectedGraph<OutNbs>
+where
+    OutNbs: Neighborhood,
+{
     fn remove_edges_at_node(&mut self, u: Node) {
         self.remove_edges_into_node(u);
         self.remove_edges_out_of_node(u);
     }
 }
 
-impl<OutNbs: Neighborhood, InNbs: Neighborhood> DirectedAdjacencyList
-    for DirectedGraphIn<OutNbs, InNbs>
+impl<OutNbs, InNbs> DirectedAdjacencyList for DirectedGraphIn<OutNbs, InNbs>
+where
+    OutNbs: Neighborhood,
+    InNbs: Neighborhood,
 {
-    fn in_neighbors_of(&self, u: Node) -> impl Iterator<Item = Node> + '_ {
+    type InNeighborIter<'a>
+        = <InNbs as Neighborhood>::NeighborhoodIter<'a>
+    where
+        Self: 'a;
+
+    fn in_neighbors_of(&self, u: Node) -> Self::InNeighborIter<'_> {
         self.in_nbs[u as usize].neighbors()
     }
 
@@ -120,12 +196,21 @@ impl<OutNbs: Neighborhood, InNbs: Neighborhood> DirectedAdjacencyList
         self.in_nbs[u as usize].num_of_neighbors()
     }
 
-    fn in_neighbors_of_as_stream(&self, u: Node) -> impl BitmaskStream + '_ {
+    type InNeighborsStream<'a>
+        = <InNbs as Neighborhood>::NeighborhoodStream<'a>
+    where
+        Self: 'a;
+
+    fn in_neighbors_of_as_stream(&self, u: Node) -> Self::InNeighborsStream<'_> {
         self.in_nbs[u as usize].neighbors_as_stream(self.number_of_nodes())
     }
 }
 
-impl<OutNbs: Neighborhood, InNbs: Neighborhood> AdjacencyTest for DirectedGraphIn<OutNbs, InNbs> {
+impl<OutNbs, InNbs> AdjacencyTest for DirectedGraphIn<OutNbs, InNbs>
+where
+    OutNbs: Neighborhood,
+    InNbs: Neighborhood,
+{
     fn has_edge(&self, u: Node, v: Node) -> bool {
         // Without additional knowledge, checking `out_nbs` or `in_nbs` does not make a difference:
         // since we define `AdjArrayMatrix` which uses a `BitNeighborhood` for `in_nbs`, we default
@@ -144,8 +229,10 @@ impl<OutNbs: Neighborhood, InNbs: Neighborhood> AdjacencyTest for DirectedGraphI
     }
 }
 
-impl<OutNbs: Neighborhood, InNbs: Neighborhood> GraphEdgeEditing
-    for DirectedGraphIn<OutNbs, InNbs>
+impl<OutNbs, InNbs> GraphEdgeEditing for DirectedGraphIn<OutNbs, InNbs>
+where
+    OutNbs: Neighborhood,
+    InNbs: Neighborhood,
 {
     fn add_edge(&mut self, u: Node, v: Node) {
         self.out_nbs[u as usize].add_neighbor(v);
@@ -166,8 +253,10 @@ impl<OutNbs: Neighborhood, InNbs: Neighborhood> GraphEdgeEditing
     }
 }
 
-impl<OutNbs: Neighborhood, InNbs: Neighborhood> GraphDirectedEdgeEditing
-    for DirectedGraphIn<OutNbs, InNbs>
+impl<OutNbs, InNbs> GraphDirectedEdgeEditing for DirectedGraphIn<OutNbs, InNbs>
+where
+    OutNbs: Neighborhood,
+    InNbs: Neighborhood,
 {
     fn remove_edges_into_node(&mut self, u: Node) {
         for v in self.vertices_range() {
@@ -186,8 +275,10 @@ impl<OutNbs: Neighborhood, InNbs: Neighborhood> GraphDirectedEdgeEditing
     }
 }
 
-impl<OutNbs: Neighborhood, InNbs: Neighborhood> GraphLocalEdgeEditing
-    for DirectedGraphIn<OutNbs, InNbs>
+impl<OutNbs, InNbs> GraphLocalEdgeEditing for DirectedGraphIn<OutNbs, InNbs>
+where
+    OutNbs: Neighborhood,
+    InNbs: Neighborhood,
 {
     fn remove_edges_at_node(&mut self, u: Node) {
         self.remove_edges_into_node(u);

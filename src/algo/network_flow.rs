@@ -6,7 +6,7 @@ use crate::{
 };
 use num::Integer;
 use rand::Rng;
-use std::collections::HashSet;
+use std::{collections::HashSet, ops::Range};
 use stream_bitset::prelude::{
     BitmaskSliceStream, BitmaskStreamConsumer, BitmaskStreamToIndices, ToBitmaskStream,
 };
@@ -23,7 +23,9 @@ pub trait ResidualNetwork: SourceTarget + AdjacencyList + Label<Node> {
     fn reverse(&mut self, u: Node, v: Node);
 
     /// Constructs a network to find edge-disjoint paths from s to t
-    fn edge_disjoint<G: GraphNodeOrder + AdjacencyList>(graph: &G, s: Node, t: Node) -> Self;
+    fn edge_disjoint<G>(graph: &G, s: Node, t: Node) -> Self
+    where
+        G: GraphNodeOrder + AdjacencyList;
 
     /// To find vertex disjoint paths the graph must be transformed:
     /// for each vertex v create two vertices v_in (with index v) and v_out (with index v + n).
@@ -33,12 +35,16 @@ pub trait ResidualNetwork: SourceTarget + AdjacencyList + Label<Node> {
     /// Ignore this procedure for the vertices s and t. For those simply
     /// add the edges (s, v_in) for each edge (s, v) in the original graph
     /// and the edge (v_out, t) for each edge (v, t) in the original graph.
-    fn vertex_disjoint<G: GraphNodeOrder + AdjacencyList>(graph: &G, s: Node, t: Node) -> Self;
+    fn vertex_disjoint<G>(graph: &G, s: Node, t: Node) -> Self
+    where
+        G: GraphNodeOrder + AdjacencyList;
 
     /// creates network for finding vertex disjoint cycles that all share the vertex s. the
     /// same as vertex disjoint, but s is handled the same as all other vertices, except that
     /// s_in and s_out are not connected. Then, s_out is the source and s_in is the target.
-    fn petals<G: GraphNodeOrder + AdjacencyList>(graph: &G, s: Node) -> Self;
+    fn petals<G>(graph: &G, s: Node) -> Self
+    where
+        G: GraphNodeOrder + AdjacencyList;
 
     /// can be useful if one wants to reuse a capacity many times.
     /// creating a new capacity could be expensive.
@@ -50,7 +56,9 @@ pub trait ResidualNetwork: SourceTarget + AdjacencyList + Label<Node> {
     ) -> Self;
 
     /// While petals get calculated, the capacity changes its bits. undo_changes reverts all these changes.
-    fn undo_changes<I: IntoIterator<Item = (Node, Node)>>(&mut self, changes_on_bitmatrix: I);
+    fn undo_changes<I>(&mut self, changes_on_bitmatrix: I)
+    where
+        I: IntoIterator<Item = (Node, Node)>;
 }
 
 pub struct ResidualBitMatrix {
@@ -98,6 +106,15 @@ impl SourceTarget for ResidualBitMatrix {
 }
 
 impl GraphNodeOrder for ResidualBitMatrix {
+    type VertexIter<'a>
+        = Range<Node>
+    where
+        Self: 'a;
+
+    fn vertices(&self) -> Self::VertexIter<'_> {
+        self.vertices_range()
+    }
+
     fn number_of_nodes(&self) -> NumNodes {
         self.n
     }
@@ -115,12 +132,30 @@ impl AdjacencyList for ResidualBitMatrix {
     where
         Self: 'a;
 
+    type ClosedNeighborIter<'a>
+        = std::iter::Chain<std::iter::Once<Node>, Self::NeighborIter<'a>>
+    where
+        Self: 'a;
+
     fn neighbors_of(&self, u: Node) -> Self::NeighborIter<'_> {
         self.capacity[u as usize].bitmask_stream().iter_set_bits()
     }
 
+    fn closed_neighbors_of(&self, u: Node) -> Self::ClosedNeighborIter<'_> {
+        std::iter::once(u).chain(self.neighbors_of(u))
+    }
+
     fn degree_of(&self, u: Node) -> Node {
         self.capacity[u as usize].cardinality() as Node
+    }
+
+    type NeighborsStream<'a>
+        = BitmaskSliceStream<'a>
+    where
+        Self: 'a;
+
+    fn neighbors_of_as_stream(&self, u: Node) -> Self::NeighborsStream<'_> {
+        self.capacity[u as usize].bitmask_stream()
     }
 }
 
@@ -131,7 +166,10 @@ impl ResidualNetwork for ResidualBitMatrix {
         self.capacity[v as usize].set_bit(u);
     }
 
-    fn edge_disjoint<G: GraphNodeOrder + AdjacencyList>(graph: &G, s: Node, t: Node) -> Self {
+    fn edge_disjoint<G>(graph: &G, s: Node, t: Node) -> Self
+    where
+        G: GraphNodeOrder + AdjacencyList,
+    {
         let n = graph.number_of_nodes();
         Self {
             s,
@@ -146,7 +184,10 @@ impl ResidualNetwork for ResidualBitMatrix {
         }
     }
 
-    fn vertex_disjoint<G: GraphNodeOrder + AdjacencyList>(graph: &G, s: Node, t: Node) -> Self {
+    fn vertex_disjoint<G>(graph: &G, s: Node, t: Node) -> Self
+    where
+        G: GraphNodeOrder + AdjacencyList,
+    {
         let n = graph.number_of_nodes() * 2; // duplicate
         let labels: Vec<_> = graph.vertices().chain(graph.vertices()).collect();
 
@@ -182,7 +223,10 @@ impl ResidualNetwork for ResidualBitMatrix {
         }
     }
 
-    fn petals<G: GraphNodeOrder + AdjacencyList>(graph: &G, s: Node) -> Self {
+    fn petals<G>(graph: &G, s: Node) -> Self
+    where
+        G: GraphNodeOrder + AdjacencyList,
+    {
         let n = graph.number_of_nodes() * 2; // duplicate
         let labels: Vec<_> = graph.vertices().chain(graph.vertices()).collect();
 
@@ -227,7 +271,10 @@ impl ResidualNetwork for ResidualBitMatrix {
         }
     }
 
-    fn undo_changes<I: IntoIterator<Item = (Node, Node)>>(&mut self, changes: I) {
+    fn undo_changes<I>(&mut self, changes: I)
+    where
+        I: IntoIterator<Item = (Node, Node)>,
+    {
         changes.into_iter().for_each(|(u, v)| self.reverse(v, u));
     }
 }
@@ -415,14 +462,17 @@ pub trait MinVertexCut: AdjacencyList {
     ///
     /// # Warning
     /// If `imbalance` exceeds 0.5 no solution will be found
-    fn approx_min_balanced_cut<R: Rng>(
+    fn approx_min_balanced_cut<R>(
         &self,
         rng: &mut R,
         attempts: usize,
         imbalance: f64,
         max_size: Option<Node>,
         greedy: bool,
-    ) -> Option<Vec<Node>> {
+    ) -> Option<Vec<Node>>
+    where
+        R: Rng,
+    {
         assert!(self.len() > 2);
 
         // we are not using (0..attempts). ... .min_by_key(|c| c.len()) since each we keep track
@@ -467,7 +517,7 @@ pub trait MinVertexCut: AdjacencyList {
     }
 }
 
-impl<T: AdjacencyList> MinVertexCut for T {}
+impl<T> MinVertexCut for T where T: AdjacencyList {}
 
 enum Change {
     Add(Node, Node),
@@ -489,31 +539,42 @@ where
 }
 
 pub trait STFlow: AdjacencyList + GraphEdgeEditing {
-    fn st_flow_undo_changes<T: Fn(Node) -> L, L: Eq + Copy>(
+    fn st_flow_undo_changes<T, L>(
         &mut self,
         labels: T,
         s: Node,
         t: Node,
-    ) -> EdmondsKarpGeneric<'_, Self, T, L> {
+    ) -> EdmondsKarpGeneric<'_, Self, T, L>
+    where
+        T: Fn(Node) -> L,
+        L: Eq + Copy,
+    {
         let mut res = self.st_flow_keep_changes(labels, s, t);
         res.set_remember_changes(true);
         res
     }
 
-    fn st_flow_keep_changes<T: Fn(Node) -> L, L: Eq + Copy>(
+    fn st_flow_keep_changes<T, L>(
         &mut self,
         labels: T,
         s: Node,
         t: Node,
-    ) -> EdmondsKarpGeneric<'_, Self, T, L> {
+    ) -> EdmondsKarpGeneric<'_, Self, T, L>
+    where
+        T: Fn(Node) -> L,
+        L: Eq + Copy,
+    {
         EdmondsKarpGeneric::new(self, labels, s, t)
     }
 }
 
-impl<G: AdjacencyList + GraphEdgeEditing> STFlow for G {}
+impl<G> STFlow for G where G: AdjacencyList + GraphEdgeEditing {}
 
-impl<'a, G: AdjacencyList + GraphEdgeEditing, T: Fn(Node) -> L, L: Eq + Copy>
-    EdmondsKarpGeneric<'a, G, T, L>
+impl<'a, G, T, L> EdmondsKarpGeneric<'a, G, T, L>
+where
+    G: AdjacencyList + GraphEdgeEditing,
+    T: Fn(Node) -> L,
+    L: Eq + Copy,
 {
     pub fn new(graph: &'a mut G, labels: T, source: Node, target: Node) -> Self {
         let n = graph.len();
@@ -576,8 +637,11 @@ impl<'a, G: AdjacencyList + GraphEdgeEditing, T: Fn(Node) -> L, L: Eq + Copy>
     }
 }
 
-impl<'a, G: AdjacencyList + GraphEdgeEditing, T: Fn(Node) -> L, L: Eq + Copy> Drop
-    for EdmondsKarpGeneric<'a, G, T, L>
+impl<'a, G, T, L> Drop for EdmondsKarpGeneric<'a, G, T, L>
+where
+    G: AdjacencyList + GraphEdgeEditing,
+    T: Fn(Node) -> L,
+    L: Eq + Copy,
 {
     fn drop(&mut self) {
         if self.changes.is_some() {
@@ -586,8 +650,11 @@ impl<'a, G: AdjacencyList + GraphEdgeEditing, T: Fn(Node) -> L, L: Eq + Copy> Dr
     }
 }
 
-impl<'a, G: AdjacencyList + GraphEdgeEditing, T: Fn(Node) -> L, L: Eq + Copy> Iterator
-    for EdmondsKarpGeneric<'a, G, T, L>
+impl<'a, G, T, L> Iterator for EdmondsKarpGeneric<'a, G, T, L>
+where
+    G: AdjacencyList + GraphEdgeEditing,
+    T: Fn(Node) -> L,
+    L: Eq + Copy,
 {
     type Item = Vec<L>;
 

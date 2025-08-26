@@ -31,7 +31,7 @@ enum GnmType {
 ///
 /// Must implement both [`FromCapacity`] and [`Map<K, V>`] with `K = u64`, `V = OptionalU64`.
 pub trait GnmMap: FromCapacity + Map<u64, OptionalU64> {}
-impl<H: FromCapacity + Map<u64, OptionalU64>> GnmMap for H {}
+impl<H> GnmMap for H where H: FromCapacity + Map<u64, OptionalU64> {}
 
 /// Generator for uniform `G(n,m)` random graphs with `n` nodes and `m` edges.
 ///
@@ -45,7 +45,10 @@ impl<H: FromCapacity + Map<u64, OptionalU64>> GnmMap for H {}
 /// - [`FxHashMap`] (default) for general use
 /// - `Vec`-based maps for dense graphs
 #[derive(Debug, Copy, Clone)]
-pub struct Gnm<H: GnmMap = FxHashMap<u64, OptionalU64>> {
+pub struct Gnm<H = FxHashMap<u64, OptionalU64>>
+where
+    H: GnmMap,
+{
     n: u64,
     m: GnmType,
     /// Whether the graph is undirected or not.
@@ -55,7 +58,10 @@ pub struct Gnm<H: GnmMap = FxHashMap<u64, OptionalU64>> {
     _phantom: PhantomData<H>,
 }
 
-impl<H: GnmMap> Default for Gnm<H> {
+impl<H> Default for Gnm<H>
+where
+    H: GnmMap,
+{
     fn default() -> Self {
         Self {
             n: 0,
@@ -66,7 +72,10 @@ impl<H: GnmMap> Default for Gnm<H> {
     }
 }
 
-impl<H: GnmMap> Gnm<H> {
+impl<H> Gnm<H>
+where
+    H: GnmMap,
+{
     /// Creates a new empty `G(n,m)` generator.
     pub fn new() -> Self {
         Self::default()
@@ -102,7 +111,10 @@ impl<H: GnmMap> Gnm<H> {
     }
 }
 
-impl<H: GnmMap> NumNodesGen for Gnm<H> {
+impl<H> NumNodesGen for Gnm<H>
+where
+    H: GnmMap,
+{
     /// Sets the number of nodes `n` in the graph.
     fn nodes(mut self, n: NumNodes) -> Self {
         self.n = n as u64;
@@ -110,7 +122,10 @@ impl<H: GnmMap> NumNodesGen for Gnm<H> {
     }
 }
 
-impl<H: GnmMap> NumEdgesGen for Gnm<H> {
+impl<H> NumEdgesGen for Gnm<H>
+where
+    H: GnmMap,
+{
     /// Sets the number of edges `m` in the graph.
     fn edges(mut self, m: NumEdges) -> Self {
         self.m = GnmType::Edges(m);
@@ -118,7 +133,10 @@ impl<H: GnmMap> NumEdgesGen for Gnm<H> {
     }
 }
 
-impl<H: GnmMap> AverageDegreeGen for Gnm<H> {
+impl<H> AverageDegreeGen for Gnm<H>
+where
+    H: GnmMap,
+{
     /// Sets the average degree `d` in the graph.
     ///
     /// Internally converted to an edge count: `m = d*n`.
@@ -128,7 +146,10 @@ impl<H: GnmMap> AverageDegreeGen for Gnm<H> {
     }
 }
 
-impl<H: GnmMap> GraphGenerator for Gnm<H> {
+impl<H> GraphGenerator for Gnm<H>
+where
+    H: GnmMap,
+{
     /// Returns a streaming iterator over a random `G(n,m)` edge set.
     ///
     /// Internally, edges are uniformly sampled without replacement.
@@ -136,7 +157,10 @@ impl<H: GnmMap> GraphGenerator for Gnm<H> {
     /// # Panics
     /// - If `n == 0`
     /// - If neither `edges(m)` nor `avg_deg(d)` was set
-    fn stream<R: Rng>(&self, rng: &mut R) -> impl Iterator<Item = Edge> {
+    fn stream<R>(&self, rng: &mut R) -> impl Iterator<Item = Edge>
+    where
+        R: Rng,
+    {
         assert!(self.n > 0, "At least one node must be generated!");
         let m = match self.m {
             GnmType::NotSet => panic!("Probility of Gnp was not set!"),
@@ -172,7 +196,11 @@ impl<H: GnmMap> GraphGenerator for Gnm<H> {
 ///
 /// The implementation avoids full shuffling by using a partial mapping technique
 /// (sometimes called "hash-based sampling") to simulate an in-place permutation.
-pub struct GnmGenerator<'a, R: Rng, H: Map<u64, OptionalU64>> {
+pub struct GnmGenerator<'a, R, H>
+where
+    R: Rng,
+    H: Map<u64, OptionalU64>,
+{
     n: u64,
     rem: u64,
     cur: u64,
@@ -182,7 +210,11 @@ pub struct GnmGenerator<'a, R: Rng, H: Map<u64, OptionalU64>> {
     undirected: bool,
 }
 
-impl<'a, R: Rng, H: Map<u64, OptionalU64>> GnmGenerator<'a, R, H> {
+impl<'a, R, H> GnmGenerator<'a, R, H>
+where
+    R: Rng,
+    H: Map<u64, OptionalU64>,
+{
     /// Creates a new `GnmGenerator`.
     ///
     /// This generator yields exactly `m` random edge values in `[0, end)`, avoiding duplicates.
@@ -236,7 +268,11 @@ impl<'a, R: Rng, H: Map<u64, OptionalU64>> GnmGenerator<'a, R, H> {
     }
 }
 
-impl<'a, R: Rng, H: Map<u64, OptionalU64>> Iterator for GnmGenerator<'a, R, H> {
+impl<'a, R, H> Iterator for GnmGenerator<'a, R, H>
+where
+    R: Rng,
+    H: Map<u64, OptionalU64>,
+{
     type Item = Edge;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -255,4 +291,9 @@ impl<'a, R: Rng, H: Map<u64, OptionalU64>> Iterator for GnmGenerator<'a, R, H> {
     }
 }
 
-impl<'a, R: Rng, H: Map<u64, OptionalU64>> ExactSizeIterator for GnmGenerator<'a, R, H> {}
+impl<'a, R, H> ExactSizeIterator for GnmGenerator<'a, R, H>
+where
+    R: Rng,
+    H: Map<u64, OptionalU64>,
+{
+}

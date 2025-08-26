@@ -47,14 +47,23 @@ impl EdgeListReader {
     }
 
     /// Updates the comment identifier
-    pub fn comment_identifier<S: Into<String>>(mut self, c: S) -> EdgeListReader {
+    pub fn comment_identifier<S>(mut self, c: S) -> EdgeListReader
+    where
+        S: Into<String>,
+    {
         self.comment_identifier = c.into();
         self
     }
 }
 
-impl<G: GraphFromScratch> GraphReader<G> for EdgeListReader {
-    fn try_read_graph<R: BufRead>(&self, reader: R) -> std::io::Result<G> {
+impl<G> GraphReader<G> for EdgeListReader
+where
+    G: GraphFromScratch,
+{
+    fn try_read_graph<R>(&self, reader: R) -> std::io::Result<G>
+    where
+        R: BufRead,
+    {
         let edges_reader =
             EdgeListEdgesReader::try_new(reader, &self.header, &self.comment_identifier)?;
         let n = edges_reader.number_of_nodes();
@@ -66,10 +75,15 @@ impl<G: GraphFromScratch> GraphReader<G> for EdgeListReader {
 /// Used as shorthand for default EdgeListReader settings
 pub trait EdgeListRead: Sized {
     /// Tries to read the graph from a given reader
-    fn try_read_edge_list<R: BufRead>(reader: R) -> Result<Self>;
+    fn try_read_edge_list<R>(reader: R) -> Result<Self>
+    where
+        R: BufRead;
 
     /// Tries to read the graph from a given file
-    fn try_read_edge_list_file<P: AsRef<Path>>(path: P) -> Result<Self> {
+    fn try_read_edge_list_file<P>(path: P) -> Result<Self>
+    where
+        P: AsRef<Path>,
+    {
         Self::try_read_edge_list(BufReader::new(File::open(path)?))
     }
 }
@@ -78,7 +92,10 @@ impl<G> EdgeListRead for G
 where
     G: GraphFromScratch,
 {
-    fn try_read_edge_list<R: BufRead>(reader: R) -> Result<Self> {
+    fn try_read_edge_list<R>(reader: R) -> Result<Self>
+    where
+        R: BufRead,
+    {
         EdgeListReader::default().try_read_graph(reader)
     }
 }
@@ -95,7 +112,10 @@ pub struct EdgeListEdgesReader<'a, R> {
     comment_identifier: &'a str,
 }
 
-impl<'a, R: BufRead> EdgeListEdgesReader<'a, R> {
+impl<'a, R> EdgeListEdgesReader<'a, R>
+where
+    R: BufRead,
+{
     /// Creates a new EdgeListEdgesReader and tries to parse the first non-comment-line as the header
     pub fn try_new(reader: R, header_format: &Header, comment_identifier: &'a str) -> Result<Self> {
         let mut edge_list_reader = Self {
@@ -128,7 +148,10 @@ impl<'a, R: BufRead> EdgeListEdgesReader<'a, R> {
     }
 }
 
-impl<'a, R: BufRead> Iterator for EdgeListEdgesReader<'a, R> {
+impl<'a, R> Iterator for EdgeListEdgesReader<'a, R>
+where
+    R: BufRead,
+{
     type Item = Edge;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -139,7 +162,10 @@ impl<'a, R: BufRead> Iterator for EdgeListEdgesReader<'a, R> {
     }
 }
 
-impl<'a, R: BufRead> EdgeListEdgesReader<'a, R> {
+impl<'a, R> EdgeListEdgesReader<'a, R>
+where
+    R: BufRead,
+{
     /// Returns the next non-comment-line if it exists or propagate an error
     fn next_non_comment_line(&mut self) -> Result<Option<String>> {
         loop {
@@ -192,8 +218,14 @@ impl EdgeListWriter {
     }
 }
 
-impl<G: AdjacencyList + GraphEdgeOrder + GraphType> GraphWriter<G> for EdgeListWriter {
-    fn try_write_graph<W: Write>(&self, graph: &G, mut writer: W) -> std::io::Result<()> {
+impl<G> GraphWriter<G> for EdgeListWriter
+where
+    G: AdjacencyList + GraphEdgeOrder + GraphType,
+{
+    fn try_write_graph<W>(&self, graph: &G, mut writer: W) -> std::io::Result<()>
+    where
+        W: Write,
+    {
         self.header.write_header(
             &mut writer,
             graph.number_of_nodes(),
@@ -212,17 +244,28 @@ impl<G: AdjacencyList + GraphEdgeOrder + GraphType> GraphWriter<G> for EdgeListW
 /// Shorthand for default settings.
 pub trait EdgeListWrite {
     /// Tries to write the graph to a writer
-    fn try_write_edge_list<W: Write>(&self, writer: W) -> Result<()>;
+    fn try_write_edge_list<W>(&self, writer: W) -> Result<()>
+    where
+        W: Write;
 
     /// Tries to write the graph to a file
-    fn try_write_edge_list_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
+    fn try_write_edge_list_file<P>(&self, path: P) -> Result<()>
+    where
+        P: AsRef<Path>,
+    {
         let writer = BufWriter::new(File::create(path)?);
         self.try_write_edge_list(writer)
     }
 }
 
-impl<G: AdjacencyList + GraphEdgeOrder + GraphType> EdgeListWrite for G {
-    fn try_write_edge_list<W: Write>(&self, writer: W) -> Result<()> {
+impl<G> EdgeListWrite for G
+where
+    G: AdjacencyList + GraphEdgeOrder + GraphType,
+{
+    fn try_write_edge_list<W>(&self, writer: W) -> Result<()>
+    where
+        W: Write,
+    {
         EdgeListWriter::default().try_write_graph(self, writer)
     }
 }

@@ -50,13 +50,19 @@ impl MetisReader {
     }
 
     /// Updates the comment identifier
-    pub fn comment_identifier<S: Into<String>>(mut self, c: S) -> MetisReader {
+    pub fn comment_identifier<S>(mut self, c: S) -> MetisReader
+    where
+        S: Into<String>,
+    {
         self.comment_identifier = c.into();
         self
     }
 }
 
-impl<G: GraphFromScratch> GraphReader<G> for MetisReader {
+impl<G> GraphReader<G> for MetisReader
+where
+    G: GraphFromScratch,
+{
     fn try_read_graph<R: BufRead>(&self, reader: R) -> std::io::Result<G> {
         let edges_reader =
             MetisEdgesReader::try_new(reader, &self.header, &self.comment_identifier)?;
@@ -69,10 +75,15 @@ impl<G: GraphFromScratch> GraphReader<G> for MetisReader {
 /// Used as shorthand for default MetisReader settings
 pub trait MetisRead: Sized {
     /// Tries to read the graph from a given reader
-    fn try_read_metis<R: BufRead>(reader: R) -> Result<Self>;
+    fn try_read_metis<R>(reader: R) -> Result<Self>
+    where
+        R: BufRead;
 
     /// Tries to read the graph from a given file
-    fn try_read_metis_file<P: AsRef<Path>>(path: P) -> Result<Self> {
+    fn try_read_metis_file<P>(path: P) -> Result<Self>
+    where
+        P: AsRef<Path>,
+    {
         Self::try_read_metis(BufReader::new(File::open(path)?))
     }
 }
@@ -81,7 +92,10 @@ impl<G> MetisRead for G
 where
     G: GraphFromScratch,
 {
-    fn try_read_metis<R: BufRead>(reader: R) -> Result<Self> {
+    fn try_read_metis<R>(reader: R) -> Result<Self>
+    where
+        R: BufRead,
+    {
         MetisReader::default().try_read_graph(reader)
     }
 }
@@ -102,7 +116,10 @@ pub struct MetisEdgesReader<'a, R> {
     comment_identifier: &'a str,
 }
 
-impl<'a, R: BufRead> MetisEdgesReader<'a, R> {
+impl<'a, R> MetisEdgesReader<'a, R>
+where
+    R: BufRead,
+{
     /// Creates a new MetisEdgesReader and tries to parse the first non-comment-line as the header
     pub fn try_new(reader: R, header_format: &Header, comment_identifier: &'a str) -> Result<Self> {
         let mut metis_reader = Self {
@@ -134,7 +151,10 @@ impl<'a, R: BufRead> MetisEdgesReader<'a, R> {
     }
 }
 
-impl<'a, R: BufRead> Iterator for MetisEdgesReader<'a, R> {
+impl<'a, R> Iterator for MetisEdgesReader<'a, R>
+where
+    R: BufRead,
+{
     type Item = Edge;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -145,7 +165,10 @@ impl<'a, R: BufRead> Iterator for MetisEdgesReader<'a, R> {
     }
 }
 
-impl<'a, R: BufRead> MetisEdgesReader<'a, R> {
+impl<'a, R> MetisEdgesReader<'a, R>
+where
+    R: BufRead,
+{
     /// Returns the next non-comment-line if it exists or propagate an error
     fn next_non_comment_line(&mut self) -> Result<Option<String>> {
         loop {
@@ -225,7 +248,10 @@ impl MetisWriter {
     }
 }
 
-impl<G: AdjacencyList + GraphEdgeOrder + GraphType> GraphWriter<G> for MetisWriter {
+impl<G> GraphWriter<G> for MetisWriter
+where
+    G: AdjacencyList + GraphEdgeOrder + GraphType,
+{
     fn try_write_graph<W: Write>(&self, graph: &G, mut writer: W) -> std::io::Result<()> {
         self.header.write_header(
             &mut writer,
@@ -249,17 +275,28 @@ impl<G: AdjacencyList + GraphEdgeOrder + GraphType> GraphWriter<G> for MetisWrit
 /// Shorthand for default settings.
 pub trait MetisWrite {
     /// Tries to write the graph to a writer
-    fn try_write_metis<W: Write>(&self, writer: W) -> Result<()>;
+    fn try_write_metis<W>(&self, writer: W) -> Result<()>
+    where
+        W: Write;
 
     /// Tries to write the graph to a file
-    fn try_write_metis_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
+    fn try_write_metis_file<P>(&self, path: P) -> Result<()>
+    where
+        P: AsRef<Path>,
+    {
         let writer = BufWriter::new(File::create(path)?);
         self.try_write_metis(writer)
     }
 }
 
-impl<G: AdjacencyList + GraphEdgeOrder + GraphType> MetisWrite for G {
-    fn try_write_metis<W: Write>(&self, writer: W) -> Result<()> {
+impl<G> MetisWrite for G
+where
+    G: AdjacencyList + GraphEdgeOrder + GraphType,
+{
+    fn try_write_metis<W>(&self, writer: W) -> Result<()>
+    where
+        W: Write,
+    {
         MetisWriter::default().try_write_graph(self, writer)
     }
 }

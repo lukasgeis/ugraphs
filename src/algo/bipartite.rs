@@ -20,14 +20,18 @@ pub trait Bipartition: Set<Node> {
     }
 }
 
-impl<B: Set<Node>> Bipartition for B {}
+impl<B> Bipartition for B where B: Set<Node> {}
 
 pub trait BipartiteTest {
     /// Tests whether the given candidate partition is a valid bipartition.
-    fn is_bipartition<B: Bipartition>(&self, bipartition: &B) -> bool;
+    fn is_bipartition<B>(&self, bipartition: &B) -> bool
+    where
+        B: Bipartition;
 
     /// Computes a valid bipartition of the graph, if one exists.
-    fn compute_bipartition<B: Bipartition + FromCapacity>(&self) -> Option<B>;
+    fn compute_bipartition<B>(&self) -> Option<B>
+    where
+        B: Bipartition + FromCapacity;
 
     /// Tests whether the graph is bipartite.
     fn is_bipartite(&self) -> bool {
@@ -39,12 +43,18 @@ impl<G> BipartiteTest for G
 where
     G: AdjacencyList,
 {
-    fn is_bipartition<B: Bipartition>(&self, bipartition: &B) -> bool {
+    fn is_bipartition<B>(&self, bipartition: &B) -> bool
+    where
+        B: Bipartition,
+    {
         self.edges(true)
             .all(|Edge(u, v)| bipartition.is_on_left_side(u) != bipartition.is_on_left_side(v))
     }
 
-    fn compute_bipartition<B: Bipartition + FromCapacity>(&self) -> Option<B> {
+    fn compute_bipartition<B>(&self) -> Option<B>
+    where
+        B: Bipartition + FromCapacity,
+    {
         let bipartition = propose_possibly_illegal_bipartition(self);
         self.is_bipartition(&bipartition).then_some(bipartition)
     }
@@ -52,14 +62,19 @@ where
 
 pub trait BipartiteEdit {
     /// Remove all edges that connect nodes in the same partition.
-    fn remove_edges_within_bipartition_class<B: Bipartition>(&mut self, bipartition: &B);
+    fn remove_edges_within_bipartition_class<B>(&mut self, bipartition: &B)
+    where
+        B: Bipartition;
 }
 
 impl<G> BipartiteEdit for G
 where
     G: AdjacencyList + GraphEdgeEditing,
 {
-    fn remove_edges_within_bipartition_class<B: Bipartition>(&mut self, bipartition: &B) {
+    fn remove_edges_within_bipartition_class<B>(&mut self, bipartition: &B)
+    where
+        B: Bipartition,
+    {
         let to_delete: Vec<_> = self
             .edges(true)
             .filter(|&Edge(u, v)| bipartition.is_on_left_side(u) == bipartition.is_on_left_side(v))
@@ -70,9 +85,11 @@ where
 
 // Compute a bipartition of `graph` if `graph` is bipartite; otherwise an arbitrary
 // partition is returned
-fn propose_possibly_illegal_bipartition<G: AdjacencyList, B: Bipartition + FromCapacity>(
-    graph: &G,
-) -> B {
+fn propose_possibly_illegal_bipartition<G, B>(graph: &G) -> B
+where
+    G: AdjacencyList,
+    B: Bipartition + FromCapacity,
+{
     let mut bfs = graph.bfs_with_predecessor(0);
 
     // propose a bipartition

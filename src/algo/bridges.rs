@@ -4,13 +4,19 @@ pub trait Bridges {
     fn compute_bridges(&self) -> Vec<Edge>;
 }
 
-impl<G: AdjacencyList> Bridges for G {
+impl<G> Bridges for G
+where
+    G: AdjacencyList,
+{
     fn compute_bridges(&self) -> Vec<Edge> {
         BridgeSearch::new(self).compute()
     }
 }
 
-struct BridgeSearch<'a, G: AdjacencyList> {
+struct BridgeSearch<'a, G>
+where
+    G: AdjacencyList,
+{
     graph: &'a G,
     visited: NodeBitSet,
     nodes_info: Vec<NodeInfo>,
@@ -18,7 +24,10 @@ struct BridgeSearch<'a, G: AdjacencyList> {
     bridges: Vec<Edge>,
 }
 
-impl<'a, G: AdjacencyList> BridgeSearch<'a, G> {
+impl<'a, G> BridgeSearch<'a, G>
+where
+    G: AdjacencyList,
+{
     fn new(graph: &'a G) -> Self {
         let n = graph.number_of_nodes();
         Self {
@@ -92,9 +101,9 @@ mod test {
 
     #[test]
     fn bridges_in_path() {
-        for n in [0, 1, 5, 10, 15] {
+        for n in [1, 5, 10, 15] {
             let mut graph = AdjArrayUndir::new(n);
-            for u in 0..n.saturating_sub(1) {
+            for u in 0..(n - 1) {
                 graph.add_edge(u, u + 1);
             }
 

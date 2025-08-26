@@ -7,7 +7,10 @@ use super::*;
 
 /// An undirected graph representation
 #[derive(Clone)]
-pub struct UndirectedGraph<Nbs: Neighborhood> {
+pub struct UndirectedGraph<Nbs>
+where
+    Nbs: Neighborhood,
+{
     nbs: Vec<Nbs>,
     num_edges: NumEdges,
 }
@@ -23,7 +26,10 @@ pub type AdjMatrixUndir = UndirectedGraph<BitNeighborhood>;
 
 impl_common_graph_ops!(UndirectedGraph<nbs : Nbs> => nbs, Undirected);
 
-impl<Nbs: Neighborhood> AdjacencyTest for UndirectedGraph<Nbs> {
+impl<Nbs> AdjacencyTest for UndirectedGraph<Nbs>
+where
+    Nbs: Neighborhood,
+{
     fn has_edge(&self, u: Node, v: Node) -> bool {
         self.nbs[u as usize].has_neighbor(v)
     }
@@ -33,7 +39,10 @@ impl<Nbs: Neighborhood> AdjacencyTest for UndirectedGraph<Nbs> {
     }
 }
 
-impl<Nbs: Neighborhood> GraphEdgeEditing for UndirectedGraph<Nbs> {
+impl<Nbs> GraphEdgeEditing for UndirectedGraph<Nbs>
+where
+    Nbs: Neighborhood,
+{
     fn add_edge(&mut self, u: Node, v: Node) {
         self.nbs[u as usize].add_neighbor(v);
         if u != v {
@@ -57,7 +66,10 @@ impl<Nbs: Neighborhood> GraphEdgeEditing for UndirectedGraph<Nbs> {
     }
 }
 
-impl<Nbs: Neighborhood> GraphLocalEdgeEditing for UndirectedGraph<Nbs> {
+impl<Nbs> GraphLocalEdgeEditing for UndirectedGraph<Nbs>
+where
+    Nbs: Neighborhood,
+{
     fn remove_edges_at_node(&mut self, u: Node) {
         let (beg, end) = self.nbs.split_at_mut(u as usize);
         let (nbs, end) = end.split_at_mut(1);

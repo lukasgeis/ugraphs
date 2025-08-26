@@ -1,5 +1,6 @@
 use crate::{ops::*, testing::test_graph_ops, utils::SlicedBuffer, *};
-use std::{iter::Copied, slice::Iter};
+use std::{iter::Copied, ops::Range, slice::Iter};
+use stream_bitset::{bitmask_stream::IntoBitmaskStream, bitset::BitsetStream};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct NodeWithCrossPos {
@@ -37,6 +38,15 @@ macro_rules! impl_common_csr_graph_ops {
         }
 
         impl GraphNodeOrder for $struct {
+            type VertexIter<'a>
+                = Range<Node>
+            where
+                Self: 'a;
+
+            fn vertices(&self) -> Self::VertexIter<'_> {
+                self.vertices_range()
+            }
+
             fn number_of_nodes(&self) -> NumNodes {
                 self.$nbs.number_of_slices()
             }
@@ -48,12 +58,30 @@ macro_rules! impl_common_csr_graph_ops {
             where
                 Self: 'a;
 
+            type ClosedNeighborIter<'a>
+                = std::iter::Chain<std::iter::Once<Node>, Self::NeighborIter<'a>>
+            where
+                Self: 'a;
+
             fn neighbors_of(&self, u: Node) -> Self::NeighborIter<'_> {
                 self.$nbs[u].iter().copied()
             }
 
+            fn closed_neighbors_of(&self, u: Node) -> Self::ClosedNeighborIter<'_> {
+                std::iter::once(u).chain(self.neighbors_of(u))
+            }
+
             fn degree_of(&self, u: Node) -> NumNodes {
                 self.$nbs.size_of(u) as NumNodes
+            }
+
+            type NeighborsStream<'a>
+                = BitsetStream<Node>
+            where
+                Self: 'a;
+
+            fn neighbors_of_as_stream(&self, u: Node) -> Self::NeighborsStream<'_> {
+                self.neighbors_of_as_bitset(u).into_bitmask_stream()
             }
         }
 
@@ -82,24 +110,58 @@ impl_common_csr_graph_ops!(CsrGraphIn, out_nbs, Directed);
 impl_common_csr_graph_ops!(CsrGraphUndir, nbs, Undirected);
 
 impl DirectedAdjacencyList for CsrGraph {
-    fn in_neighbors_of(&self, u: Node) -> impl Iterator<Item = Node> + '_ {
+    type InNeighborIter<'a>
+        = DirectedInCsrIter<'a>
+    where
+        Self: 'a;
+
+    fn in_neighbors_of(&self, u: Node) -> Self::InNeighborIter<'_> {
         // Should be avoided as it is very inefficient
-        self.vertices_range().filter(move |&v| self.has_edge(v, u))
+        DirectedInCsrIter {
+            graph: self,
+            node: u,
+            lb: 0,
+        }
     }
 
     fn in_degree_of(&self, u: Node) -> NumNodes {
         // Should be avoided as it is very inefficient
         self.in_neighbors_of(u).count() as NumNodes
     }
+
+    type InNeighborsStream<'a>
+        = BitsetStream<Node>
+    where
+        Self: 'a;
+
+    fn in_neighbors_of_as_stream(&self, u: Node) -> Self::InNeighborsStream<'_> {
+        NodeBitSet::new_with_bits_set(self.number_of_nodes(), self.in_neighbors_of(u))
+            .into_bitmask_stream()
+    }
 }
 
 impl DirectedAdjacencyList for CsrGraphIn {
-    fn in_neighbors_of(&self, u: Node) -> impl Iterator<Item = Node> + '_ {
+    type InNeighborIter<'a>
+        = Copied<Iter<'a, Node>>
+    where
+        Self: 'a;
+
+    fn in_neighbors_of(&self, u: Node) -> Self::InNeighborIter<'_> {
         self.in_nbs[u].iter().copied()
     }
 
     fn in_degree_of(&self, u: Node) -> NumNodes {
         self.in_nbs.size_of(u)
+    }
+
+    type InNeighborsStream<'a>
+        = BitsetStream<Node>
+    where
+        Self: 'a;
+
+    fn in_neighbors_of_as_stream(&self, u: Node) -> Self::InNeighborsStream<'_> {
+        NodeBitSet::new_with_bits_set(self.number_of_nodes(), self.in_neighbors_of(u))
+            .into_bitmask_stream()
     }
 }
 
@@ -126,6 +188,15 @@ impl GraphType for CrossCsrGraph {
 }
 
 impl GraphNodeOrder for CrossCsrGraph {
+    type VertexIter<'a>
+        = Range<Node>
+    where
+        Self: 'a;
+
+    fn vertices(&self) -> Self::VertexIter<'_> {
+        self.vertices_range()
+    }
+
     fn number_of_nodes(&self) -> NumNodes {
         self.nbs.number_of_slices()
     }
@@ -143,12 +214,30 @@ impl AdjacencyList for CrossCsrGraph {
     where
         Self: 'a;
 
+    type ClosedNeighborIter<'a>
+        = std::iter::Chain<std::iter::Once<Node>, Self::NeighborIter<'a>>
+    where
+        Self: 'a;
+
     fn neighbors_of(&self, u: Node) -> Self::NeighborIter<'_> {
         CrossPosNeighborIter(self.nbs[u].iter())
     }
 
+    fn closed_neighbors_of(&self, u: Node) -> Self::ClosedNeighborIter<'_> {
+        std::iter::once(u).chain(self.neighbors_of(u))
+    }
+
     fn degree_of(&self, u: Node) -> NumNodes {
         self.nbs.size_of(u) as NumNodes
+    }
+
+    type NeighborsStream<'a>
+        = BitsetStream<Node>
+    where
+        Self: 'a;
+
+    fn neighbors_of_as_stream(&self, u: Node) -> Self::NeighborsStream<'_> {
+        self.neighbors_of_as_bitset(u).into_bitmask_stream()
     }
 }
 
@@ -182,6 +271,28 @@ impl IndexedAdjacencySwap for CrossCsrGraph {
 // As of now `#![feature(impl_trait_in_assoc_type)]` is not stable yet which is why we rely on
 // custom Wrappers around iterators if the *real* type is obfuscated by a closure.
 
+pub struct DirectedInCsrIter<'a> {
+    graph: &'a CsrGraph,
+    node: Node,
+    lb: Node,
+}
+
+impl<'a> Iterator for DirectedInCsrIter<'a> {
+    type Item = Node;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while self.lb < self.graph.number_of_nodes() {
+            self.lb += 1;
+
+            if self.graph.has_edge(self.lb - 1, self.node) {
+                return Some(self.lb - 1);
+            }
+        }
+
+        None
+    }
+}
+
 pub struct CrossPosNeighborIter<'a>(Iter<'a, NodeWithCrossPos>);
 
 impl<'a> Iterator for CrossPosNeighborIter<'a> {
@@ -196,7 +307,12 @@ impl<'a> Iterator for CrossPosNeighborIter<'a> {
 // ---------- GraphFromScratch ----------
 
 impl GraphFromScratch for CsrGraph {
-    fn from_edges(n: NumNodes, edges: impl IntoIterator<Item = impl Into<Edge>>) -> Self {
+    fn from_edges<I, E>(n: NumNodes, edges: I) -> Self
+    where
+        E: Into<Edge>,
+        I: IntoIterator<Item = E>,
+    {
+        assert!(n > 0);
         let mut edges: Vec<Edge> = edges.into_iter().map(|e| e.into()).collect();
         edges.sort_unstable();
         edges.dedup();
@@ -229,13 +345,22 @@ impl GraphFromScratch for CsrGraph {
         }
     }
 
-    fn from_try_edges(n: NumNodes, edges: impl IntoIterator<Item = impl Into<Edge>>) -> Self {
+    fn from_try_edges<I, E>(n: NumNodes, edges: I) -> Self
+    where
+        E: Into<Edge>,
+        I: IntoIterator<Item = E>,
+    {
         Self::from_edges(n, edges)
     }
 }
 
 impl GraphFromScratch for CsrGraphIn {
-    fn from_edges(n: NumNodes, edges: impl IntoIterator<Item = impl Into<Edge>>) -> Self {
+    fn from_edges<I, E>(n: NumNodes, edges: I) -> Self
+    where
+        E: Into<Edge>,
+        I: IntoIterator<Item = E>,
+    {
+        assert!(n > 0);
         let mut edges: Vec<Edge> = edges.into_iter().map(|e| e.into()).collect();
         edges.sort_unstable();
         edges.dedup();
@@ -295,13 +420,22 @@ impl GraphFromScratch for CsrGraphIn {
         }
     }
 
-    fn from_try_edges(n: NumNodes, edges: impl IntoIterator<Item = impl Into<Edge>>) -> Self {
+    fn from_try_edges<I, E>(n: NumNodes, edges: I) -> Self
+    where
+        E: Into<Edge>,
+        I: IntoIterator<Item = E>,
+    {
         Self::from_edges(n, edges)
     }
 }
 
 impl GraphFromScratch for CsrGraphUndir {
-    fn from_edges(n: NumNodes, edges: impl IntoIterator<Item = impl Into<Edge>>) -> Self {
+    fn from_edges<I, E>(n: NumNodes, edges: I) -> Self
+    where
+        E: Into<Edge>,
+        I: IntoIterator<Item = E>,
+    {
+        assert!(n > 0);
         let mut edges: Vec<Edge> = edges.into_iter().map(|e| e.into().normalized()).collect();
         edges.sort_unstable();
         edges.dedup();
@@ -346,13 +480,21 @@ impl GraphFromScratch for CsrGraphUndir {
         }
     }
 
-    fn from_try_edges(n: NumNodes, edges: impl IntoIterator<Item = impl Into<Edge>>) -> Self {
+    fn from_try_edges<I, E>(n: NumNodes, edges: I) -> Self
+    where
+        E: Into<Edge>,
+        I: IntoIterator<Item = E>,
+    {
         Self::from_edges(n, edges)
     }
 }
 
 impl GraphFromScratch for CrossCsrGraph {
-    fn from_edges(n: NumNodes, edges: impl IntoIterator<Item = impl Into<Edge>>) -> Self {
+    fn from_edges<I, E>(n: NumNodes, edges: I) -> Self
+    where
+        E: Into<Edge>,
+        I: IntoIterator<Item = E>,
+    {
         assert!(n > 0);
         let n = n as usize;
 
@@ -419,7 +561,11 @@ impl GraphFromScratch for CrossCsrGraph {
         }
     }
 
-    fn from_try_edges(n: NumNodes, edges: impl IntoIterator<Item = impl Into<Edge>>) -> Self {
+    fn from_try_edges<I, E>(n: NumNodes, edges: I) -> Self
+    where
+        E: Into<Edge>,
+        I: IntoIterator<Item = E>,
+    {
         Self::from_edges(n, edges)
     }
 }

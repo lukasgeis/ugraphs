@@ -38,13 +38,19 @@ impl NumNodesGen for Mst {
 }
 
 impl GraphGenerator for Mst {
-    fn stream<R: Rng>(&self, rng: &mut R) -> impl Iterator<Item = Edge> {
+    fn stream<R>(&self, rng: &mut R) -> impl Iterator<Item = Edge>
+    where
+        R: Rng,
+    {
         MstGenerator::new(self.n, self.root, rng)
     }
 }
 
 /// Generator for a random Mst using a naive loop-less random walk.
-pub struct MstGenerator<'a, R: Rng> {
+pub struct MstGenerator<'a, R>
+where
+    R: Rng,
+{
     rng: &'a mut R,
     node_gen: Uniform<Node>,
     connected: NodeBitSet,
@@ -53,7 +59,10 @@ pub struct MstGenerator<'a, R: Rng> {
     path_skip: usize,
 }
 
-impl<'a, R: Rng> MstGenerator<'a, R> {
+impl<'a, R> MstGenerator<'a, R>
+where
+    R: Rng,
+{
     pub fn new(n: NumNodes, root: Node, rng: &'a mut R) -> Self {
         assert!(root < n as Node);
 
@@ -68,7 +77,10 @@ impl<'a, R: Rng> MstGenerator<'a, R> {
     }
 }
 
-impl<'a, R: Rng> Iterator for MstGenerator<'a, R> {
+impl<'a, R> Iterator for MstGenerator<'a, R>
+where
+    R: Rng,
+{
     type Item = Edge;
 
     fn next(&mut self) -> Option<Self::Item> {

@@ -16,7 +16,10 @@ use stream_bitset::PrimIndex;
 // from manipulating the offsets vector directly, which may invalidate the aforementioned
 // invariants.
 #[derive(Debug, Clone)]
-pub struct SlicedBuffer<T, I: PrimIndex> {
+pub struct SlicedBuffer<T, I>
+where
+    I: PrimIndex,
+{
     buffer: Vec<T>,
     offsets: Vec<I>,
 }
@@ -30,7 +33,10 @@ impl<T, I: PrimIndex> Default for SlicedBuffer<T, I> {
     }
 }
 
-impl<T, I: PrimIndex> SlicedBuffer<T, I> {
+impl<T, I> SlicedBuffer<T, I>
+where
+    I: PrimIndex,
+{
     /// Constructs the SlicedBuffer and panics if one of the three
     /// invariants on offset are violated.
     pub fn new(buffer: Vec<T>, offsets: Vec<I>) -> Self {
@@ -128,7 +134,11 @@ impl<T, I: PrimIndex> SlicedBuffer<T, I> {
     }
 }
 
-impl<T, I: PrimIndex, Idx: PrimIndex> Index<Idx> for SlicedBuffer<T, I> {
+impl<T, I, Idx> Index<Idx> for SlicedBuffer<T, I>
+where
+    I: PrimIndex,
+    Idx: PrimIndex,
+{
     type Output = [T];
 
     #[inline(always)]
@@ -146,7 +156,11 @@ impl<T, I: PrimIndex, Idx: PrimIndex> Index<Idx> for SlicedBuffer<T, I> {
     }
 }
 
-impl<T, I: PrimIndex, Idx: PrimIndex> IndexMut<Idx> for SlicedBuffer<T, I> {
+impl<T, I, Idx> IndexMut<Idx> for SlicedBuffer<T, I>
+where
+    I: PrimIndex,
+    Idx: PrimIndex,
+{
     #[inline(always)]
     fn index_mut(&mut self, idx: Idx) -> &mut Self::Output {
         let end = self.offsets[idx.to_usize().unwrap() + 1]
@@ -181,13 +195,21 @@ impl<T, I: PrimIndex, Idx: PrimIndex> IndexMut<Idx> for SlicedBuffer<T, I> {
 // from manipulating the offsets vector, which may invalidate the aforementioned
 // invariants.
 #[derive(Debug, Clone)]
-pub struct SlicedBufferWithDefault<T: Clone, I: PrimIndex> {
+pub struct SlicedBufferWithDefault<T, I>
+where
+    T: Clone,
+    I: PrimIndex,
+{
     buffer: Vec<T>,
     default: Vec<T>,
     offsets: Vec<I>,
 }
 
-impl<T: Clone, I: PrimIndex> Default for SlicedBufferWithDefault<T, I> {
+impl<T, I> Default for SlicedBufferWithDefault<T, I>
+where
+    T: Clone,
+    I: PrimIndex,
+{
     fn default() -> Self {
         Self {
             buffer: Vec::new(),
@@ -197,7 +219,11 @@ impl<T: Clone, I: PrimIndex> Default for SlicedBufferWithDefault<T, I> {
     }
 }
 
-impl<T: Clone, I: PrimIndex> SlicedBufferWithDefault<T, I> {
+impl<T, I> SlicedBufferWithDefault<T, I>
+where
+    T: Clone,
+    I: PrimIndex,
+{
     /// Constructs the SlicedBuffer and panics if one of the three
     /// invariants on offset are violated.
     pub fn new(buffer: Vec<T>, offsets: Vec<I>) -> Self {
@@ -334,7 +360,12 @@ impl<T: Clone, I: PrimIndex> SlicedBufferWithDefault<T, I> {
     }
 }
 
-impl<T: Clone, I: PrimIndex, Idx: PrimIndex> Index<Idx> for SlicedBufferWithDefault<T, I> {
+impl<T, I, Idx> Index<Idx> for SlicedBufferWithDefault<T, I>
+where
+    T: Clone,
+    I: PrimIndex,
+    Idx: PrimIndex,
+{
     type Output = [T];
 
     #[inline(always)]
@@ -352,7 +383,12 @@ impl<T: Clone, I: PrimIndex, Idx: PrimIndex> Index<Idx> for SlicedBufferWithDefa
     }
 }
 
-impl<T: Clone, I: PrimIndex, Idx: PrimIndex> IndexMut<Idx> for SlicedBufferWithDefault<T, I> {
+impl<T, I, Idx> IndexMut<Idx> for SlicedBufferWithDefault<T, I>
+where
+    T: Clone,
+    I: PrimIndex,
+    Idx: PrimIndex,
+{
     #[inline(always)]
     fn index_mut(&mut self, idx: Idx) -> &mut Self::Output {
         let end = self.offsets[idx.to_usize().unwrap() + 1]

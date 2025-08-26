@@ -3,7 +3,7 @@ use std::{iter::Copied, slice::Iter};
 use itertools::Itertools;
 use smallvec::{Array, SmallVec};
 use stream_bitset::prelude::{
-    BitmaskSliceStream, BitmaskStream, BitmaskStreamConsumer, BitmaskStreamToIndices,
+    BitmaskSliceStream, BitmaskStreamConsumer, BitmaskStreamToIndices, BitsetStream,
     IntoBitmaskStream, ToBitmaskStream,
 };
 
@@ -31,6 +31,15 @@ impl Neighborhood for ArrNeighborhood {
         self.0.iter().copied()
     }
 
+    type NeighborhoodStream<'a>
+        = BitsetStream<Node>
+    where
+        Self: 'a;
+
+    fn neighbors_as_stream(&self, n: NumNodes) -> Self::NeighborhoodStream<'_> {
+        NodeBitSet::new_with_bits_set(n, self.neighbors()).into_bitmask_stream()
+    }
+
     fn add_neighbor(&mut self, u: Node) {
         self.0.push(u);
     }
@@ -44,7 +53,10 @@ impl Neighborhood for ArrNeighborhood {
         }
     }
 
-    fn remove_neighbors_if<F: FnMut(Node) -> bool>(&mut self, mut predicate: F) -> NumNodes {
+    fn remove_neighbors_if<F>(&mut self, mut predicate: F) -> NumNodes
+    where
+        F: FnMut(Node) -> bool,
+    {
         let size_before = self.0.len();
         self.0.retain(|x| !predicate(*x));
         (size_before - self.0.len()) as NumNodes
@@ -95,6 +107,15 @@ where
         self.0.iter().copied()
     }
 
+    type NeighborhoodStream<'a>
+        = BitsetStream<Node>
+    where
+        Self: 'a;
+
+    fn neighbors_as_stream(&self, n: NumNodes) -> Self::NeighborhoodStream<'_> {
+        NodeBitSet::new_with_bits_set(n, self.neighbors()).into_bitmask_stream()
+    }
+
     fn add_neighbor(&mut self, u: Node) {
         self.0.push(u);
     }
@@ -108,7 +129,10 @@ where
         }
     }
 
-    fn remove_neighbors_if<F: FnMut(Node) -> bool>(&mut self, mut predicate: F) -> NumNodes {
+    fn remove_neighbors_if<F>(&mut self, mut predicate: F) -> NumNodes
+    where
+        F: FnMut(Node) -> bool,
+    {
         let size_before = self.0.len();
         self.0.retain(|x| !predicate(*x));
         (size_before - self.0.len()) as NumNodes
@@ -160,8 +184,13 @@ impl Neighborhood for BitNeighborhood {
         self.0.bitmask_stream().iter_set_bits()
     }
 
-    fn neighbors_as_stream(&self, _n: NumNodes) -> impl BitmaskStream + '_ {
-        self.0.clone().into_bitmask_stream()
+    type NeighborhoodStream<'a>
+        = BitmaskSliceStream<'a>
+    where
+        Self: 'a;
+
+    fn neighbors_as_stream(&self, _: NumNodes) -> Self::NeighborhoodStream<'_> {
+        self.0.bitmask_stream()
     }
 
     fn has_neighbor(&self, u: Node) -> bool {
@@ -184,7 +213,10 @@ impl Neighborhood for BitNeighborhood {
         self.0.clear_bit(u)
     }
 
-    fn remove_neighbors_if<F: FnMut(Node) -> bool>(&mut self, predicate: F) -> NumNodes {
+    fn remove_neighbors_if<F>(&mut self, predicate: F) -> NumNodes
+    where
+        F: FnMut(Node) -> bool,
+    {
         let prev_cardinality = self.num_of_neighbors();
         self.0.update_set_bits(predicate);
         prev_cardinality - self.num_of_neighbors()

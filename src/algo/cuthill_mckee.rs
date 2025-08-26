@@ -13,7 +13,10 @@ pub trait CuthillMcKee {
     /// graph's adjacency matrix. This can might improve performance down the
     /// road as it may reduce the cache misses when working with the algorithm.
     /// The algorithm does not map singleton nodes (degree = 0)
-    fn cuthill_mckee<M: Getter + Setter>(&self) -> M {
+    fn cuthill_mckee<M>(&self) -> M
+    where
+        M: Getter + Setter,
+    {
         self.cuthill_mckee_cc(false).0
     }
 
@@ -22,11 +25,19 @@ pub trait CuthillMcKee {
     ///
     /// `return_ccs = false` implies that the vector returns is empty and of
     /// capacity 0.
-    fn cuthill_mckee_cc<M: Getter + Setter>(&self, return_ccs: bool) -> (M, Vec<Range<Node>>);
+    fn cuthill_mckee_cc<M>(&self, return_ccs: bool) -> (M, Vec<Range<Node>>)
+    where
+        M: Getter + Setter;
 }
 
-impl<G: AdjacencyList> CuthillMcKee for G {
-    fn cuthill_mckee_cc<M: Getter + Setter>(&self, return_ccs: bool) -> (M, Vec<Range<Node>>) {
+impl<G> CuthillMcKee for G
+where
+    G: AdjacencyList,
+{
+    fn cuthill_mckee_cc<M>(&self, return_ccs: bool) -> (M, Vec<Range<Node>>)
+    where
+        M: Getter + Setter,
+    {
         let mut ccs = Vec::with_capacity(return_ccs as usize);
         let mut mapper = M::with_capacity(self.number_of_nodes());
         let mut queue = Vec::with_capacity(self.len());

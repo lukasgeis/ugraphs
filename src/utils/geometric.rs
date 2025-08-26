@@ -94,7 +94,10 @@ impl GeometricJumper {
 
 /// An iterator over geometric jumps starting at `0` with an optional stop value
 #[derive(Debug)]
-pub struct GeometricJumperIter<'a, R: Rng> {
+pub struct GeometricJumperIter<'a, R>
+where
+    R: Rng,
+{
     geom_distr: GeometricDistribution,
     rng: &'a mut R,
     stop: Option<u64>,
@@ -103,7 +106,10 @@ pub struct GeometricJumperIter<'a, R: Rng> {
     next_inv: u64,
 }
 
-impl<'a, R: Rng> GeometricJumperIter<'a, R> {
+impl<'a, R> GeometricJumperIter<'a, R>
+where
+    R: Rng,
+{
     /// Updates the stop value (inplace)
     pub fn change_stop(&mut self, stop: u64) {
         self.stop = Some(stop);
@@ -180,7 +186,10 @@ impl<'a, R: Rng> GeometricJumperIter<'a, R> {
     }
 }
 
-impl<'a, R: Rng> Iterator for GeometricJumperIter<'a, R> {
+impl<'a, R> Iterator for GeometricJumperIter<'a, R>
+where
+    R: Rng,
+{
     type Item = u64;
 
     fn next(&mut self) -> Option<Self::Item> {

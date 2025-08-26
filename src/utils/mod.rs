@@ -26,7 +26,10 @@ pub trait Probability {
     fn is_valid_probility(&self) -> bool;
 }
 
-impl<P: Zero + One + PartialOrd> Probability for P {
+impl<P> Probability for P
+where
+    P: Zero + One + PartialOrd,
+{
     fn is_valid_probility(&self) -> bool {
         Self::zero().le(self) && Self::one().ge(self)
     }
@@ -52,7 +55,10 @@ impl<T> FromCapacity for Vec<T> {
     }
 }
 
-impl<I: PrimIndex> FromCapacity for BitSetImpl<I> {
+impl<I> FromCapacity for BitSetImpl<I>
+where
+    I: PrimIndex,
+{
     fn from_total_used_capacity(total: usize, _used: usize) -> Self {
         // Using `BitSetImpl<I>` as a Map/Set requires intializing to the maximum element
         Self::new(I::from_usize(total).unwrap())

@@ -88,7 +88,10 @@ impl GraphGenerator for Gnp {
     /// - If no node count is set (`n == 0`)
     /// - If no valid probability is configured
     /// - If average degree is invalid for the configured `n`
-    fn stream<R: Rng>(&self, rng: &mut R) -> impl Iterator<Item = Edge> {
+    fn stream<R>(&self, rng: &mut R) -> impl Iterator<Item = Edge>
+    where
+        R: Rng,
+    {
         assert!(self.n > 0, "At least one node must be generated!");
         let p = match self.p {
             GnpType::NotSet => panic!("Probility of Gnp was not set!"),
@@ -155,7 +158,10 @@ impl GraphGenerator for Gn {
     /// Returns a lazily-evaluated iterator over edges generated with 50% probability.
     ///
     /// Internally equivalent to `Gnp::new().nodes(n).prob(0.5).stream(rng)`.
-    fn stream<R: Rng>(&self, rng: &mut R) -> impl Iterator<Item = Edge> {
+    fn stream<R>(&self, rng: &mut R) -> impl Iterator<Item = Edge>
+    where
+        R: Rng,
+    {
         assert!(self.n > 0, "At least one node must be generated!");
         GeometricJumper::new(0.5)
             .stop_at(self.n * self.n)

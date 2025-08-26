@@ -12,23 +12,36 @@ use crate::{
 /// Trait for creating additional substructures in a graph.
 pub trait GeneratorSubstructures {
     // connects the nodes passed with a simple path
-    fn connect_path<T: IntoIterator<Item = Node>>(&mut self, nodes_on_path: T);
+    fn connect_path<T>(&mut self, nodes_on_path: T)
+    where
+        T: IntoIterator<Item = Node>;
 
     // connects the nodes passed with a simple path and adds a connection between the first and the last node
-    fn connect_cycle<T: IntoIterator<Item = Node>>(&mut self, nodes_in_cycle: T);
+    fn connect_cycle<T>(&mut self, nodes_in_cycle: T)
+    where
+        T: IntoIterator<Item = Node>;
 
     // generates a clique of all nodes includes in the bit
     fn connect_clique(&mut self, nodes: &NodeBitSet, with_loops: bool);
 }
 
-impl<G: GraphEdgeEditing + GraphType> GeneratorSubstructures for G {
-    fn connect_path<T: IntoIterator<Item = Node>>(&mut self, nodes_on_path: T) {
+impl<G> GeneratorSubstructures for G
+where
+    G: GraphEdgeEditing + GraphType,
+{
+    fn connect_path<T>(&mut self, nodes_on_path: T)
+    where
+        T: IntoIterator<Item = Node>,
+    {
         for (u, v) in nodes_on_path.into_iter().tuple_windows() {
             self.add_edge(u, v);
         }
     }
 
-    fn connect_cycle<T: IntoIterator<Item = Node>>(&mut self, nodes_in_cycle: T) {
+    fn connect_cycle<T>(&mut self, nodes_in_cycle: T)
+    where
+        T: IntoIterator<Item = Node>,
+    {
         let mut iter = nodes_in_cycle.into_iter();
 
         // we use a rather tedious implementation to avoid needing to clone the iterator
