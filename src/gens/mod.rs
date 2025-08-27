@@ -49,25 +49,67 @@ pub use substructures::*;
 ///
 /// This is the most common builder trait across all generators.
 /// Allows a fluent interface when configuring generators.
-pub trait NumNodesGen {
+pub trait NumNodesGen: Sized {
     /// Sets the number of nodes in the graph generator.
-    fn nodes(self, n: NumNodes) -> Self;
+    fn set_nodes(&mut self, n: NumNodes);
+
+    /// Sets the number of nodes in the graph generator.
+    fn nodes(mut self, n: NumNodes) -> Self {
+        self.set_nodes(n);
+        self
+    }
+
+    /// Creates a new default graph generator with number of nodes specified.
+    fn with_nodes(n: NumNodes) -> Self
+    where
+        Self: Default,
+    {
+        Self::default().nodes(n)
+    }
 }
 
 /// Trait for generators that allow setting the number of edges.
 ///
 /// Often used in models like G(n, m) where the edge count is fixed.
-pub trait NumEdgesGen {
+pub trait NumEdgesGen: Sized {
     /// Sets the number of edges in the graph generator.
-    fn edges(self, m: NumEdges) -> Self;
+    fn set_edges(&mut self, m: NumEdges);
+
+    /// Sets the number of edges in the graph generator.
+    fn edges(mut self, m: NumEdges) -> Self {
+        self.set_edges(m);
+        self
+    }
+
+    /// Creates a new default graph generator with number of edges specified.
+    fn with_edges(m: NumEdges) -> Self
+    where
+        Self: Default,
+    {
+        Self::default().edges(m)
+    }
 }
 
 /// Trait for generators that allow setting the average degree.
 ///
 /// Common in scale-free and random geometric graph models.
-pub trait AverageDegreeGen {
+pub trait AverageDegreeGen: Sized {
     /// Set the average degree of this generator.
-    fn avg_deg(self, deg: f64) -> Self;
+    fn set_avg_deg(&mut self, deg: f64);
+
+    /// Set the average degree of this generator.
+    fn avg_deg(mut self, deg: f64) -> Self {
+        self.set_avg_deg(deg);
+        self
+    }
+
+    /// Set the average degree of this generator.
+    fn with_avg_deg(deg: f64) -> Self
+    where
+        Self: Default,
+    {
+        Self::default().avg_deg(deg)
+    }
 }
 
 /// General trait for a configurable random edge generator.

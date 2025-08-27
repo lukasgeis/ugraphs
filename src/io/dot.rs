@@ -45,21 +45,33 @@ impl DotWriter {
     }
 
     /// If *false*, nodes retain their interval value (-1 that of input)
-    pub fn inc_nodes(mut self, inc_nodes: bool) -> Self {
+    pub fn set_inc_nodes(&mut self, inc_nodes: bool) {
         self.inc_nodes = inc_nodes;
+    }
+
+    /// If *false*, nodes retain their interval value (-1 that of input)
+    pub fn inc_nodes(mut self, inc_nodes: bool) -> Self {
+        self.set_inc_nodes(inc_nodes);
         self
     }
 
     /// Set the prefix of a node (`u` by default). Can also be changed while drawing to draw
     /// additional subgraphs apart from the original graph.
-    pub fn node_prefix<S>(self, prefix: S) -> DotWriter
+    pub fn set_node_prefix<S>(&mut self, prefix: S)
     where
         S: Into<String>,
     {
-        DotWriter {
-            inc_nodes: self.inc_nodes,
-            prefix: prefix.into(),
-        }
+        self.prefix = prefix.into();
+    }
+
+    /// Set the prefix of a node (`u` by default). Can also be changed while drawing to draw
+    /// additional subgraphs apart from the original graph.
+    pub fn node_prefix<S>(mut self, prefix: S) -> Self
+    where
+        S: Into<String>,
+    {
+        self.set_node_prefix(prefix);
+        self
     }
 
     /// Writes the opening brackets of the graph.

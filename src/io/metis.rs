@@ -40,17 +40,30 @@ impl MetisReader {
     }
 
     /// Updates the header format
-    pub fn header_format(mut self, format: Header) -> MetisReader {
+    pub fn set_header_format(&mut self, format: Header) {
         self.header = format;
+    }
+
+    /// Updates the header format
+    pub fn header_format(mut self, format: Header) -> Self {
+        self.set_header_format(format);
         self
     }
 
     /// Updates the comment identifier
-    pub fn comment_identifier<S>(mut self, c: S) -> MetisReader
+    pub fn set_comment_identifier<S>(&mut self, c: S)
     where
         S: Into<String>,
     {
         self.comment_identifier = c.into();
+    }
+
+    /// Updates the comment identifier
+    pub fn comment_identifier<S>(mut self, c: S) -> Self
+    where
+        S: Into<String>,
+    {
+        self.set_comment_identifier(c);
         self
     }
 }
@@ -238,8 +251,13 @@ impl MetisWriter {
     }
 
     /// Updates the header format
-    pub fn header_format(mut self, format: Header) -> MetisWriter {
+    pub fn set_header_format(&mut self, format: Header) {
         self.header = format;
+    }
+
+    /// Updates the header format
+    pub fn header_format(mut self, format: Header) -> Self {
+        self.set_header_format(format);
         self
     }
 }

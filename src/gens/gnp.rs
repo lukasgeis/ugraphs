@@ -60,10 +60,8 @@ impl Gnp {
 }
 
 impl NumNodesGen for Gnp {
-    /// Sets the number of nodes `n` in the graph.
-    fn nodes(mut self, n: NumNodes) -> Self {
+    fn set_nodes(&mut self, n: NumNodes) {
         self.n = n as u64;
-        self
     }
 }
 
@@ -71,9 +69,8 @@ impl AverageDegreeGen for Gnp {
     /// Sets the average degree `d` for the generator.
     ///
     /// This is internally converted to a probability `p = d/n` during edge generation.
-    fn avg_deg(mut self, deg: f64) -> Self {
+    fn set_avg_deg(&mut self, deg: f64) {
         self.p = GnpType::AvgDeg(deg);
-        self
     }
 }
 
@@ -148,10 +145,8 @@ impl Gn {
 }
 
 impl NumNodesGen for Gn {
-    /// Sets the number of nodes `n` in the graph.
-    fn nodes(mut self, n: NumEdges) -> Self {
+    fn set_nodes(&mut self, n: NumEdges) {
         self.n = n as u64;
-        self
     }
 }
 

@@ -4,40 +4,42 @@
 
 use itertools::Itertools;
 
+use crate::utils::Set;
+
 use super::*;
 
 /// Trait for creating additional substructures in a graph.
 pub trait GeneratorSubstructures {
     // connects the nodes passed with a simple path
-    fn connect_path<T>(&mut self, nodes_on_path: T)
+    fn connect_path<P>(&mut self, nodes_on_path: P)
     where
-        T: IntoIterator<Item = Node>;
+        P: IntoIterator<Item = Node>;
 
     // connects the nodes passed with a simple path and adds a connection between the first and the last node
-    fn connect_cycle<T>(&mut self, nodes_in_cycle: T)
+    fn connect_cycle<C>(&mut self, nodes_in_cycle: C)
     where
-        T: IntoIterator<Item = Node>;
+        C: IntoIterator<Item = Node>;
 
     // generates a clique of all nodes includes in the bit
-    fn connect_clique(&mut self, nodes: &NodeBitSet, with_loops: bool);
+    fn connect_clique<C: Set<Node>>(&mut self, nodes: &C, with_loops: bool);
 }
 
 impl<G> GeneratorSubstructures for G
 where
     G: GraphEdgeEditing + GraphType,
 {
-    fn connect_path<T>(&mut self, nodes_on_path: T)
+    fn connect_path<P>(&mut self, nodes_on_path: P)
     where
-        T: IntoIterator<Item = Node>,
+        P: IntoIterator<Item = Node>,
     {
         for (u, v) in nodes_on_path.into_iter().tuple_windows() {
             self.add_edge(u, v);
         }
     }
 
-    fn connect_cycle<T>(&mut self, nodes_in_cycle: T)
+    fn connect_cycle<C>(&mut self, nodes_in_cycle: C)
     where
-        T: IntoIterator<Item = Node>,
+        C: IntoIterator<Item = Node>,
     {
         let mut iter = nodes_in_cycle.into_iter();
 
@@ -53,9 +55,9 @@ where
         }
     }
 
-    fn connect_clique(&mut self, nodes: &NodeBitSet, with_loops: bool) {
-        for u in nodes.iter_set_bits() {
-            for v in nodes.iter_set_bits() {
+    fn connect_clique<C: Set<Node>>(&mut self, nodes: &C, with_loops: bool) {
+        for u in nodes.iter() {
+            for v in nodes.iter() {
                 let e = Edge(u, v);
                 if (!with_loops && e.is_loop()) || (Self::is_undirected() && !e.is_normalized()) {
                     continue;

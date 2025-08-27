@@ -37,17 +37,30 @@ impl EdgeListReader {
     }
 
     /// Updates the header format
-    pub fn header_format(mut self, format: Header) -> EdgeListReader {
+    pub fn set_header_format(&mut self, format: Header) {
         self.header = format;
+    }
+
+    /// Updates the header format
+    pub fn header_format(mut self, format: Header) -> Self {
+        self.set_header_format(format);
         self
     }
 
     /// Updates the comment identifier
-    pub fn comment_identifier<S>(mut self, c: S) -> EdgeListReader
+    pub fn set_comment_identifier<S>(&mut self, c: S)
     where
         S: Into<String>,
     {
         self.comment_identifier = c.into();
+    }
+
+    /// Updates the comment identifier
+    pub fn comment_identifier<S>(mut self, c: S) -> Self
+    where
+        S: Into<String>,
+    {
+        self.set_comment_identifier(c);
         self
     }
 }
@@ -208,8 +221,13 @@ impl EdgeListWriter {
     }
 
     /// Updates the header format
-    pub fn header_format(mut self, format: Header) -> EdgeListWriter {
+    pub fn set_header_format(&mut self, format: Header) {
         self.header = format;
+    }
+
+    /// Updates the header format
+    pub fn header_format(mut self, format: Header) -> Self {
+        self.set_header_format(format);
         self
     }
 }

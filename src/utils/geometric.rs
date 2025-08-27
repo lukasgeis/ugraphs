@@ -72,8 +72,13 @@ impl GeometricJumper {
     }
 
     /// Updates the stop value of the jumper
-    pub fn stop_at(mut self, stop: u64) -> Self {
+    pub fn set_stop_at(&mut self, stop: u64) {
         self.stop = Some(stop);
+    }
+
+    /// Updates the stop value of the jumper
+    pub fn stop_at(mut self, stop: u64) -> Self {
+        self.set_stop_at(stop);
         self
     }
 

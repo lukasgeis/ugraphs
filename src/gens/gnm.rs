@@ -112,10 +112,8 @@ impl<H> NumNodesGen for Gnm<H>
 where
     H: GnmMap,
 {
-    /// Sets the number of nodes `n` in the graph.
-    fn nodes(mut self, n: NumNodes) -> Self {
+    fn set_nodes(&mut self, n: NumNodes) {
         self.n = n as u64;
-        self
     }
 }
 
@@ -123,10 +121,8 @@ impl<H> NumEdgesGen for Gnm<H>
 where
     H: GnmMap,
 {
-    /// Sets the number of edges `m` in the graph.
-    fn edges(mut self, m: NumEdges) -> Self {
+    fn set_edges(&mut self, m: NumEdges) {
         self.m = GnmType::Edges(m);
-        self
     }
 }
 
@@ -137,9 +133,8 @@ where
     /// Sets the average degree `d` in the graph.
     ///
     /// Internally converted to an edge count: `m = d*n`.
-    fn avg_deg(mut self, deg: f64) -> Self {
+    fn set_avg_deg(&mut self, deg: f64) {
         self.m = GnmType::AvgDeg(deg);
-        self
     }
 }
 

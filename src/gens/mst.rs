@@ -28,9 +28,8 @@ impl Mst {
 }
 
 impl NumNodesGen for Mst {
-    fn nodes(mut self, n: NumNodes) -> Self {
+    fn set_nodes(&mut self, n: NumNodes) {
         self.n = n;
-        self
     }
 }
 

@@ -102,16 +102,14 @@ impl Rhg {
 }
 
 impl NumNodesGen for Rhg {
-    fn nodes(mut self, n: NumNodes) -> Self {
+    fn set_nodes(&mut self, n: NumNodes) {
         self.nodes = n;
-        self
     }
 }
 
 impl AverageDegreeGen for Rhg {
-    fn avg_deg(mut self, deg: f64) -> Self {
+    fn set_avg_deg(&mut self, deg: f64) {
         self.radius = RhgRadius::AvgDeg(deg);
-        self
     }
 }
 
