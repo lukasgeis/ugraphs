@@ -5,10 +5,7 @@
 use rand::Rng;
 use rand_distr::{Distribution, Uniform};
 
-use crate::{
-    gens::{GraphGenerator, NumNodesGen},
-    *,
-};
+use super::*;
 
 /// Generator for a random Mst where all edges (if directed) are oriented away from a given root (0 by default).
 #[derive(Debug, Copy, Clone, Default)]

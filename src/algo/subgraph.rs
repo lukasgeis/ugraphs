@@ -1,15 +1,11 @@
-use crate::{
-    ops::{AdjacencyList, GraphFromScratch, GraphType},
-    utils::*,
-    *,
-};
+use super::*;
 
 /// Trait for creating subgraphs
 pub trait Subgraph: Sized {
     /// Create a new vertex-induced subgraph with remapped nodes
     fn vertex_induced_as<M, GO, S>(&self, vertices: &S) -> (GO, M)
     where
-        M: Getter + Setter,
+        M: NodeMapGetter + NodeMapSetter,
         GO: GraphFromScratch + GraphType,
         S: Set<Node>;
 
@@ -17,7 +13,7 @@ pub trait Subgraph: Sized {
     fn vertex_induced<M, S>(&self, vertices: &S) -> (Self, M)
     where
         Self: GraphFromScratch + GraphType,
-        M: Getter + Setter,
+        M: NodeMapGetter + NodeMapSetter,
         S: Set<Node>,
     {
         self.vertex_induced_as(vertices)
@@ -27,7 +23,7 @@ pub trait Subgraph: Sized {
     fn subgraph_without_singletons<M>(&self) -> (Self, M)
     where
         Self: GraphFromScratch + AdjacencyList + GraphType,
-        M: Getter + Setter,
+        M: NodeMapGetter + NodeMapSetter,
     {
         self.vertex_induced(&NodeBitSet::new_with_bits_cleared(
             self.number_of_nodes(),
@@ -49,7 +45,7 @@ where
 {
     fn vertex_induced_as<M, GO, S>(&self, vertices: &S) -> (GO, M)
     where
-        M: Getter + Setter,
+        M: NodeMapGetter + NodeMapSetter,
         GO: GraphFromScratch + GraphType,
         S: Set<Node>,
     {

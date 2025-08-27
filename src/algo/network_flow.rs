@@ -1,9 +1,4 @@
-use super::Traversal;
-use crate::{
-    algo::{TraversalState, TraversalTree},
-    ops::*,
-    *,
-};
+use super::*;
 use num::Integer;
 use rand::Rng;
 use std::{collections::HashSet, ops::Range};

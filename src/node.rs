@@ -1,3 +1,10 @@
+/*!
+# Node Representation
+
+We choose `Node = u32` as almost all use-cases often involve less than `2^32` nodes.
+This allows as to (1) save space by not using `usize` or `u64` and (2) allows directly manipulating node values without abstracting over them.
+*/
+
 use std::num::NonZero;
 use stream_bitset::bitset::BitSetImpl;
 

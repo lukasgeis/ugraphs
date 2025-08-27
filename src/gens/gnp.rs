@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 
-use crate::{gens::*, utils::*};
+use super::*;
+use crate::utils::{GeometricJumper, Probability, TripleIter};
 
 /// Internal representation of how a `G(n,p)` generator is parameterized.
 ///

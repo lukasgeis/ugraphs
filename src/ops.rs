@@ -1,9 +1,13 @@
+/*!
+# Graph Operations
+
+*/
 use std::ops::Range;
 
 use itertools::Itertools;
 use stream_bitset::prelude::*;
 
-use crate::*;
+use super::{edge::*, node::*};
 
 /// Possible values for graph directions
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -41,7 +45,7 @@ impl GraphDir for Undirected {
 
 /// Trait for identifying whether a graph is directed/undirected
 pub trait GraphType {
-    /// Getter for graph direction.
+    /// NodeMapGetter for graph direction.
     /// As `#![feature(associated_const_equality)]` is not stable yet,
     /// this allows for selective implementations of algorithms/generators
     /// that are only meant for directed/undirected graphs.

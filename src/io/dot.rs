@@ -18,8 +18,6 @@
 //! `.filter()` method to selectively prevent drawing edges prematurely.
 use std::{fmt::Display, io::Write};
 
-use crate::ops::{AdjacencyList, GraphType};
-
 use super::*;
 
 /// A writer for the Dot-Format

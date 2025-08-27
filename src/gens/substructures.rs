@@ -4,10 +4,7 @@
 
 use itertools::Itertools;
 
-use crate::{
-    Edge, Node, NodeBitSet,
-    ops::{GraphEdgeEditing, GraphType},
-};
+use super::*;
 
 /// Trait for creating additional substructures in a graph.
 pub trait GeneratorSubstructures {

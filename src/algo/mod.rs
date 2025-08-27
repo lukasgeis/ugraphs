@@ -1,3 +1,15 @@
+/*!
+# Graph Algorithms
+
+This module provides a suite of **graph algorithms** built on top of the graph representations in this crate.
+All algorithms are re-exported at the top level of this module, so you can simply do:
+```rust
+use ugraphs::algo::*;
+```
+and gain access to traversal, connectivity, matching, flow, and many other classical graph routines.
+If possible, algorithms are provided as **iterators**, making it easy to consume results lazily.
+*/
+
 mod bipartite;
 mod bridges;
 mod connectivity;
@@ -10,6 +22,8 @@ mod path_iterator;
 mod subgraph;
 mod traversal;
 mod vertex_cuts;
+
+use crate::{prelude::*, utils::*};
 
 pub use bipartite::*;
 pub use bridges::*;

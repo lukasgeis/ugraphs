@@ -1,4 +1,4 @@
-use crate::{ops::*, *};
+use super::*;
 
 pub trait Bridges {
     fn compute_bridges(&self) -> Vec<Edge>;

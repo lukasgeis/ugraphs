@@ -1,8 +1,4 @@
-use crate::{
-    ops::*,
-    utils::{FromCapacity, Map, Set},
-    *,
-};
+use super::*;
 use std::{collections::VecDeque, marker::PhantomData};
 
 pub trait WithGraphRef<G> {
@@ -337,7 +333,7 @@ where
         }
     }
 
-    /// Calls allocates a vector of size [`graph.len()`] and calls [self.parent_array_into] on it.
+    /// Calls allocates a vector of size `graph.len()` and calls `self.parent_array_into` on it.
     /// Unvisited nodes have themselves as parents.
     fn parent_array(&mut self) -> Vec<Node> {
         let mut tree: Vec<_> = self.graph().vertices_range().collect();
@@ -357,7 +353,7 @@ where
         }
     }
 
-    /// Calls allocates a vector of size [`graph.len()`] and calls [self.parent_array_into] on it.
+    /// Calls allocates a vector of size `graph.len()` and calls `self.parent_array_into` on it.
     /// Unvisited nodes have themselves as parents.
     fn depths(&mut self) -> Vec<Node> {
         let mut depths: Vec<_> = vec![0; self.graph().number_of_nodes() as usize];

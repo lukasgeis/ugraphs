@@ -2,11 +2,8 @@ use std::marker::PhantomData;
 
 use fxhash::FxHashMap;
 
-use crate::{
-    NumEdges,
-    gens::*,
-    utils::{FromCapacity, Map},
-};
+use super::*;
+use crate::utils::{FromCapacity, Map};
 
 /// Configuration type used by [`Gnm`] to determine how the graph should be parameterized.
 ///

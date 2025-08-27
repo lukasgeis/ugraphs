@@ -2,11 +2,7 @@ use std::ops::Range;
 
 use itertools::Itertools;
 
-use crate::{
-    ops::AdjacencyList,
-    utils::{Getter, NodeSet, Set, Setter},
-    *,
-};
+use super::*;
 
 pub trait CuthillMcKee {
     /// Computes a node label mapping intended to minimize the bandwidth of the
@@ -15,7 +11,7 @@ pub trait CuthillMcKee {
     /// The algorithm does not map singleton nodes (degree = 0)
     fn cuthill_mckee<M>(&self) -> M
     where
-        M: Getter + Setter,
+        M: NodeMapGetter + NodeMapSetter,
     {
         self.cuthill_mckee_cc(false).0
     }
@@ -27,7 +23,7 @@ pub trait CuthillMcKee {
     /// capacity 0.
     fn cuthill_mckee_cc<M>(&self, return_ccs: bool) -> (M, Vec<Range<Node>>)
     where
-        M: Getter + Setter;
+        M: NodeMapGetter + NodeMapSetter;
 }
 
 impl<G> CuthillMcKee for G
@@ -36,7 +32,7 @@ where
 {
     fn cuthill_mckee_cc<M>(&self, return_ccs: bool) -> (M, Vec<Range<Node>>)
     where
-        M: Getter + Setter,
+        M: NodeMapGetter + NodeMapSetter,
     {
         let mut ccs = Vec::with_capacity(return_ccs as usize);
         let mut mapper = M::with_capacity(self.number_of_nodes());

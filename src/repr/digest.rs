@@ -1,6 +1,6 @@
 use std::fmt::LowerHex;
 
-use crate::{Edge, Node, ops::*};
+use super::*;
 use ::digest::{Digest, Output};
 
 pub trait GraphDigest {

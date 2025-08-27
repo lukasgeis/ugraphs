@@ -17,7 +17,7 @@ use stream_bitset::{
     prelude::{BitmaskSliceStream, BitmaskStreamConsumer, BitmaskStreamToIndices, ToBitmaskStream},
 };
 
-use crate::{Node, NumNodes, OptionalNode};
+use crate::node::*;
 
 /// A minimalist generalization over basic Set-Functionality
 pub trait Set<T> {

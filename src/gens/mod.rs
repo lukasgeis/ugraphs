@@ -1,38 +1,37 @@
-//! # Graph Generators
-//!
-//! This module provides a suite of traits and builder patterns for constructing random graph generators.
-//!
-//! Each graph generator allows parameterized control over structural properties of the graph (e.g., number
-//! of nodes or edges, average degree), and can produce either a complete collection of edges or a stream
-//! of them through iterators.
-//!
-//! Generators are designed to support a builder-style pattern for fluent graph configuration. The typical
-//! usage workflow is:
-//!
-//! 1. Create a generator instance (e.g., `Gnp::new()`).
-//! 2. Set parameters using trait methods (e.g., `.nodes(n).prob(p)`).
-//! 3. Generate edges via `generate()` or `stream()`.
-//!
-//! In addition, the `RandomGraph` trait abstracts the generation of whole graph instances (e.g., for
-//! `G(n,p)` or `G(n,m)` models) into reusable constructors. These implementations internally rely on the
-//! edge generators to create graph structure according to the type’s requirements (directed, undirected, etc.).
-//!
-//! Supported models include:
-//! - G(n,m): Uniform random graphs with a fixed number of nodes and edges
-//! - G(n,p): Erdős–Rényi model with independent edge probability
-//! - G(n): Uniform random graphs with a fixed number of nodes
-//! - Rhg: Random hyperbolic graphs in the threshold case (T = 0)
-//!
-//! All graph types implementing `GraphFromScratch` and `GraphType` can leverage the `RandomGraph` trait
-//! for convenient random graph construction.
+/*!
+# Graph Generators
+
+This module provides a suite of traits and builder patterns for constructing random graph generators.
+
+Each graph generator allows parameterized control over structural properties of the graph (e.g., number
+of nodes or edges, average degree), and can produce either a complete collection of edges or a stream
+of them through iterators.
+
+Generators are designed to support a builder-style pattern for fluent graph configuration. The typical
+usage workflow is:
+
+1. Create a generator instance (e.g., `Gnp::new()`).
+2. Set parameters using trait methods (e.g., `.nodes(n).prob(p)`).
+3. Generate edges via `generate()` or `stream()`.
+
+In addition, the `RandomGraph` trait abstracts the generation of whole graph instances (e.g., for
+`G(n,p)` or `G(n,m)` models) into reusable constructors. These implementations internally rely on the
+edge generators to create graph structure according to the type’s requirements (directed, undirected, etc.).
+
+Supported models include:
+- G(n,m): Uniform random graphs with a fixed number of nodes and edges
+- G(n,p): Erdős–Rényi model with independent edge probability
+- G(n): Uniform random graphs with a fixed number of nodes
+- Rhg: Random hyperbolic graphs in the threshold case (T = 0)
+
+All graph types implementing `GraphFromScratch` and `GraphType` can leverage the `RandomGraph` trait
+for convenient random graph construction.
+*/
 
 use fxhash::FxHashMap;
 use rand::Rng;
 
-use crate::{
-    ops::{GraphFromScratch, GraphType},
-    *,
-};
+use crate::prelude::*;
 
 mod gnm;
 mod gnp;

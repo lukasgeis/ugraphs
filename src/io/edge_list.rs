@@ -10,10 +10,6 @@ use std::{
 };
 
 use super::*;
-use crate::{
-    ops::{AdjacencyList, GraphEdgeOrder, GraphFromScratch, GraphType},
-    *,
-};
 
 /// A GraphReader for the EdgeList-Format
 #[derive(Debug, Clone)]

@@ -1,17 +1,17 @@
-use crate::{ops::*, *};
+use crate::{edge::*, node::*, ops::*};
 
 use fxhash::FxHashMap;
 use itertools::Itertools;
 use std::cmp::Ordering;
 use std::fmt;
 
-pub trait Setter: Sized {
+pub trait NodeMapSetter: Sized {
     /// Creates a mapper where the largest node that can be inserted is n-1.
     fn with_capacity(n: NumNodes) -> Self;
 
     /// Creates a mapper where the largest node that can be handled is n-1.
     /// Each mapping is of form x <-> x for all x.
-    /// Subsequent calls to [`Setter::map_node_to`] are forbidden.
+    /// Subsequent calls to [`NodeMapSetter::map_node_to`] are forbidden.
     fn identity(n: NumNodes) -> Self;
 
     /// Stores a mapping old <-> new
@@ -76,7 +76,7 @@ where
     }
 }
 
-pub trait Getter {
+pub trait NodeMapGetter {
     /// If the mapping (old, new) exists, returns Some(new), otherwise None
     fn new_id_of(&self, old: Node) -> Option<Node>;
 
@@ -91,7 +91,7 @@ pub trait Getter {
         self.len() == 0
     }
 
-    /// Applies [`Getter::old_id_of`] to each iterator item. Uses the iterator item (new) as a fallback
+    /// Applies [`NodeMapGetter::old_id_of`] to each iterator item. Uses the iterator item (new) as a fallback
     /// if the mapping(old, new) doesn't exist.
     fn get_old_ids<'a, I>(
         &self,
@@ -108,7 +108,7 @@ pub trait Getter {
         }
     }
 
-    /// Applies [`Getter::old_id_of`] to each iterator item and returns the items for which a new id is known.
+    /// Applies [`NodeMapGetter::old_id_of`] to each iterator item and returns the items for which a new id is known.
     fn get_filtered_old_ids<'a, I>(
         &self,
         new_ids: I,
@@ -124,7 +124,7 @@ pub trait Getter {
         }
     }
 
-    /// Applies [`Getter::new_id_of`] to each iterator item. Uses the iterator item (old) as a fallback
+    /// Applies [`NodeMapGetter::new_id_of`] to each iterator item. Uses the iterator item (old) as a fallback
     /// if the mapping(old, new) doesn't exist.
     fn get_new_ids<'a, I>(
         &self,
@@ -141,7 +141,7 @@ pub trait Getter {
         }
     }
 
-    /// Applies [`Getter::new_id_of`] to each iterator item and returns the items for which a new id is known.
+    /// Applies [`NodeMapGetter::new_id_of`] to each iterator item and returns the items for which a new id is known.
     fn get_filtered_new_ids<'a, I>(
         &self,
         old_ids: I,
@@ -158,7 +158,7 @@ pub trait Getter {
     }
 
     /// Create a 'copy' of type `GO` from the input graph where all nodes are relabelled according to this mapper.
-    /// Any node u (and its incident edges) is dropped if there [`Getter::new_id_of`] returns None.
+    /// Any node u (and its incident edges) is dropped if there [`NodeMapGetter::new_id_of`] returns None.
     fn relabelled_graph_as<GI, GO>(&self, input: &GI) -> GO
     where
         GI: GraphNodeOrder + AdjacencyList + GraphType,
@@ -189,7 +189,7 @@ pub trait Getter {
         )
     }
 
-    /// Short-hand for [`Getter::relabelled_graph_as`] where the output type matches the input type.
+    /// Short-hand for [`NodeMapGetter::relabelled_graph_as`] where the output type matches the input type.
     fn relabelled_graph<G>(&self, input: &G) -> G
     where
         G: AdjacencyList + GraphType + GraphFromScratch,
@@ -218,7 +218,7 @@ pub trait Inverse {
 /// It can be used to optimize a way the cost of producing a mapping if it is not used
 pub struct WriteOnlyNodeMapper {}
 
-impl Setter for WriteOnlyNodeMapper {
+impl NodeMapSetter for WriteOnlyNodeMapper {
     fn with_capacity(_: Node) -> Self {
         Self {}
     }
@@ -238,7 +238,7 @@ pub struct NodeMapper {
     is_identity: bool,
 }
 
-impl Setter for NodeMapper {
+impl NodeMapSetter for NodeMapper {
     fn with_capacity(n: Node) -> Self {
         Self {
             new_to_old: FxHashMap::with_capacity_and_hasher(n as usize, Default::default()),
@@ -261,7 +261,7 @@ impl Setter for NodeMapper {
     }
 }
 
-impl Getter for NodeMapper {
+impl NodeMapGetter for NodeMapper {
     fn new_id_of(&self, old: Node) -> Option<Node> {
         if self.is_identity {
             Some(old)
@@ -345,7 +345,7 @@ impl IndexMapper {
     }
 }
 
-impl Getter for IndexMapper {
+impl NodeMapGetter for IndexMapper {
     fn new_id_of(&self, old: Node) -> Option<Node> {
         if (old as usize) < self.old_to_new.len() {
             Some(self.old_to_new[old as usize])
@@ -368,7 +368,7 @@ impl Getter for IndexMapper {
 }
 
 /// The [`RankingForwardMapper`] is less powerful than [`NodeMapper`] (e.g. it is lacking a
-/// [`Setter`] interface and cannot deal with missing mappings) but is much more efficient for
+/// [`NodeMapSetter`] interface and cannot deal with missing mappings) but is much more efficient for
 /// the cases where it is applicable.
 #[derive(Clone)]
 pub struct RankingForwardMapper {
@@ -376,7 +376,7 @@ pub struct RankingForwardMapper {
 }
 
 impl RankingForwardMapper {
-    /// Functionally equivalent to [`Setter::from_rank`], but takes and consume a vector.
+    /// Functionally equivalent to [`NodeMapSetter::from_rank`], but takes and consume a vector.
     /// In other words, a [`RankingForwardMapper`] is constructed from the vector `new_ids`,
     /// where `new_ids[i]` stores the new id of the old node `i`.
     pub fn from_vec(new_ids: Vec<Node>) -> Self {
@@ -418,7 +418,7 @@ impl RankingForwardMapper {
     }
 }
 
-impl Getter for RankingForwardMapper {
+impl NodeMapGetter for RankingForwardMapper {
     fn new_id_of(&self, old: Node) -> Option<Node> {
         if (old as usize) < self.new_ids.len() {
             Some(self.new_ids[old as usize])

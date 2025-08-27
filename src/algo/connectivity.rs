@@ -2,11 +2,7 @@ use std::iter::FusedIterator;
 
 use itertools::Itertools;
 
-use crate::{
-    algo::{Partition, Traversal},
-    ops::*,
-    *,
-};
+use super::*;
 
 pub trait Connectivity: AdjacencyList + Traversal + Sized {
     /// Partition the (undirected) graph into its connected components
@@ -56,7 +52,7 @@ pub trait Connectivity: AdjacencyList + Traversal + Sized {
         partition
     }
 
-    /// Returns the strongly connected components of the graph as a Vec<Vec<Node>>
+    /// Returns the strongly connected components of the graph as a `Vec<Vec<Node>>`
     fn strongly_connected_components(&self) -> StronglyConnected<'_, Self>
     where
         Self: DirectedAdjacencyList,
@@ -64,7 +60,7 @@ pub trait Connectivity: AdjacencyList + Traversal + Sized {
         StronglyConnected::new(self)
     }
 
-    /// Returns the strongly connected components of the graph as a Vec<Vec<Node>>
+    /// Returns the strongly connected components of the graph as a `Vec<Vec<Node>>`
     /// In contrast to [`Connectivity::strongly_connected_components`], this methods includes SCCs of size 1
     /// if and only if the node has a self-loop
     fn strongly_connected_components_no_singletons(&self) -> StronglyConnected<'_, Self>

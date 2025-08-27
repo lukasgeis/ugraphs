@@ -1,7 +1,7 @@
 use rand::Rng;
 use rand_distr::{Distribution, Geometric, StandardGeometric};
 
-use crate::utils::Probability;
+use super::Probability;
 
 /// A geometric distribution.
 /// As the case for `p = 1/2` can be siginificantly sped up by using `StandardGeometric` instead of

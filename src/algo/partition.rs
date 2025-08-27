@@ -2,11 +2,7 @@ use std::{iter::Enumerate, slice::Iter};
 
 use itertools::Itertools;
 
-use crate::{
-    ops::*,
-    utils::{Getter, NodeMapper, Setter},
-    *,
-};
+use super::*;
 
 /// Internally, we store PartitionClasses as Options whereas we expose NumNodes as PartitionClasses
 /// to the user
@@ -126,7 +122,7 @@ impl Partition {
     where
         GI: AdjacencyList,
         GO: GraphNew + GraphEdgeEditing,
-        M: Setter + Getter,
+        M: NodeMapSetter + NodeMapGetter,
     {
         assert_eq!(graph.len(), self.classes.len());
 

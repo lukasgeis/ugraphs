@@ -1,8 +1,14 @@
+/*!
+# Edge Representation
+
+An `Edge(u, v)` consists of a preceding node `u` and a successing node `v`.
+In the undirected case, we treat `Edge(u, v)` equivalently to `Edge(v, u)` and say that `Edge(u, v)` is normalized if `u <= v`.
+*/
 use std::fmt::{Debug, Display};
 
 use stream_bitset::bitset::BitSetImpl;
 
-use crate::Node;
+use crate::node::Node;
 
 /// An edge is defined by two nodes/endpoints.
 /// Is is up to the user whether an Edge is directed or not.

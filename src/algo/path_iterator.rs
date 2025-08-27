@@ -1,4 +1,4 @@
-use crate::{ops::*, *};
+use super::*;
 use itertools::Itertools;
 
 pub trait PathIterator: AdjacencyList {

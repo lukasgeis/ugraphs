@@ -1,27 +1,29 @@
-//! # IO
-//!
-//! Module for reading graphs from an input or writing graphs to an output.
-//!
-//! ## Input Formats
-//!
-//! The following input formats are supported
-//! - **Metis**: Similar to `AdjArray`, this represents the graph as a list of neighborhoods separated by linebreaks.
-//! - **EdgeList**: Similar to `Csv`, this represents the graph as a list of edges separated by linebreaks.
-//!
-//! Each format requires a `Header` defined by a custom `HeaderFormat` in the header module.
-//!
-//!
-//! ## Output Formats
-//!
-//! In addition to the above input formats, an additional output format is supported which also
-//! serves as the base-Debug-impl. for all graphs.
-//! - **Dot**: The [Dot-Language](https://graphviz.org/doc/info/lang.html) of [GraphViz](https://graphviz.org/).
-//!
-//! The [Dot-Format](https://graphviz.org/doc/info/lang.html) is the only format that does not require a header
-//! and supports node labels whereas every other format again only allows non-negative numbers as nodes. Note
-//! that the string representation of node labels must follow the naming conventions of the  
-//! [Dot-Language](https://graphviz.org/dot/info/lang.html) and hence can not contain special characters such as
-//! spaces or hyphens for example.
+/*!
+# IO
+
+Module for reading graphs from an input or writing graphs to an output.
+
+## Input Formats
+
+The following input formats are supported
+- **Metis**: Similar to `AdjArray`, this represents the graph as a list of neighborhoods separated by linebreaks.
+- **EdgeList**: Similar to `Csv`, this represents the graph as a list of edges separated by linebreaks.
+
+Each format requires a `Header` defined by a custom `HeaderFormat` in the header module.
+
+
+## Output Formats
+
+In addition to the above input formats, an additional output format is supported which also
+serves as the base-Debug-impl. for all graphs.
+- **Dot**: The [Dot-Language](https://graphviz.org/doc/info/lang.html) of [GraphViz](https://graphviz.org/).
+
+The [Dot-Format](https://graphviz.org/doc/info/lang.html) is the only format that does not require a header
+and supports node labels whereas every other format again only allows non-negative numbers as nodes. Note
+that the string representation of node labels must follow the naming conventions of the
+[Dot-Language](https://graphviz.org/dot/info/lang.html) and hence can not contain special characters such as
+spaces or hyphens for example.
+*/
 
 mod dot;
 mod edge_list;
@@ -35,7 +37,7 @@ use std::{
     str::FromStr,
 };
 
-use crate::*;
+use crate::prelude::*;
 
 pub use dot::*;
 pub use edge_list::*;
