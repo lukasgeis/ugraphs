@@ -1,12 +1,12 @@
 use super::*;
 
-pub trait Bridges {
+pub trait Bridges: GraphType<Dir = Undirected> {
     fn compute_bridges(&self) -> Vec<Edge>;
 }
 
 impl<G> Bridges for G
 where
-    G: AdjacencyList,
+    G: AdjacencyList + GraphType<Dir = Undirected>,
 {
     fn compute_bridges(&self) -> Vec<Edge> {
         BridgeSearch::new(self).compute()
@@ -15,7 +15,7 @@ where
 
 struct BridgeSearch<'a, G>
 where
-    G: AdjacencyList,
+    G: AdjacencyList + GraphType<Dir = Undirected>,
 {
     graph: &'a G,
     visited: NodeBitSet,
@@ -26,7 +26,7 @@ where
 
 impl<'a, G> BridgeSearch<'a, G>
 where
-    G: AdjacencyList,
+    G: AdjacencyList + GraphType<Dir = Undirected>,
 {
     fn new(graph: &'a G) -> Self {
         let n = graph.number_of_nodes();
@@ -94,10 +94,8 @@ impl NodeInfo {
 
 #[cfg(test)]
 mod test {
-    use itertools::Itertools;
-
     use super::*;
-    use crate::repr::AdjArrayUndir;
+    use itertools::Itertools;
 
     #[test]
     fn bridges_in_path() {

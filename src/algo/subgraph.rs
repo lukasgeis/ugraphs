@@ -22,12 +22,12 @@ pub trait Subgraph: Sized {
     /// Remaps the graph to only include nodes with degree greater than 0
     fn subgraph_without_singletons<M>(&self) -> (Self, M)
     where
-        Self: GraphFromScratch + AdjacencyList + GraphType,
+        Self: GraphFromScratch + GraphType + Singletons,
         M: NodeMapGetter + NodeMapSetter,
     {
         self.vertex_induced(&NodeBitSet::new_with_bits_cleared(
             self.number_of_nodes(),
-            self.vertices_with_neighbors(),
+            self.vertices_no_singletons(),
         ))
     }
 

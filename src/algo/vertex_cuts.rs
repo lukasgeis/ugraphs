@@ -2,14 +2,14 @@ use fxhash::FxHashSet;
 
 use super::*;
 
-pub trait ArticluationPoint {
+pub trait ArticluationPoint: GraphType<Dir = Undirected> {
     fn compute_articulation_points(&self) -> NodeBitSet;
     fn compute_articulation_points_with_visited(&self, visited: NodeBitSet) -> NodeBitSet;
 }
 
 impl<G> ArticluationPoint for G
 where
-    G: AdjacencyList,
+    G: AdjacencyList + GraphType<Dir = Undirected>,
 {
     fn compute_articulation_points(&self) -> NodeBitSet {
         ArticulationPointSearch::new(self).compute()
@@ -23,7 +23,7 @@ where
 
 pub struct ArticulationPointSearch<'a, T>
 where
-    T: AdjacencyList,
+    T: AdjacencyList + GraphType<Dir = Undirected>,
 {
     graph: &'a T,
     low_point: Vec<Node>,
@@ -36,7 +36,7 @@ where
 
 impl<'a, T> ArticulationPointSearch<'a, T>
 where
-    T: AdjacencyList,
+    T: AdjacencyList + GraphType<Dir = Undirected>,
 {
     /// Assumes the graph is connected, and for each edge (u, v) the edge (v, u) exists
     pub fn new(graph: &'a T) -> Self {
@@ -103,7 +103,7 @@ where
 
 pub struct GraphCutBuilder<'a, G>
 where
-    G: AdjacencyList + ArticluationPoint + Traversal,
+    G: AdjacencyList + ArticluationPoint + Traversal + GraphType<Dir = Undirected>,
 {
     graph: &'a G,
     enabled_cuts: Vec<CutType>,
@@ -126,7 +126,7 @@ pub enum CutType {
 /// not contain > threshold nodes, it is filtered out.
 impl<'a, G> GraphCutBuilder<'a, G>
 where
-    G: AdjacencyList + ArticluationPoint + Traversal,
+    G: AdjacencyList + ArticluationPoint + Traversal + GraphType<Dir = Undirected>,
 {
     /// Creates a new GraphCutBuilder with all cut types enabled by default.
     ///

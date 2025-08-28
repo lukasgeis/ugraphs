@@ -6,7 +6,8 @@
 use std::{
     collections::{HashMap, HashSet, hash_set::Iter},
     hash::{BuildHasher, Hash},
-    iter::{Cloned, Copied},
+    iter::{Cloned, Copied, Empty},
+    marker::PhantomData,
 };
 
 use itertools::Itertools;
@@ -225,6 +226,42 @@ impl Set<Node> for NodeSet {
 
     fn len(&self) -> usize {
         self.data.len()
+    }
+}
+
+#[derive(Debug, Copy, Clone, Default)]
+pub struct EmptySet<T>(PhantomData<T>);
+
+impl<T> Set<T> for EmptySet<T> {
+    fn insert(&mut self, _value: T) -> bool {
+        unimplemented!("You can't insert something into the EmptySet!");
+    }
+
+    fn remove(&mut self, _value: &T) -> bool {
+        unimplemented!("You can't remove something from the EmptySet!")
+    }
+
+    type SetIter<'a>
+        = Empty<T>
+    where
+        Self: 'a,
+        T: Clone;
+
+    fn iter(&self) -> Self::SetIter<'_>
+    where
+        T: Clone,
+    {
+        std::iter::empty()
+    }
+
+    fn contains(&self, _value: &T) -> bool {
+        false
+    }
+
+    fn clear(&mut self) {}
+
+    fn len(&self) -> usize {
+        0
     }
 }
 

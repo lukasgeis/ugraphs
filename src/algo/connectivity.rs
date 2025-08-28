@@ -5,93 +5,195 @@ use itertools::Itertools;
 use super::*;
 
 pub trait Connectivity: AdjacencyList + Traversal + Sized {
+    fn connected_components(&self) -> ConnectedComponents<'_, Self>
+    where
+        Self: AdjacencyList + GraphType<Dir = Undirected>;
+
+    fn connected_components_no_singletons(&self) -> ConnectedComponents<'_, Self>
+    where
+        Self: AdjacencyList + GraphType<Dir = Undirected>;
+
+    fn connected_components_exclude_nodes<I>(
+        &self,
+        skip_trivial: bool,
+        ignore: I,
+    ) -> ConnectedComponents<'_, Self>
+    where
+        I: IntoIterator<Item = Node>,
+        Self: AdjacencyList + GraphType<Dir = Undirected>;
+
     /// Partition the (undirected) graph into its connected components
-    fn partition_into_connected_components(&self, skip_trivial: bool) -> Partition {
-        self.partition_into_connected_components_exclude_nodes(skip_trivial, vec![])
+    fn partition_into_connected_components(&self) -> Partition
+    where
+        Self: GraphType<Dir = Undirected>,
+    {
+        self.connected_components()
+            .into_partition(self.number_of_nodes())
+    }
+
+    /// Partition the (undirected) graph into its connected components without including singletons
+    fn partition_into_connected_components_no_singletons(&self) -> Partition
+    where
+        Self: GraphType<Dir = Undirected>,
+    {
+        self.connected_components_no_singletons()
+            .into_partition(self.number_of_nodes())
     }
 
     /// Partition the (undirected) graph into its connected components ignoring a list of nodes.
-    fn partition_into_connected_components_exclude_nodes(
+    fn partition_into_connected_components_exclude_nodes<I>(
         &self,
         skip_trivial: bool,
-        ignore: Vec<Node>,
-    ) -> Partition {
-        let mut partition = Partition::new(self.number_of_nodes());
-
-        let start_node = if skip_trivial {
-            if let Some(start_node) = self.vertices().find(|&u| self.degree_of(u) > 0) {
-                start_node
-            } else {
-                return partition;
-            }
-        } else {
-            0
-        };
-
-        let mut bfs = self.bfs(start_node);
-        for u in ignore {
-            bfs.exclude_node(u);
-        }
-
-        if skip_trivial {
-            bfs.exclude_nodes(self.vertices().filter(|&u| self.degree_of(u) == 0));
-        }
-
-        loop {
-            let class = partition.add_class([]);
-
-            for u in bfs.by_ref() {
-                partition.move_node(u, class);
-            }
-
-            if !bfs.try_restart_at_unvisited() {
-                break;
-            }
-        }
-
-        partition
+        ignore: I,
+    ) -> Partition
+    where
+        I: IntoIterator<Item = Node>,
+        Self: GraphType<Dir = Undirected>,
+    {
+        self.connected_components_exclude_nodes(skip_trivial, ignore)
+            .into_partition(self.number_of_nodes())
     }
 
     /// Returns the strongly connected components of the graph as a `Vec<Vec<Node>>`
-    fn strongly_connected_components(&self) -> StronglyConnected<'_, Self>
+    fn strongly_connected_components(&self) -> StronglyConnectedComponents<'_, Self>
     where
-        Self: DirectedAdjacencyList,
-    {
-        StronglyConnected::new(self)
-    }
+        Self: DirectedAdjacencyList;
 
     /// Returns the strongly connected components of the graph as a `Vec<Vec<Node>>`
     /// In contrast to [`Connectivity::strongly_connected_components`], this methods includes SCCs of size 1
     /// if and only if the node has a self-loop
-    fn strongly_connected_components_no_singletons(&self) -> StronglyConnected<'_, Self>
+    fn strongly_connected_components_no_singletons(&self) -> StronglyConnectedComponents<'_, Self>
     where
-        Self: DirectedAdjacencyList,
-    {
-        StronglyConnected::new(self).include_singletons(false)
-    }
+        Self: DirectedAdjacencyList;
 
-    /// Returns a partition of nodes into non-trivial SCCs (analogously to
-    /// [`Connectivity::strongly_connected_components_no_singletons`])
+    /// Returns a partition of nodes into SCCs (analogously to [`Connectivity::strongly_connected_components`])
     fn partition_into_strongly_connected_components(&self) -> Partition
     where
         Self: DirectedAdjacencyList,
     {
-        let mut partition = Partition::new(self.number_of_nodes());
-        for scc in StronglyConnected::new(self).include_singletons(false) {
-            partition.add_class(scc.into_iter());
-        }
-        partition
+        self.strongly_connected_components()
+            .into_partition(self.number_of_nodes())
+    }
+
+    /// Returns a partition of nodes into non-trivial SCCs (analogously to [`Connectivity::strongly_connected_components_no_singletons`])
+    fn partition_into_strongly_connected_components_no_singletons(&self) -> Partition
+    where
+        Self: DirectedAdjacencyList,
+    {
+        self.strongly_connected_components_no_singletons()
+            .into_partition(self.number_of_nodes())
     }
 }
 
-impl<G> Connectivity for G where G: AdjacencyList + Sized {}
+impl<G> Connectivity for G
+where
+    G: AdjacencyList + Sized,
+{
+    fn connected_components(&self) -> ConnectedComponents<'_, Self>
+    where
+        Self: AdjacencyList + GraphType<Dir = Undirected>,
+    {
+        ConnectedComponents::new(self, false)
+    }
+
+    fn connected_components_no_singletons(&self) -> ConnectedComponents<'_, Self>
+    where
+        Self: AdjacencyList + GraphType<Dir = Undirected>,
+    {
+        ConnectedComponents::new(self, true)
+    }
+
+    fn connected_components_exclude_nodes<I>(
+        &self,
+        skip_trivial: bool,
+        ignore: I,
+    ) -> ConnectedComponents<'_, Self>
+    where
+        I: IntoIterator<Item = Node>,
+        Self: AdjacencyList + GraphType<Dir = Undirected>,
+    {
+        let mut ccs = ConnectedComponents::new(self, skip_trivial);
+        ccs.exclude_nodes(ignore);
+        ccs
+    }
+
+    fn strongly_connected_components(&self) -> StronglyConnectedComponents<'_, Self>
+    where
+        Self: DirectedAdjacencyList,
+    {
+        StronglyConnectedComponents::new(self)
+    }
+
+    fn strongly_connected_components_no_singletons(&self) -> StronglyConnectedComponents<'_, Self>
+    where
+        Self: DirectedAdjacencyList,
+    {
+        StronglyConnectedComponents::new(self).include_singletons(false)
+    }
+}
+
+pub struct ConnectedComponents<'a, G>
+where
+    G: AdjacencyList + GraphType<Dir = Undirected>,
+{
+    bfs: BFS<'a, G>,
+}
+
+impl<'a, G> ConnectedComponents<'a, G>
+where
+    G: AdjacencyList + GraphType<Dir = Undirected>,
+{
+    pub fn new(graph: &'a G, skip_trivial: bool) -> Self {
+        if skip_trivial {
+            if let Some(start_node) = graph.vertices_no_singletons().next() {
+                let mut bfs = graph.bfs(start_node);
+                bfs.exclude_nodes(graph.vertices().filter(|&u| graph.is_singleton(u)));
+                Self { bfs }
+            } else {
+                let mut bfs = graph.bfs(0);
+                bfs.exclude_nodes(graph.vertices());
+                bfs.next(); // Consume falsely inserted starting node
+                Self { bfs }
+            }
+        } else {
+            Self { bfs: graph.bfs(0) }
+        }
+    }
+
+    pub fn exclude_nodes<I>(&mut self, exclude: I)
+    where
+        I: IntoIterator<Item = Node>,
+    {
+        self.bfs.exclude_nodes(exclude);
+    }
+}
+
+impl<'a, G> Iterator for ConnectedComponents<'a, G>
+where
+    G: AdjacencyList + GraphType<Dir = Undirected>,
+{
+    type Item = Vec<Node>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let cc = self.bfs.by_ref().collect_vec();
+            if !cc.is_empty() {
+                return Some(cc);
+            }
+
+            if !self.bfs.try_restart_at_unvisited() {
+                return None;
+            }
+        }
+    }
+}
 
 /// Implementation of Tarjan's Algorithm for Strongly Connected Components.
 /// It is designed as an iterator that emits the nodes of one strongly connected component at a
 /// time. Observe that the order of nodes within a component is non-deterministic; the order of the
 /// components themselves are in the reverse topological order of the SCCs (i.e. if each SCC
 /// were contracted into a single node).
-pub struct StronglyConnected<'a, G>
+pub struct StronglyConnectedComponents<'a, G>
 where
     G: DirectedAdjacencyList,
 {
@@ -108,7 +210,7 @@ where
     call_stack: Vec<StackFrame<'a, G>>,
 }
 
-impl<'a, G> StronglyConnected<'a, G>
+impl<'a, G> StronglyConnectedComponents<'a, G>
 where
     G: DirectedAdjacencyList,
 {
@@ -249,7 +351,7 @@ where
     }
 }
 
-impl<'a, G> Iterator for StronglyConnected<'a, G>
+impl<'a, G> Iterator for StronglyConnectedComponents<'a, G>
 where
     G: DirectedAdjacencyList,
 {
@@ -267,7 +369,7 @@ where
     }
 }
 
-impl<'a, G> FusedIterator for StronglyConnected<'a, G> where G: DirectedAdjacencyList {}
+impl<'a, G> FusedIterator for StronglyConnectedComponents<'a, G> where G: DirectedAdjacencyList {}
 
 #[derive(Debug, Clone)]
 struct StackFrame<'a, T>
@@ -308,11 +410,11 @@ impl NodeState {
     }
 }
 
-/// Sorts the nodes in each SCC increasingly and then the SCCs themselves lexicographically.
-pub fn sort_sccs(mut sccs: Vec<Vec<Node>>) -> Vec<Vec<Node>> {
-    sccs.iter_mut().for_each(|scc| scc.sort_unstable());
-    sccs.sort_by(|a, b| a[0].cmp(&b[0]));
-    sccs
+/// Sorts the nodes in each component increasingly and then the components themselves lexicographically.
+pub fn sort_components(mut components: Vec<Vec<Node>>) -> Vec<Vec<Node>> {
+    components.iter_mut().for_each(|comp| comp.sort_unstable());
+    components.sort_by(|a, b| a[0].cmp(&b[0]));
+    components
 }
 
 #[cfg(test)]
@@ -321,10 +423,7 @@ mod test {
     use rand_pcg::Pcg64;
 
     use super::*;
-    use crate::{
-        gens::{GeneratorSubstructures, RandomGraph},
-        repr::{AdjArrayMatrix, AdjArrayUndir},
-    };
+    use crate::gens::{GeneratorSubstructures, RandomGraph};
 
     #[test]
     fn partition_into_connected_components() {
@@ -332,7 +431,7 @@ mod test {
         graph.add_edges([(1, 2), (2, 3), (4, 5)]);
 
         {
-            let part = graph.partition_into_connected_components(true);
+            let part = graph.partition_into_connected_components_no_singletons();
             assert_eq!(part.number_of_classes(), 2);
             assert_eq!(part.number_of_unassigned(), 2);
 
@@ -345,7 +444,7 @@ mod test {
         }
 
         {
-            let part = graph.partition_into_connected_components(false);
+            let part = graph.partition_into_connected_components();
             assert_eq!(part.number_of_classes(), 4);
             assert_eq!(part.number_of_unassigned(), 0);
             assert!(part.class_of_node(0).is_some());
@@ -381,7 +480,7 @@ mod test {
         assert!(!sccs[1].is_empty());
         assert!(!sccs[2].is_empty());
 
-        let sccs = sort_sccs(sccs);
+        let sccs = sort_components(sccs);
         assert_eq!(sccs[0], [0, 1, 4]);
         assert_eq!(sccs[1], [2, 3, 7]);
         assert_eq!(sccs[2], [5, 6]);
@@ -406,7 +505,7 @@ mod test {
             let sccs = graph.strongly_connected_components().collect_vec();
             assert_eq!(sccs.len(), 4);
 
-            let sccs = sort_sccs(sccs);
+            let sccs = sort_components(sccs);
             assert_eq!(sccs[0], [0, 1]);
             assert_eq!(sccs[1], [2]);
             assert_eq!(sccs[2], [3]); // 3 is included
@@ -418,7 +517,7 @@ mod test {
                 .strongly_connected_components_no_singletons()
                 .collect_vec();
             assert_eq!(sccs.len(), 3);
-            let sccs = sort_sccs(sccs);
+            let sccs = sort_components(sccs);
 
             assert_eq!(sccs[0], [0, 1]);
             assert_eq!(sccs[1], [2]);
@@ -448,7 +547,7 @@ mod test {
             let n = 10000;
             let graph: AdjArrayMatrix = AdjArrayMatrix::gnp(rng, n, 0.5 / (n as f64) * (i as f64));
             assert_eq!(
-                StronglyConnected::new(&graph)
+                StronglyConnectedComponents::new(&graph)
                     .map(|x| x.len())
                     .sum::<usize>(),
                 n as usize

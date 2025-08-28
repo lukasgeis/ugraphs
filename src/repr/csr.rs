@@ -166,6 +166,20 @@ impl DirectedAdjacencyList for CsrGraphIn {
     }
 }
 
+impl Singletons for CsrGraph {
+    /// Very inefficient as this has a runtime of `O(n^2)` for some implementations
+    fn is_singleton(&self, u: Node) -> bool {
+        self.total_degree_of(u) == 0
+    }
+}
+
+impl Singletons for CsrGraphIn {
+    #[inline]
+    fn is_singleton(&self, u: Node) -> bool {
+        self.total_degree_of(u) == 0
+    }
+}
+
 impl GraphEdgeOrder for CsrGraph {
     fn number_of_edges(&self) -> NumEdges {
         self.out_nbs.number_of_entries()

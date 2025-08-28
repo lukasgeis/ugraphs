@@ -198,3 +198,22 @@ impl From<NodeBitSet> for Partition {
         part
     }
 }
+
+/// Convencience Trait to convert Collections of classes into a Partition
+pub trait IntoPartition {
+    fn into_partition(self, n: NumNodes) -> Partition;
+}
+
+impl<N, I> IntoPartition for I
+where
+    N: IntoIterator<Item = Node>,
+    I: IntoIterator<Item = N>,
+{
+    fn into_partition(self, n: NumNodes) -> Partition {
+        let mut partition = Partition::new(n);
+        for class in self {
+            partition.add_class(class);
+        }
+        partition
+    }
+}

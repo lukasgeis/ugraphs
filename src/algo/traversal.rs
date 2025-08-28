@@ -546,12 +546,10 @@ pub trait Traversal: AdjacencyList + Sized {
     }
 }
 
-impl<T> Traversal for T where T: AdjacencyList + Sized {}
+impl<G> Traversal for G where G: AdjacencyList + Sized {}
 
 #[cfg(test)]
 pub mod tests {
-    use crate::repr::AdjArrayMatrix;
-
     use super::*;
     use itertools::Itertools;
 

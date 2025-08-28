@@ -1,7 +1,7 @@
 use super::*;
 use itertools::Itertools;
 
-pub trait Matching {
+pub trait Matching: GraphType<Dir = Undirected> {
     /// Computes a maximal matching on a graph where all edges are undirected. Each edge {u, v} in
     /// the matching is returned only once as (u, v) where u <= v. The output is sorted lexicographically.
     fn maximal_undirected_matching(&self) -> Vec<(Node, Node)> {
@@ -68,7 +68,6 @@ where
 
         let n = 2 + class_a.len() + class_b.len();
 
-        // labels
         let labels = [self.number_of_nodes(), self.number_of_nodes() + 1]
             .into_iter()
             .chain(class_a.iter().chain(class_b.iter()).map(|u| u as Node))
@@ -133,7 +132,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repr::AdjArrayUndir;
 
     #[test]
     fn maximal_undirected_matching() {

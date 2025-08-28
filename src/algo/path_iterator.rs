@@ -1,7 +1,7 @@
 use super::*;
 use itertools::Itertools;
 
-pub trait PathIterator: AdjacencyList {
+pub trait PathIterator: AdjacencyList + GraphType<Dir = Undirected> {
     /// Returns an iterator to induced subpath in a graph.
     /// An induced subpath consists of an adjacent chain of k degree 2 node(s) with k > 0.
     /// A path is returned as a Vec where the first and last elements are the endpoints,
@@ -17,7 +17,7 @@ pub trait PathIterator: AdjacencyList {
 
 impl<G> PathIterator for G
 where
-    G: AdjacencyList,
+    G: AdjacencyList + GraphType<Dir = Undirected>,
 {
     fn path_iter(&self) -> Paths<'_, Self> {
         Paths::new(self)
@@ -36,7 +36,7 @@ where
 
 pub struct Paths<'a, G>
 where
-    G: AdjacencyList,
+    G: AdjacencyList + GraphType<Dir = Undirected>,
 {
     graph: &'a G,
     min_length: NumNodes,
@@ -46,7 +46,7 @@ where
 
 impl<'a, G> Paths<'a, G>
 where
-    G: AdjacencyList,
+    G: AdjacencyList + GraphType<Dir = Undirected>,
 {
     fn new(graph: &'a G) -> Self {
         Self {
@@ -84,7 +84,7 @@ where
 
 impl<G> Iterator for Paths<'_, G>
 where
-    G: AdjacencyList,
+    G: AdjacencyList + GraphType<Dir = Undirected>,
 {
     type Item = Vec<Node>;
 
@@ -123,8 +123,6 @@ where
 mod tests {
     use rand::{Rng, SeedableRng, seq::SliceRandom};
     use rand_pcg::Pcg64Mcg;
-
-    use crate::repr::AdjArrayUndir;
 
     use super::*;
 

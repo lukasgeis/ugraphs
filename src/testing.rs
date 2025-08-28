@@ -175,7 +175,7 @@ macro_rules! test_graph_ops {
                         }
 
                         graph.remove_edges_at_nodes(0..n);
-                        assert!(graph.is_singleton());
+                        assert!(graph.is_singleton_graph());
                     }
                 }
             }
@@ -209,7 +209,7 @@ macro_rules! test_graph_ops {
                             assert_eq!(m, graph.number_of_edges());
                         }
 
-                        assert!(graph.is_singleton());
+                        assert!(graph.is_singleton_graph());
 
                         let mut m = graph_clone.number_of_edges();
                         for u in 0..n {
@@ -218,7 +218,7 @@ macro_rules! test_graph_ops {
                             assert_eq!(m, graph_clone.number_of_edges());
                         }
 
-                        assert!(graph_clone.is_singleton());
+                        assert!(graph_clone.is_singleton_graph());
                     }
                 }
             }

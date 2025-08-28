@@ -1,8 +1,16 @@
 use super::*;
 
 /// We define a Bipartition over a set of nodes where nodes in the Set are considered to be on the
-/// 'right' side whereas nodes not in the Set are considered to be on the 'left' side.
+/// 'right' (1) side whereas nodes not in the Set are considered to be on the 'left' (0) side.
 pub trait Bipartition: Set<Node> {
+    fn is_on_left_side(&self, u: Node) -> bool;
+    fn is_on_right_side(&self, u: Node) -> bool;
+}
+
+impl<B> Bipartition for B
+where
+    B: Set<Node>,
+{
     #[inline]
     fn is_on_left_side(&self, u: Node) -> bool {
         !self.contains(&u)
@@ -13,8 +21,6 @@ pub trait Bipartition: Set<Node> {
         self.contains(&u)
     }
 }
-
-impl<B> Bipartition for B where B: Set<Node> {}
 
 pub trait BipartiteTest {
     /// Tests whether the given candidate partition is a valid bipartition.
@@ -41,7 +47,7 @@ where
     where
         B: Bipartition,
     {
-        self.edges(true)
+        self.edges(false)
             .all(|Edge(u, v)| bipartition.is_on_left_side(u) != bipartition.is_on_left_side(v))
     }
 
@@ -63,14 +69,14 @@ pub trait BipartiteEdit {
 
 impl<G> BipartiteEdit for G
 where
-    G: AdjacencyList + GraphEdgeEditing,
+    G: AdjacencyList + GraphEdgeEditing + GraphType,
 {
     fn remove_edges_within_bipartition_class<B>(&mut self, bipartition: &B)
     where
         B: Bipartition,
     {
         let to_delete: Vec<_> = self
-            .edges(true)
+            .edges(G::is_undirected())
             .filter(|&Edge(u, v)| bipartition.is_on_left_side(u) == bipartition.is_on_left_side(v))
             .collect();
         self.remove_edges(to_delete);
@@ -86,11 +92,11 @@ where
 {
     let mut bfs = graph.bfs_with_predecessor(0);
 
-    // propose a bipartition
     let mut bipartition = B::from_total_used_capacity(
         graph.number_of_nodes() as usize,
         graph.number_of_nodes() as usize,
     );
+
     loop {
         for (node, pred) in bfs
             .by_ref()
@@ -111,8 +117,6 @@ where
 
 #[cfg(test)]
 mod test {
-    use crate::repr::AdjArrayUndir;
-
     use super::*;
 
     #[test]

@@ -26,26 +26,21 @@ pub struct Undirected;
 
 /// Marker trait for direction of graphs
 pub trait GraphDir {
-    fn direction() -> GraphDirection;
+    const DIRECTION: GraphDirection;
 }
 
 impl GraphDir for Directed {
-    #[inline(always)]
-    fn direction() -> GraphDirection {
-        GraphDirection::Directed
-    }
+    const DIRECTION: GraphDirection = GraphDirection::Directed;
 }
 
 impl GraphDir for Undirected {
-    #[inline(always)]
-    fn direction() -> GraphDirection {
-        GraphDirection::Undirected
-    }
+    const DIRECTION: GraphDirection = GraphDirection::Undirected;
 }
 
-/// Trait for identifying whether a graph is directed/undirected
+/// Trait for identifying whether a graph is directed/undirected.
+/// This should be implemented by *every* graph representation.
 pub trait GraphType {
-    /// NodeMapGetter for graph direction.
+    /// Getter for graph direction.
     /// As `#![feature(associated_const_equality)]` is not stable yet,
     /// this allows for selective implementations of algorithms/generators
     /// that are only meant for directed/undirected graphs.
@@ -54,13 +49,13 @@ pub trait GraphType {
     /// Returns *true* if the graph is directed
     #[inline(always)]
     fn is_directed() -> bool {
-        Self::Dir::direction() == GraphDirection::Directed
+        Self::Dir::DIRECTION == GraphDirection::Directed
     }
 
     /// Returns *true* if the graph is undirected
     #[inline(always)]
     fn is_undirected() -> bool {
-        Self::Dir::direction() == GraphDirection::Undirected
+        Self::Dir::DIRECTION == GraphDirection::Undirected
     }
 }
 
@@ -120,7 +115,7 @@ pub trait GraphEdgeOrder {
     }
 
     /// Returns *true* if the graph has no edges
-    fn is_singleton(&self) -> bool {
+    fn is_singleton_graph(&self) -> bool {
         self.number_of_edges() == 0
     }
 }
@@ -252,6 +247,8 @@ where
             .find(|&next_node| (self.degree_fn)(self.graph, next_node) > 0)
     }
 }
+
+// ---------- Iterator-Types ----------
 
 pub type VerticesWithNeighbors<'a, G> = VerticesWithNeighborsIterImpl<'a, G>;
 
@@ -428,6 +425,8 @@ macro_rules! propagate {
         }
     };
 }
+
+// ---------- Iterator-Types ----------
 
 pub type VerticesWithOutNeighbors<'a, G> = VerticesWithNeighborsIterImpl<'a, G>;
 pub type VerticesWithInNeighbors<'a, G> = VerticesWithNeighborsIterImpl<'a, G>;
@@ -607,17 +606,61 @@ pub trait AdjacencyTest: GraphNodeOrder {
     }
 }
 
+pub struct SingletonIter<'a, G>
+where
+    G: Singletons,
+{
+    graph: &'a G,
+    nodes: <G as GraphNodeOrder>::VertexIter<'a>,
+}
+
+impl<'a, G> Iterator for SingletonIter<'a, G>
+where
+    G: Singletons,
+{
+    type Item = Node;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.nodes.by_ref().find(|u| !self.graph.is_singleton(*u))
+    }
+}
+
+/// Trait for checking if nodes in the graph are singletons etc.
+pub trait Singletons: GraphNodeOrder + Sized {
+    /// Returns *true* if `u` is a singleton, ie.
+    /// - for undirected graphs, `degree_of(u) = 0`
+    /// - for directed graphs, `total_degree_of(u) = 0`
+    fn is_singleton(&self, u: Node) -> bool;
+
+    fn vertices_no_singletons(&self) -> SingletonIter<'_, Self> {
+        SingletonIter {
+            graph: self,
+            nodes: self.vertices(),
+        }
+    }
+}
+
+impl<G> Singletons for G
+where
+    G: AdjacencyList + GraphType<Dir = Undirected>,
+{
+    #[inline]
+    fn is_singleton(&self, u: Node) -> bool {
+        self.degree_of(u) == 0
+    }
+}
+
 /// Trait for indexed access of Neighborhoods
 pub trait IndexedAdjacencyList: AdjacencyList {
     /// Returns the ith neighbor (0-indexed) of a given vertex
-    /// ** Panics if `u >= n || i >= deg(u)`
+    /// ** Panics if `u >= n || i >= deg(u)` **
     fn ith_neighbor(&self, u: Node, i: NumNodes) -> Node;
 }
 
 /// Trait for swapping the order in Neighborhoods
 pub trait IndexedAdjacencySwap: IndexedAdjacencyList {
     /// Swaps the ith and the jth neighbor of a given vertex
-    /// ** Panics if `u >= n || i >= deg(u) || j >= deg(u)`
+    /// ** Panics if `u >= n || i >= deg(u) || j >= deg(u)` **
     fn swap_neighbors(&mut self, u: Node, i: NumNodes, j: NumNodes);
 }
 

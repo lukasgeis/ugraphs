@@ -88,6 +88,13 @@ where
     }
 }
 
+impl<OutNbs: Neighborhood> Singletons for DirectedGraph<OutNbs> {
+    /// Very inefficient as this has a runtime of `O(n^2)` for some implementations
+    fn is_singleton(&self, u: Node) -> bool {
+        self.total_degree_of(u) == 0
+    }
+}
+
 pub struct DirectedInNeighborIter<'a, OutNbs>
 where
     OutNbs: Neighborhood,
@@ -203,6 +210,13 @@ where
 
     fn in_neighbors_of_as_stream(&self, u: Node) -> Self::InNeighborsStream<'_> {
         self.in_nbs[u as usize].neighbors_as_stream(self.number_of_nodes())
+    }
+}
+
+impl<OutNbs: Neighborhood, InNbs: Neighborhood> Singletons for DirectedGraphIn<OutNbs, InNbs> {
+    #[inline]
+    fn is_singleton(&self, u: Node) -> bool {
+        self.total_degree_of(u) == 0
     }
 }
 

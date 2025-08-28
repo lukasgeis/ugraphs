@@ -51,11 +51,10 @@ where
 
         for v in self.graph.neighbors_of(self.node) {
             self.neighbors.set_bits(self.graph.neighbors_of(v));
-            self.neighbors.set_bit(v);
         }
 
         for _ in 3..=self.distance {
-            let mut next_dist = self.neighbors.clone();
+            let mut next_dist = self.graph.vertex_bitset_unset();
             for x in self.neighbors.iter_set_bits() {
                 next_dist.set_bits(self.graph.neighbors_of(x));
             }
@@ -83,7 +82,7 @@ where
         loop {
             self.node += 1;
 
-            if self.node + 1 >= self.graph.number_of_nodes() {
+            if self.node >= self.graph.number_of_nodes() {
                 return None;
             }
 
@@ -91,6 +90,90 @@ where
 
             if self.neighbors.cardinality() > 0 {
                 return self.next();
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use itertools::Itertools;
+
+    use super::*;
+
+    #[test]
+    fn path() {
+        // Directed Path
+        for n in 3..(20 as NumNodes) {
+            let mut graph = AdjArray::new(n);
+            for u in 0..(n - 1) {
+                graph.add_edge(u, u + 1);
+            }
+
+            for distance in 2..(n - 1) {
+                let mut dist_pairs = graph.distance_pairs(distance as usize).collect_vec();
+                dist_pairs.sort_unstable();
+
+                let real_dist_pairs = (0..n)
+                    .filter_map(|u| (u + distance < n).then_some((u, u + distance)))
+                    .collect_vec();
+                assert_eq!(dist_pairs, real_dist_pairs);
+            }
+        }
+
+        // Undirected Path
+        for n in 3..(20 as NumNodes) {
+            let mut graph = AdjArrayUndir::new(n);
+            for u in 0..(n - 1) {
+                graph.add_edge(u, u + 1);
+            }
+
+            for distance in 2..(n - 1) {
+                let mut dist_pairs = graph.distance_pairs(distance as usize).collect_vec();
+                dist_pairs.sort_unstable();
+
+                let real_dist_pairs = (0..n)
+                    .flat_map(|u| {
+                        (0..=(distance / 2)).filter_map(move |d| {
+                            let step = d * 2 + (distance % 2);
+                            (step > 0 && u + step < n).then_some((u, u + step))
+                        })
+                    })
+                    .collect_vec();
+                assert_eq!(dist_pairs, real_dist_pairs);
+            }
+        }
+
+        // Directed Double-Linked Path
+        for n in 3..(20 as NumNodes) {
+            let mut graph = AdjArray::new(n);
+            for u in 0..(n - 1) {
+                graph.add_edge(u, u + 1);
+                graph.add_edge(u + 1, u);
+            }
+
+            for distance in 2..(n - 1) {
+                let mut dist_pairs = graph.distance_pairs(distance as usize).collect_vec();
+                dist_pairs.sort_unstable();
+
+                let mut real_dist_pairs = (0..n)
+                    .flat_map(|u| {
+                        (0..=(distance / 2)).flat_map(move |d| {
+                            let mut pairs = Vec::with_capacity(2);
+                            let step = d * 2 + (distance % 2);
+
+                            if u + step < n {
+                                pairs.push((u, u + step));
+                            }
+                            if u >= step && step != 0 {
+                                pairs.push((u, u - step));
+                            }
+                            pairs
+                        })
+                    })
+                    .collect_vec();
+                real_dist_pairs.sort_unstable();
+                assert_eq!(dist_pairs, real_dist_pairs);
             }
         }
     }

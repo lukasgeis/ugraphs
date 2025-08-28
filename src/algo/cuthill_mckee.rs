@@ -4,11 +4,12 @@ use itertools::Itertools;
 
 use super::*;
 
-pub trait CuthillMcKee {
-    /// Computes a node label mapping intended to minimize the bandwidth of the
-    /// graph's adjacency matrix. This can might improve performance down the
-    /// road as it may reduce the cache misses when working with the algorithm.
-    /// The algorithm does not map singleton nodes (degree = 0)
+pub trait CuthillMcKee: GraphType<Dir = Undirected> {
+    /// some text that i am writing here until the line no longer supports this many characters or
+    /// I
+    /// Computes a node label mapping intended to minimize the bandwidth of the graph's adjacency
+    /// matrix. This can might improve performance down the road as it may reduce the cache misses
+    /// when working with the algorithm. The algorithm does not map singleton nodes (degree = 0).
     fn cuthill_mckee<M>(&self) -> M
     where
         M: NodeMapGetter + NodeMapSetter,
@@ -16,11 +17,10 @@ pub trait CuthillMcKee {
         self.cuthill_mckee_cc(false).0
     }
 
-    /// Same as `cuthill_mckee`, but also returns a vector of all non-trivial
-    /// connected components (i.e. ccs with at least 2 nodes) if requested.
+    /// Same as `cuthill_mckee`, but also returns a vector of all non-trivial connected components
+    /// (i.e. ccs with at least 2 nodes) if requested.
     ///
-    /// `return_ccs = false` implies that the vector returns is empty and of
-    /// capacity 0.
+    /// `return_ccs = false` implies that the vector returns is empty and of capacity 0.
     fn cuthill_mckee_cc<M>(&self, return_ccs: bool) -> (M, Vec<Range<Node>>)
     where
         M: NodeMapGetter + NodeMapSetter;
@@ -28,7 +28,7 @@ pub trait CuthillMcKee {
 
 impl<G> CuthillMcKee for G
 where
-    G: AdjacencyList,
+    G: AdjacencyList + GraphType<Dir = Undirected>,
 {
     fn cuthill_mckee_cc<M>(&self, return_ccs: bool) -> (M, Vec<Range<Node>>)
     where
@@ -38,8 +38,6 @@ where
         let mut mapper = M::with_capacity(self.number_of_nodes());
         let mut queue = Vec::with_capacity(self.len());
 
-        // find a start node of smallest positive degree; if none exists, all nodes
-        // are singletons and we exit earlier.
         let start_node = match self
             .vertices()
             .filter(|u| self.degree_of(*u) > 0)
@@ -52,7 +50,6 @@ where
         queue.push(start_node);
         mapper.map_node_to(start_node, 0);
 
-        // We reuse the set-functionality of DominatingSet as we need a fast iterator
         let mut candidates = NodeSet::new_with_all(self.number_of_nodes());
         for u in self.vertices_range().filter(|u| self.degree_of(*u) == 0) {
             candidates.remove(&u);
@@ -119,9 +116,7 @@ mod test {
     use rand::{Rng, SeedableRng};
     use rand_pcg::Pcg64Mcg;
 
-    use crate::{
-        algo::Connectivity, gens::RandomGraph, ops::*, repr::AdjArrayUndir, utils::NodeMapper,
-    };
+    use crate::gens::RandomGraph;
 
     use super::*;
 
@@ -168,7 +163,7 @@ mod test {
             let p = rng.random_range(0.5..(2.min(n) as f64)) / (n as f64);
             let graph = AdjArrayUndir::gnp_no_loops(&mut rng, n, p);
             let (mapping, ccs) = graph.cuthill_mckee_cc::<NodeMapper>(true);
-            let partition = graph.partition_into_connected_components(true);
+            let partition = graph.partition_into_connected_components_no_singletons();
 
             assert_eq!(
                 mapping.len(),
