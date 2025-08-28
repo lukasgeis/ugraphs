@@ -7,7 +7,6 @@ use std::{
     collections::{HashMap, HashSet, hash_set::Iter},
     hash::{BuildHasher, Hash},
     iter::{Cloned, Copied, Empty},
-    marker::PhantomData,
 };
 
 use itertools::Itertools;
@@ -230,9 +229,9 @@ impl Set<Node> for NodeSet {
 }
 
 #[derive(Debug, Copy, Clone, Default)]
-pub struct EmptySet<T>(PhantomData<T>);
+pub struct EmptySet;
 
-impl<T> Set<T> for EmptySet<T> {
+impl<T> Set<T> for EmptySet {
     fn insert(&mut self, _value: T) -> bool {
         unimplemented!("You can't insert something into the EmptySet!");
     }
