@@ -60,8 +60,13 @@ where
     /// Does not return paths with less than `min_length` path nodes;
     /// i.e. excluding the end pointer. In other words: if a path is
     /// returned, the vector has length at least `min_length + 2`
-    fn set_min_path_nodes(&mut self, min_length: NumNodes) {
+    pub fn set_min_path_nodes(&mut self, min_length: NumNodes) {
         self.min_length = min_length;
+    }
+
+    pub fn min_path_nodes(mut self, min_length: NumNodes) -> Self {
+        self.set_min_path_nodes(min_length);
+        self
     }
 
     fn complete_path(&mut self, u: Node, parent: Node, path: &mut Vec<Node>) {

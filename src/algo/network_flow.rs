@@ -350,7 +350,7 @@ impl EdmondsKarp {
         let t = *self.residual_network.target();
 
         let mut bfs = self.residual_network.bfs_with_predecessor(s);
-        bfs.stop_at(t);
+        bfs.set_stop_at(t);
         bfs.parent_array_into(self.predecessor.as_mut_slice());
         bfs.did_visit_node(t)
     }
@@ -378,6 +378,11 @@ impl EdmondsKarp {
         self.remember_changes = remember_changes;
     }
 
+    pub fn remember_changes(mut self, remember_changes: bool) -> Self {
+        self.set_remember_changes(remember_changes);
+        self
+    }
+
     /// reverts each edge in capacity, that got changed while petals were calculated.
     pub fn undo_changes(&mut self) {
         self.residual_network
@@ -391,11 +396,11 @@ impl EdmondsKarp {
 }
 
 pub trait RememberChanges {
-    fn remember_changes(&mut self, u: Node, v: Node);
+    fn remember_change(&mut self, u: Node, v: Node);
 }
 
 impl RememberChanges for EdmondsKarp {
-    fn remember_changes(&mut self, u: Node, v: Node) {
+    fn remember_change(&mut self, u: Node, v: Node) {
         self.changes_on_bitmatrix.push((u, v));
     }
 }
@@ -421,7 +426,7 @@ impl Iterator for EdmondsKarp {
             self.residual_network.reverse(u, v);
 
             if self.remember_changes {
-                self.remember_changes(u, v);
+                self.remember_change(u, v);
             }
 
             v = u;
@@ -683,7 +688,7 @@ where
 
     fn bfs(&mut self) -> bool {
         let mut bfs = self.graph.bfs_with_predecessor(self.source);
-        bfs.stop_at(self.target);
+        bfs.set_stop_at(self.target);
         bfs.parent_array_into(self.predecessor.as_mut_slice());
         bfs.did_visit_node(self.target)
     }
@@ -714,6 +719,11 @@ where
         } else {
             self.changes = None;
         }
+    }
+
+    pub fn remember_changes(mut self, remember_changes: bool) -> Self {
+        self.set_remember_changes(remember_changes);
+        self
     }
 
     /// reverts each edge in capacity, that got changed while petals were calculated.

@@ -240,8 +240,13 @@ where
     }
 
     /// Sets a stopper node. If this node is reached, the iterator returns it and afterwards only None.
-    pub fn stop_at(&mut self, stopper: Node) {
+    pub fn set_stop_at(&mut self, stopper: Node) {
         self.stop_at = Some(stopper);
+    }
+
+    pub fn stop_at(mut self, stopper: Node) -> Self {
+        self.set_stop_at(stopper);
+        self
     }
 
     /// Excludes a node from the search. It will be treated as if it was already visited,
@@ -251,8 +256,12 @@ where
     /// # Warning
     /// Calling this method has no effect if the node is already on the stack. It is therefore highly
     /// recommended to call this method directly after the constructor.
-    pub fn exclude_node(&mut self, u: Node) -> &mut Self {
+    pub fn exclude_node(&mut self, u: Node) {
         self.visited.insert(u);
+    }
+
+    pub fn with_node_excluded(mut self, u: Node) -> Self {
+        self.exclude_node(u);
         self
     }
 
@@ -262,10 +271,20 @@ where
     /// # Warning
     /// Calling this method has no effect for nodes that are already on the stack. It is
     /// therefore highly recommended to call this method directly after the constructor.
-    pub fn exclude_nodes(&mut self, us: impl IntoIterator<Item = Node>) -> &mut Self {
+    pub fn exclude_nodes<N>(&mut self, us: N)
+    where
+        N: IntoIterator<Item = Node>,
+    {
         for u in us {
             self.exclude_node(u);
         }
+    }
+
+    pub fn with_nodes_excluded<N>(mut self, us: N) -> Self
+    where
+        N: IntoIterator<Item = Node>,
+    {
+        self.exclude_nodes(us);
         self
     }
 
@@ -501,9 +520,9 @@ pub trait Traversal: AdjacencyList + Sized {
         I: IntoIterator<Item = Node>,
         Self: GraphType<Dir = Directed>,
     {
-        let mut bfs = self.bfs(u);
-        bfs.exclude_nodes(deleted);
-        bfs.is_node_reachable(u)
+        self.bfs(u)
+            .with_nodes_excluded(deleted)
+            .is_node_reachable(u)
     }
 
     /// Computes the shortest path from `start` to `end` using BFS and returns the path if it exists.
@@ -603,9 +622,7 @@ pub mod tests {
         let graph = AdjArrayMatrix::from_edges(4, [(0, 1), (1, 2), (2, 3)]);
         assert_eq!(graph.bfs(0).collect_vec(), vec![0, 1, 2, 3]);
 
-        let mut bfs = graph.bfs(0);
-        bfs.stop_at(1);
-        assert_eq!(bfs.collect_vec(), vec![0, 1]);
+        assert_eq!(graph.bfs(0).stop_at(1).collect_vec(), vec![0, 1]);
     }
 
     #[test]

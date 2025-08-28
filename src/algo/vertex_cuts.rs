@@ -144,20 +144,22 @@ where
     ///
     /// # Arguments
     /// * `cut_type` - The cut type to enable
-    pub fn enable_cut(mut self, cut_type: CutType) -> Self {
-        if self.enabled_cuts.contains(&cut_type) {
-            self
-        } else {
+    pub fn set_enable_cut(&mut self, cut_type: CutType) {
+        if !self.enabled_cuts.contains(&cut_type) {
             self.enabled_cuts.push(cut_type);
-            self
         }
+    }
+
+    pub fn enable_cut(mut self, cut_type: CutType) -> Self {
+        self.set_enable_cut(cut_type);
+        self
     }
 
     /// Disables a specific cut type if it's currently enabled.
     ///
     /// # Arguments
     /// * `cut_type` - The cut type to disable
-    pub fn disable_cut(mut self, cut_type: CutType) -> Self {
+    pub fn set_disable_cut(&mut self, cut_type: CutType) {
         if let Some(index) = self
             .enabled_cuts
             .iter()
@@ -165,6 +167,10 @@ where
         {
             self.enabled_cuts.swap_remove(index);
         }
+    }
+
+    pub fn disable_cut(mut self, cut_type: CutType) -> Self {
+        self.set_disable_cut(cut_type);
         self
     }
 
@@ -173,8 +179,12 @@ where
     /// # Arguments
     /// * `size` - Minimum number of nodes required in each connected component
     ///   after removing the cut. Use `None` for no minimum requirement.
-    pub fn min_cc_size(mut self, size: Option<NumNodes>) -> Self {
+    pub fn set_min_cc_size(&mut self, size: Option<NumNodes>) {
         self.min_cc_size = size;
+    }
+
+    pub fn min_cc_size(mut self, size: Option<NumNodes>) -> Self {
+        self.set_min_cc_size(size);
         self
     }
 

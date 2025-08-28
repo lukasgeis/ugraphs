@@ -40,7 +40,7 @@ where
     }
 
     fn compute(mut self) -> Vec<Edge> {
-        for u in self.graph.vertices_with_neighbors() {
+        for u in self.graph.vertices_no_singletons() {
             if self.visited.set_bit(u) {
                 continue;
             }

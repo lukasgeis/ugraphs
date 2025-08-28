@@ -112,9 +112,7 @@ where
         I: IntoIterator<Item = Node>,
         Self: AdjacencyList + GraphType<Dir = Undirected>,
     {
-        let mut ccs = ConnectedComponents::new(self, skip_trivial);
-        ccs.exclude_nodes(ignore);
-        ccs
+        ConnectedComponents::new(self, skip_trivial).exclude_nodes(ignore)
     }
 
     fn strongly_connected_components(&self) -> StronglyConnectedComponents<'_, Self>
@@ -146,9 +144,11 @@ where
     pub fn new(graph: &'a G, skip_trivial: bool) -> Self {
         if skip_trivial {
             if let Some(start_node) = graph.vertices_no_singletons().next() {
-                let mut bfs = graph.bfs(start_node);
-                bfs.exclude_nodes(graph.vertices().filter(|&u| graph.is_singleton(u)));
-                Self { bfs }
+                Self {
+                    bfs: graph
+                        .bfs(start_node)
+                        .with_nodes_excluded(graph.vertices().filter(|&u| graph.is_singleton(u))),
+                }
             } else {
                 let mut bfs = graph.bfs(0);
                 bfs.exclude_nodes(graph.vertices());
@@ -160,11 +160,19 @@ where
         }
     }
 
-    pub fn exclude_nodes<I>(&mut self, exclude: I)
+    pub fn set_exclude_nodes<I>(&mut self, exclude: I)
     where
         I: IntoIterator<Item = Node>,
     {
         self.bfs.exclude_nodes(exclude);
+    }
+
+    pub fn exclude_nodes<I>(mut self, exclude: I) -> Self
+    where
+        I: IntoIterator<Item = Node>,
+    {
+        self.set_exclude_nodes(exclude);
+        self
     }
 }
 
@@ -232,8 +240,12 @@ where
     /// Each node that is not part of a circle is returned as its own SCC.
     /// By setting `include = false`, those nodes are not returned (which can lead to a significant
     /// performance boost)
-    pub fn include_singletons(mut self, include: bool) -> Self {
+    pub fn set_include_singletons(&mut self, include: bool) {
         self.include_singletons = include;
+    }
+
+    pub fn include_singletons(mut self, include: bool) -> Self {
+        self.set_include_singletons(include);
         self
     }
 
