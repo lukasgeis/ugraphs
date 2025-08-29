@@ -142,6 +142,12 @@ impl<H> GraphGenerator for Gnm<H>
 where
     H: GnmMap,
 {
+    type EdgeStream<'a, R>
+        = GnmGenerator<'a, R, H>
+    where
+        R: Rng + 'a,
+        Self: 'a;
+
     /// Returns a streaming iterator over a random `G(n,m)` edge set.
     ///
     /// Internally, edges are uniformly sampled without replacement.
@@ -149,7 +155,7 @@ where
     /// # Panics
     /// - If `n == 0`
     /// - If neither `edges(m)` nor `avg_deg(d)` was set
-    fn stream<R>(&self, rng: &mut R) -> impl Iterator<Item = Edge>
+    fn stream<'a, R>(&'a self, rng: &'a mut R) -> Self::EdgeStream<'a, R>
     where
         R: Rng,
     {

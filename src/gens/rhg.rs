@@ -125,7 +125,13 @@ impl AverageDegreeGen for Rhg {
 }
 
 impl GraphGenerator for Rhg {
-    fn stream<R>(&self, rng: &mut R) -> impl Iterator<Item = Edge>
+    type EdgeStream<'a, R>
+        = RhgGenerator
+    where
+        R: Rng + 'a,
+        Self: 'a;
+
+    fn stream<'a, R>(&'a self, rng: &'a mut R) -> Self::EdgeStream<'a, R>
     where
         R: Rng,
     {

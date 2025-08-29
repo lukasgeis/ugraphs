@@ -127,12 +127,17 @@ pub trait GraphGenerator {
         self.stream(rng).collect()
     }
 
+    type EdgeStream<'a, R>: Iterator<Item = Edge> + 'a
+    where
+        R: Rng + 'a,
+        Self: 'a;
+
     /// Creates a lazy iterator (stream) over generated edges.
     ///
     /// Preferred for large graphs or pipelined filtering. Depending on the underlying graph
     /// model, this might also be just an iterator over the already generated list of edges if
     /// a direct iterator is not feasible in the model.
-    fn stream<R>(&self, rng: &mut R) -> impl Iterator<Item = Edge>
+    fn stream<'a, R>(&'a self, rng: &'a mut R) -> Self::EdgeStream<'a, R>
     where
         R: Rng;
 }

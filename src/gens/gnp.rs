@@ -1,7 +1,7 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, iter::Empty, ops::Range};
 
 use super::*;
-use crate::utils::{GeometricJumper, Probability, TripleIter};
+use crate::utils::{GeometricJumper, GeometricJumperIter, Probability, TripleIter};
 
 /// Internal representation of how a `G(n,p)` generator is parameterized.
 ///
@@ -75,6 +75,17 @@ impl AverageDegreeGen for Gnp {
 }
 
 impl GraphGenerator for Gnp {
+    type EdgeStream<'a, R>
+        = TripleIter<
+        Edge,
+        Empty<Edge>,
+        MapToEdgeIter<Range<u64>>,
+        MapToEdgeIter<GeometricJumperIter<'a, R>>,
+    >
+    where
+        R: Rng + 'a,
+        Self: 'a;
+
     /// Returns a lazily-evaluated iterator over randomly generated `G(n,p)` edges.
     ///
     /// The generator handles the edge generation strategy depending on the value of `p`:
@@ -86,7 +97,7 @@ impl GraphGenerator for Gnp {
     /// - If no node count is set (`n == 0`)
     /// - If no valid probability is configured
     /// - If average degree is invalid for the configured `n`
-    fn stream<R>(&self, rng: &mut R) -> impl Iterator<Item = Edge>
+    fn stream<'a, R>(&'a self, rng: &'a mut R) -> Self::EdgeStream<'a, R>
     where
         R: Rng,
     {
@@ -107,20 +118,38 @@ impl GraphGenerator for Gnp {
         // The maximum possible value an edge can be mapped to
         let max_value = self.n * self.n;
 
-        let to_edge = |x: u64| Edge::from_u64(x, self.n);
-
         // Different between easy and hard cases with little overhead to ensure maximum efficiency
         match p {
             0.0 => TripleIter::IterA(std::iter::empty()),
-            1.0 => TripleIter::IterB((0..max_value).map(to_edge)),
+            1.0 => TripleIter::IterB(MapToEdgeIter {
+                iter: 0..max_value,
+                n: self.n,
+            }),
             // We verified that `p` is a valid probability at this point
-            _ => TripleIter::IterC(
-                GeometricJumper::new(p)
-                    .stop_at(max_value)
-                    .iter(rng)
-                    .map(to_edge),
-            ),
+            _ => TripleIter::IterC(MapToEdgeIter {
+                iter: GeometricJumper::new(p).stop_at(max_value).iter(rng),
+                n: self.n,
+            }),
         }
+    }
+}
+
+pub struct MapToEdgeIter<I>
+where
+    I: Iterator<Item = u64>,
+{
+    iter: I,
+    n: u64,
+}
+
+impl<I> Iterator for MapToEdgeIter<I>
+where
+    I: Iterator<Item = u64>,
+{
+    type Item = Edge;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next().map(|x| Edge::from_u64(x, self.n))
     }
 }
 
@@ -151,17 +180,23 @@ impl NumNodesGen for Gn {
 }
 
 impl GraphGenerator for Gn {
+    type EdgeStream<'a, R>
+        = MapToEdgeIter<GeometricJumperIter<'a, R>>
+    where
+        R: Rng + 'a,
+        Self: 'a;
+
     /// Returns a lazily-evaluated iterator over edges generated with 50% probability.
     ///
     /// Internally equivalent to `Gnp::new().nodes(n).prob(0.5).stream(rng)`.
-    fn stream<R>(&self, rng: &mut R) -> impl Iterator<Item = Edge>
+    fn stream<'a, R>(&'a self, rng: &'a mut R) -> Self::EdgeStream<'a, R>
     where
         R: Rng,
     {
         assert!(self.n > 0, "At least one node must be generated!");
-        GeometricJumper::new(0.5)
-            .stop_at(self.n * self.n)
-            .iter(rng)
-            .map(|x| Edge::from_u64(x, self.n))
+        MapToEdgeIter {
+            iter: GeometricJumper::new(0.5).stop_at(self.n * self.n).iter(rng),
+            n: self.n,
+        }
     }
 }
