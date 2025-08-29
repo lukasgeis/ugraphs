@@ -63,7 +63,7 @@ pub enum RhgRadius {
 }
 
 /// A RandomHyperbolicGraph-Generator for the threshold-case
-#[derive(Debug, Copy, Clone, Default)]
+#[derive(Debug, Copy, Clone)]
 pub struct Rhg {
     /// Number of nodes
     nodes: NumNodes,
@@ -73,6 +73,17 @@ pub struct Rhg {
     radius: RhgRadius,
     /// Optional number of radial bands used for partitioning nodes
     num_bands: Option<usize>,
+}
+
+impl Default for Rhg {
+    fn default() -> Self {
+        Self {
+            nodes: 0,
+            alpha: 1.0,
+            radius: RhgRadius::NotSet,
+            num_bands: None,
+        }
+    }
 }
 
 impl Rhg {

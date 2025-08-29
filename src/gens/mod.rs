@@ -178,6 +178,7 @@ pub trait RandomGraph: Sized {
     /// Creates a random `Rhg(alpha = 1.0, T = 0)` graph with `n` nodes and specified average degree.
     fn rhg<R>(rng: &mut R, n: NumNodes, avg_deg: f64) -> Self
     where
+        Self: GraphType<Dir = Undirected>,
         R: Rng;
 
     /// Creates a random Mst with `n` nodes and root node `0`
@@ -248,6 +249,7 @@ where
 
     fn rhg<R>(rng: &mut R, n: NumNodes, avg_deg: f64) -> Self
     where
+        Self: GraphType<Dir = Undirected>,
         R: Rng,
     {
         Self::from_edges(n, Rhg::new().nodes(n).avg_deg(avg_deg).stream(rng))
@@ -258,5 +260,140 @@ where
         R: Rng,
     {
         Self::from_edges(n, Mst::new().nodes(n).stream(rng))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rand::SeedableRng;
+    use rand_pcg::Pcg64Mcg;
+
+    use crate::algo::Connectivity;
+
+    use super::*;
+
+    #[test]
+    fn random_graph() {
+        let rng = &mut Pcg64Mcg::seed_from_u64(3);
+        let repeats = 1000;
+
+        // G(n)
+        {
+            for n in [10 as NumNodes, 20, 50, 100] {
+                // Directed
+                let mean_edges = (0..repeats)
+                    .map(|_| {
+                        let g = AdjArray::gn(rng, n);
+                        assert_eq!(g.number_of_nodes(), n);
+                        g.number_of_edges() as f64
+                    })
+                    .sum::<f64>()
+                    / repeats as f64;
+                let expected = (n as f64) * (n as f64) / 2.0;
+
+                assert!((0.75 * expected..1.25 * expected).contains(&mean_edges));
+
+                // Undirected
+                let mean_edges = (0..repeats)
+                    .map(|_| {
+                        let g = AdjArrayUndir::gn(rng, n);
+                        assert_eq!(g.number_of_nodes(), n);
+                        g.number_of_edges() as f64
+                    })
+                    .sum::<f64>()
+                    / repeats as f64;
+                let expected = (n as f64) * ((n - 1) as f64) / 2.0 / 2.0;
+
+                assert!((0.75 * expected..1.25 * expected).contains(&mean_edges));
+            }
+        }
+
+        // G(n,p)
+        {
+            for n in [10 as NumNodes, 20, 50, 100] {
+                for p in [0.001f64, 0.01, 0.1] {
+                    // Directed
+                    let mean_edges = (0..repeats)
+                        .map(|_| {
+                            let g = AdjArray::gnp(rng, n, p);
+                            assert_eq!(g.number_of_nodes(), n);
+                            g.number_of_edges() as f64
+                        })
+                        .sum::<f64>()
+                        / repeats as f64;
+                    let expected = (n as f64) * (n as f64) * p;
+
+                    assert!((0.75 * expected..1.25 * expected).contains(&mean_edges));
+
+                    // Undirected
+                    let mean_edges = (0..repeats)
+                        .map(|_| {
+                            let g = AdjArrayUndir::gnp(rng, n, p);
+                            assert_eq!(g.number_of_nodes(), n);
+                            g.number_of_edges() as f64
+                        })
+                        .sum::<f64>()
+                        / repeats as f64;
+                    let expected = (n as f64) * ((n - 1) as f64) * p / 2.0;
+
+                    assert!((0.75 * expected..1.25 * expected).contains(&mean_edges));
+
+                    // No Loops
+                    assert!(!AdjMatrix::gnp_no_loops(rng, n, p).has_self_loops());
+                }
+            }
+        }
+
+        // G(n,m)
+        {
+            for (n, m) in [
+                (10 as NumNodes, 20 as NumEdges),
+                (20, 60),
+                (50, 1000),
+                (100, 2000),
+            ] {
+                for _ in 0..100 {
+                    // Directed
+                    let g = AdjArray::gnm(rng, n, m);
+                    assert_eq!(g.number_of_nodes(), n);
+                    assert_eq!(g.number_of_edges(), m);
+
+                    // Undirected
+                    let g = AdjArrayUndir::gnm(rng, n, m);
+                    assert_eq!(g.number_of_nodes(), n);
+                    assert_eq!(g.number_of_edges(), m);
+                }
+            }
+        }
+
+        // Rhg
+        {
+            for n in [20 as NumNodes, 50, 100] {
+                for d in [2.0, 5.0, 10.0] {
+                    let mean_degree = (0..repeats)
+                        .map(|_| {
+                            let g = AdjArrayUndir::rhg(rng, n, d);
+                            assert_eq!(g.number_of_nodes(), n);
+                            g.number_of_edges() as f64 * 2.0 / g.number_of_nodes() as f64
+                        })
+                        .sum::<f64>()
+                        / repeats as f64;
+
+                    assert!((0.75 * d..1.25 * d).contains(&mean_degree));
+                }
+            }
+        }
+
+        // Mst
+        {
+            for n in [10 as NumNodes, 20, 50, 100] {
+                for _ in 0..100 {
+                    let g = AdjArrayUndir::mst(rng, n);
+                    assert_eq!(g.number_of_nodes(), n);
+                    assert_eq!(g.number_of_edges(), n - 1);
+                    assert_eq!(g.connected_components().count(), 1);
+                }
+            }
+        }
     }
 }

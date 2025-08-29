@@ -598,6 +598,12 @@ pub trait AdjacencyTest: GraphNodeOrder {
         self.has_edge(u, u)
     }
 
+    /// Returns *true* if a self-loop (u,u) exists at any node u.
+    /// ** Panics if `u >= n` **
+    fn has_self_loops(&self) -> bool {
+        self.vertices().any(|u| self.has_self_loop(u))
+    }
+
     /// Returns *true* if there exists an edge (u,v) as well as (v,u) in the graph.
     /// Note that for undirected graphs with edge {u,v} this function always returns *true*.
     /// ** Panics if `u >= n || v >= n` **
