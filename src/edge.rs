@@ -1,25 +1,34 @@
 /*!
 # Edge Representation
 
-An `Edge(u, v)` consists of a preceding node `u` and a successing node `v`.
-In the undirected case, we treat `Edge(u, v)` equivalently to `Edge(v, u)` and say that `Edge(u, v)` is normalized if `u <= v`.
+This module defines the representation of edges in graphs.
+
+- An `Edge(u, v)` consists of a preceding node `u` and a succeeding node `v`.
+- For **undirected graphs**, `Edge(u, v)` is equivalent to `Edge(v, u)`.
+- An edge is **normalized** if `u <= v`.
+- Provides utilities for converting integers into edges (`from_u64` and `from_u64_undir`) for enumeration of all possible edges.
 */
+
 use std::fmt::{Debug, Display};
 
 use stream_bitset::bitset::BitSetImpl;
 
 use crate::node::Node;
 
-/// An edge is defined by two nodes/endpoints.
-/// Is is up to the user whether an Edge is directed or not.
+/// Represents an edge between two nodes `u` and `v`.
+///
+/// The user decides whether the graph is directed or undirected.
+/// For undirected graphs, consider `Edge(u, v)` equivalent to `Edge(v, u)`.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Edge(pub Node, pub Node);
 
-/// We limit the number of edges to `2^32 - 1`.
-/// CHANGE it to `u64` if this does not suffice (which it usually should).
+/// Type alias representing the number of edges.
+///
+/// Limited to `u32` (maximum 2^32 - 1 edges).
+/// If not big enough, change manually to `u64` for very large graphs.
 pub type NumEdges = u32;
 
-/// A BitSet over NumEdges
+/// Bitset specialized for edges.
 pub type EdgeBitSet = BitSetImpl<NumEdges>;
 
 impl Display for Edge {
@@ -35,27 +44,44 @@ impl Debug for Edge {
 }
 
 impl Edge {
-    /// Normalizes the edge such that the endpoint with smaller value comes first
+    /// Returns a normalized edge where the smaller node comes first.
+    ///
+    /// # Example
+    /// ```
+    /// # use ugraphs::edge::Edge;
+    /// let e = Edge(3, 1);
+    /// assert_eq!(e.normalized(), Edge(1, 3));
+    /// ```
     pub fn normalized(&self) -> Self {
         Edge(self.0.min(self.1), self.0.max(self.1))
     }
 
-    /// Returns true if the endpoint with smaller index comes first
+    /// Returns `true` if the smaller endpoint comes first (i.e., `u <= v`).
     pub fn is_normalized(&self) -> bool {
         self.0 <= self.1
     }
 
-    /// Returns true if both endpoints are equal
+    /// Returns `true` if the edge is a self-loop (`u == v`).
     pub fn is_loop(&self) -> bool {
         self.0 == self.1
     }
 
-    /// Reverses the edge by switching the endpoints
+    /// Returns the edge with endpoints swapped (`Edge(v, u)`).
     pub fn reverse(&self) -> Self {
         Edge(self.1, self.0)
     }
 
-    /// Simple bidirection from `0..n^2` to all possible (directed) edges of `n` nodes
+    /// Maps a number `x` in `0..n^2` to a directed edge `(u, v)` of `n` nodes.
+    ///
+    /// # Panics
+    /// Debug-asserts if `x >= n * n`.
+    ///
+    /// # Example
+    /// ```
+    /// # use ugraphs::edge::Edge;
+    /// let e = Edge::from_u64(5, 3);
+    /// assert!(matches!(e, Edge(1,2) | Edge(2,1) | Edge(0,2) | Edge(2,0) | Edge(0,1) | Edge(1,0)));
+    /// ```
     pub fn from_u64(x: u64, n: u64) -> Self {
         debug_assert!(x < n * n);
 
@@ -64,10 +90,26 @@ impl Edge {
         Edge(u as Node, v as Node)
     }
 
-    /// Simple bidirection from `0..(n choose 2)` to all possible normalized edges of `n` nodes.
+    /// Maps a number `x` in `0..(n choose 2)` to a normalized undirected edge `(u, v)`.
     ///
-    /// The bidirecton works by assigning each node the next `(n - 1)/2` neighbors modulo `n`
-    /// (up to rounding) and normalizing the resulting edge
+    /// Handles both even and odd number of neighbors to enumerate all normalized edges.
+    ///
+    /// # Panics
+    /// Debug-asserts if `x >= n * (n - 1) / 2`.
+    ///
+    /// # Example
+    /// ```
+    /// # use ugraphs::edge::Edge;
+    ///
+    /// let n = 10u64;
+    /// let ub = n * (n - 1) / 2;
+    ///
+    /// let mut edges: Vec<_> = (0..ub).map(|x| Edge::from_u64_undir(x, n)).collect();
+    /// edges.sort_unstable();
+    /// edges.dedup();
+    ///
+    /// assert_eq!(edges.len(), ub as usize);
+    /// ```
     pub fn from_u64_undir(mut x: u64, n: u64) -> Self {
         debug_assert!(x < n * (n - 1) / 2);
 

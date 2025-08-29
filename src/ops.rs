@@ -677,7 +677,7 @@ pub trait AdjacencyList: GraphNodeOrder + Sized {
         ///
         /// The bitset has `true` for positions corresponding to neighbors of `u`.
         ///
-        /// **Panics if `u >= n`.** 
+        /// **Panics if `u >= n`.**
         ///
         /// # Examples
         /// ```
@@ -885,7 +885,7 @@ pub type InEdgesOf<'a, G> =
 pub type OrderedInEdgesOf = std::vec::IntoIter<Edge>;
 
 /// Extends [`AdjacencyList`] with in-neighbor access for directed graphs.
-/// 
+///
 /// Also aliases functions of [`AdjacencyList`] with `out`-versions
 /// (aka. [`AdjacencyList::neighbors_of`] => [`DirectedAdjacencyList::out_neighbors_of`])
 ///
