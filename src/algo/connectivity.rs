@@ -142,6 +142,10 @@ where
     G: AdjacencyList + GraphType<Dir = Undirected>,
 {
     pub fn new(graph: &'a G, skip_trivial: bool) -> Self {
+        assert!(
+            !graph.is_empty(),
+            "Can't iterate connected components in a graph with no nodes!"
+        );
         if skip_trivial {
             if let Some(start_node) = graph.vertices_no_singletons().next() {
                 Self {

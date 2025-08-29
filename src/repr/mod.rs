@@ -216,7 +216,6 @@ pub(crate) mod macros {
 
             impl<$first_generic: Neighborhood,$($generic: Neighborhood),*> GraphNew for $struct<$first_generic, $($generic),*> {
                 fn new(n: NumNodes) -> Self {
-                    assert!(n > 0);
                     Self {
                         num_edges: 0,
                         $first_field: vec![$first_generic::new(n); n as usize],
