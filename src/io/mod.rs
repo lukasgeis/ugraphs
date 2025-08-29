@@ -1,28 +1,32 @@
 /*!
 # IO
 
-Module for reading graphs from an input or writing graphs to an output.
+Utilities for reading and writing graphs from and to different file formats.
 
 ## Input Formats
 
-The following input formats are supported
-- **Metis**: Similar to `AdjArray`, this represents the graph as a list of neighborhoods separated by linebreaks.
-- **EdgeList**: Similar to `Csv`, this represents the graph as a list of edges separated by linebreaks.
+Currently supported input formats:
+- **Metis**: Similar to `AdjArray`, represents the graph as a list of neighborhoods separated by line breaks.
+- **EdgeList**: Represents the graph as a list of edges separated by line breaks.
 
-Each format requires a `Header` defined by a custom `HeaderFormat` in the header module.
-
+Both formats require a `Header` as defined by a custom `HeaderFormat` in the [`header`] module.
 
 ## Output Formats
 
-In addition to the above input formats, an additional output format is supported which also
-serves as the base-Debug-impl. for all graphs.
-- **Dot**: The [Dot-Language](https://graphviz.org/doc/info/lang.html) of [GraphViz](https://graphviz.org/).
+For writing graphs, in addition to the above formats, the following is supported:
+- **Dot**: The [DOT language](https://graphviz.org/doc/info/lang.html) of [GraphViz](https://graphviz.org/).
 
-The [Dot-Format](https://graphviz.org/doc/info/lang.html) is the only format that does not require a header
-and supports node labels whereas every other format again only allows non-negative numbers as nodes. Note
-that the string representation of node labels must follow the naming conventions of the
-[Dot-Language](https://graphviz.org/dot/info/lang.html) and hence can not contain special characters such as
-spaces or hyphens for example.
+The DOT format:
+- is the only format that does not require a header,
+- supports node labels (all others only allow non-negative integer nodes),
+- requires labels to follow DOT’s naming conventions (no spaces, hyphens, or other special characters).
+
+## Traits
+
+To generalize over reading/writing:
+- [`GraphReader`] and [`GraphWriter`] are implemented by readers and writers for a specific format.
+- [`GraphRead`] and [`GraphWrite`] abstract over reading/writing using a given [`FileFormat`].
+
 */
 
 mod dot;
@@ -46,11 +50,22 @@ pub use metis::*;
 
 type Result<T> = std::io::Result<T>;
 
-/// Identifier for a FileFormat
+/// Identifier for a graph file format.
+///
+/// Used in [`GraphRead`] and [`GraphWrite`] to determine the
+/// correct parser or writer to use.
+///
+/// Currently supported:
+/// - [`FileFormat::Dot`]
+/// - [`FileFormat::Metis`]
+/// - [`FileFormat::EdgeList`]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum FileFormat {
+    /// DOT language of GraphViz
     Dot,
+    /// Metis neighborhood-list format
     Metis,
+    /// Edge list format
     EdgeList,
 }
 
@@ -70,14 +85,31 @@ impl FromStr for FileFormat {
     }
 }
 
-/// Trait for Readers to implement
+/// Trait for types that can read graphs in a specific format.
+///
+/// This trait provides both a low-level method to read from any
+/// [`BufRead`] instance and a convenience wrapper to read directly
+/// from files.
+///
+/// Typically implemented by specific readers (e.g., [`MetisRead`],
+/// [`EdgeListRead`]).
 pub trait GraphReader<G> {
-    /// Read a graph a reader according to settings in `self`
+    /// Reads a graph from the given reader according to the settings in `self`.
+    ///
+    /// # Errors
+    /// Returns an error if the input is not a valid representation
+    /// of a graph in the expected format.
     fn try_read_graph<R>(&self, reader: R) -> Result<G>
     where
         R: BufRead;
 
-    /// Read a graph from file according to settings in `self`
+    /// Reads a graph from a file according to the settings in `self`.
+    ///
+    /// Internally wraps the file in a buffered reader.
+    ///
+    /// # Errors
+    /// Returns an error if the file cannot be opened or if its contents
+    /// are not a valid representation of a graph in the expected format.
     fn try_read_graph_file<P>(&self, path: P) -> Result<G>
     where
         P: AsRef<Path>,
@@ -86,14 +118,29 @@ pub trait GraphReader<G> {
     }
 }
 
-/// Trait for Writers to implement
+/// Trait for types that can write graphs in a specific format.
+///
+/// This trait provides both a low-level method to write to any
+/// [`Write`] instance and a convenience wrapper to write directly
+/// to files.
+///
+/// Typically implemented by specific writers (e.g., [`MetisWrite`],
+/// [`EdgeListWrite`], [`DotWrite`]).
 pub trait GraphWriter<G> {
-    /// Write a graph to a writer according to settings in `self`
+    /// Writes the given graph to the provided writer according to the settings in `self`.
+    ///
+    /// # Errors
+    /// Returns an error if writing fails (e.g., IO errors).
     fn try_write_graph<W>(&self, graph: &G, writer: W) -> Result<()>
     where
         W: Write;
 
-    /// Write a graph to a file according to settings in `self`
+    /// Writes the given graph to a file according to the settings in `self`.
+    ///
+    /// Internally wraps the file in a buffered writer.
+    ///
+    /// # Errors
+    /// Returns an error if the file cannot be created or if writing fails.
     fn try_write_graph_file<P>(&self, graph: &G, path: P) -> Result<()>
     where
         P: AsRef<Path>,
@@ -102,14 +149,30 @@ pub trait GraphWriter<G> {
     }
 }
 
-/// Trait for reading a graph specified by a given FileFormat
+/// Trait for reading graphs when only a [`FileFormat`] is known.
+///
+/// Provides a unified interface to construct graphs from readers
+/// or files by dispatching to the correct format-specific parser.
+///
+/// Automatically implemented for graphs that support all required
+/// format-specific traits (e.g., [`MetisRead`], [`EdgeListRead`]).
 pub trait GraphRead: Sized {
-    /// Read a graph from a reader according to FileFormat
+    /// Reads a graph from the given reader according to the specified [`FileFormat`].
+    ///
+    /// # Errors
+    /// Returns an error if the format is unsupported for this graph type
+    /// or if the input does not match the expected format.
     fn try_from_reader<R>(reader: R, format: FileFormat) -> Result<Self>
     where
         R: BufRead;
 
-    /// Read a graph from file according to FileFormat
+    /// Reads a graph from the given file according to the specified [`FileFormat`].
+    ///
+    /// Internally wraps the file in a buffered reader.
+    ///
+    /// # Errors
+    /// Returns an error if the file cannot be opened or if the input
+    /// is invalid for the chosen format.
     fn try_from_file<P>(path: P, format: FileFormat) -> Result<Self>
     where
         P: AsRef<Path>,
@@ -137,14 +200,29 @@ where
     }
 }
 
-/// Trait for writing a graph specified by a given FileFormat
+/// Trait for writing graphs when only a [`FileFormat`] is known.
+///
+/// Provides a unified interface to output graphs to writers or files
+/// by dispatching to the correct format-specific writer.
+///
+/// Automatically implemented for graphs that support all required
+/// format-specific traits (e.g., [`MetisWrite`], [`EdgeListWrite`], [`DotWrite`]).
 pub trait GraphWrite {
-    /// Write a graph to a writer according to FileFormat
+    /// Writes the graph to the given writer according to the specified [`FileFormat`].
+    ///
+    /// # Errors
+    /// Returns an error if the format is unsupported for this graph type
+    /// or if writing fails (e.g., IO errors).
     fn try_write_to_writer<W>(&self, writer: W, format: FileFormat) -> Result<()>
     where
         W: Write;
 
-    /// Write a graph to file according to FileFormat
+    /// Writes the graph to the given file according to the specified [`FileFormat`].
+    ///
+    /// Internally wraps the file in a buffered writer.
+    ///
+    /// # Errors
+    /// Returns an error if the file cannot be created or if writing fails.
     fn try_write_to_file<P>(&self, path: P, format: FileFormat) -> Result<()>
     where
         P: AsRef<Path>,

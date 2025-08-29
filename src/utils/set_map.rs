@@ -1,7 +1,19 @@
-//! # General Sets / Maps
-//!
-//! In some algorithms, it might be beneficial to use a different kind of Set/Map depending on
-//! additional information, the user knows (for example use-cases where the values of elements are bounded) but the compiler does not.
+/*!
+# Generalized Sets and Maps
+
+This module provides abstractions over `Set` and `Map` data structures, allowing algorithms
+to choose the most efficient implementation based on context.
+
+Examples:
+- Sparse sets -> `HashSet`
+- Dense sets -> `BitSetImpl`
+- Node-specific sets -> `NodeSet`
+
+The module includes:
+- [`Set<T>`]: trait for generic set-like operations
+- [`Map<K, V>`]: trait for generic map-like operations
+- Concrete implementations: `HashSet`, `BitSetImpl`, `NodeSet`, `EmptySet`, `HashMap`, `[Option<T>]`.
+*/
 
 use std::{
     collections::{HashMap, HashSet, hash_set::Iter},
@@ -19,13 +31,15 @@ use stream_bitset::{
 
 use crate::node::*;
 
-/// A minimalist generalization over basic Set-Functionality
+/// Minimalist trait for a set-like collection.
+///
+/// Supports insertion, removal, membership queries, iteration, and bulk operations.
 pub trait Set<T> {
-    /// Inserts an element into the Set
-    /// Returns *true* if the element was contained in the Set before
+    /// Inserts `value` into the set.
+    /// Returns `true` if the element was already present.
     fn insert(&mut self, value: T) -> bool;
 
-    /// Inserts multiple elements into the Set
+    /// Inserts multiple elements from an iterator.
     fn insert_multiple<I>(&mut self, iter: I)
     where
         I: IntoIterator<Item = T>,
@@ -35,11 +49,11 @@ pub trait Set<T> {
         }
     }
 
-    /// Removes an element from the Set
-    /// Returns *true* if the element was contained in the Set before
+    /// Removes `value` from the set.
+    /// Returns `true` if the element was present.
     fn remove(&mut self, value: &T) -> bool;
 
-    /// Removes multiple elements from the Set
+    /// Removes multiple elements from the set.
     fn remove_multiple<'a, I>(&mut self, iter: I)
     where
         T: 'a,
@@ -50,27 +64,30 @@ pub trait Set<T> {
         }
     }
 
+    /// Iterator over elements in set.
+    ///
+    /// Returned by [`Set::iter`].
     type SetIter<'a>: Iterator<Item = T>
     where
         Self: 'a,
         T: Clone;
 
-    /// Iterates over all elements in the Set
-    /// Depending on the underlying datastructure, this might clone each value
+    /// Returns an iterator over all elements in the set.
+    /// May clone elements depending on the underlying data structure.
     fn iter(&self) -> Self::SetIter<'_>
     where
         T: Clone;
 
-    /// Returns *true* if the element is contained in the Set
+    /// Returns `true` if the set contains `value`.
     fn contains(&self, value: &T) -> bool;
 
-    /// Clears the Set
+    /// Clears all elements from the set.
     fn clear(&mut self);
 
-    /// Returns the number of elements in the Set
+    /// Returns the number of elements in the set.
     fn len(&self) -> usize;
 
-    /// Returns *true* if the Set is empty
+    /// Returns `true` if the set is empty.
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -150,15 +167,14 @@ where
     }
 }
 
-/// Custom Set-Datastructure that allows for constant additions/removals/queries as well as an
-/// output-sensitive iterator over its elements. Similar to `BitSetImpl<I>`, values are confined to
-/// a predefined range `0..n`
+/// A set of nodes (0..n) supporting fast insertion, removal, and iteration.
 pub struct NodeSet {
     data: Vec<Node>,
     positions: Vec<Option<OptionalNode>>,
 }
 
 impl NodeSet {
+    /// Creates an empty node-set of size `n`
     pub fn new(n: NumNodes) -> Self {
         Self {
             data: Vec::new(),
@@ -166,6 +182,8 @@ impl NodeSet {
         }
     }
 
+    /// Creates a full node-set of size `n`.
+    /// Elements are stored in increasing order.
     pub fn new_with_all(n: NumNodes) -> Self {
         Self {
             data: (0..(n as Node)).collect_vec(),
@@ -228,6 +246,7 @@ impl Set<Node> for NodeSet {
     }
 }
 
+/// A "dummy" empty set. Cannot store any elements.
 #[derive(Debug, Copy, Clone, Default)]
 pub struct EmptySet;
 
@@ -264,25 +283,27 @@ impl<T> Set<T> for EmptySet {
     }
 }
 
-/// A minimalist generalization over basic Map-Functionality
+/// Minimalist trait for map-like collections.
+///
+/// Supports insertion, removal, lookup, clearing, and size queries.
 pub trait Map<K, V> {
-    /// Inserts an (key,value)-pair into the map
-    /// If the key was present before, return the previous element, otherwise `None`
+    /// Inserts an `(key, value)` pair into the map.
+    /// If the key was present before, returns the previous value, otherwise returns `None`.
     fn insert(&mut self, key: K, value: V) -> Option<V>;
 
-    /// Removes a key from the map and returns the value if it existed.
+    /// Removes a key from the map and returns the associated value if it existed.
     fn remove(&mut self, key: &K) -> Option<V>;
 
-    /// Returns a reference to the value corresponding to the key.
+    /// Returns a reference to the value corresponding to the given key, or `None` if the key is not present.
     fn get(&self, key: &K) -> Option<&V>;
 
-    /// Clears all elements in the Map
+    /// Clears all elements from the map.
     fn clear(&mut self);
 
-    /// Returns the number of elements in the Set
+    /// Returns the number of elements currently stored in the map.
     fn len(&self) -> usize;
 
-    /// Returns *true* if the Map is empty
+    /// Returns `true` if the map is empty. Default implementation uses `len()`.
     fn is_empty(&self) -> bool {
         self.len() == 0
     }

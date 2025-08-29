@@ -1,7 +1,25 @@
-//! # EdgeList
-//!
-//! The EdgeList-Format consists of a typical header, followed by `m` non-comment-lines
-//! `u v` representing an (directed) edge `Edge(u - 1, v - 1)`.
+/*
+# EdgeList
+
+Module for reading and writing graphs in the EdgeList format.
+
+The EdgeList format consists of a typical header, followed by `m` lines,
+each line representing a directed edge as `u v`. Nodes in the file are
+1-indexed, while internally the graph representation uses 0-indexing.
+
+Lines starting with a comment identifier (default `"c"`) are ignored.
+
+Example usage:
+```ignore
+use ugraphs::prelude::*;
+use ugraphs::io::*;
+
+let g: MyGraph = EdgeListReader::default()
+    .try_read_graph_file("graph.el")?;
+
+g.try_write_edge_list_file("out.el")?;
+```
+*/
 
 use std::{
     fs::File,
@@ -11,7 +29,11 @@ use std::{
 
 use super::*;
 
-/// A GraphReader for the EdgeList-Format
+/// A reader for graphs in the EdgeList format.
+///
+/// Handles optional headers and comment lines. Uses `Header` to parse
+/// the number of nodes and edges, and then parses each line as an edge
+/// with 1-based indexing (converted internally to 0-based).
 #[derive(Debug, Clone)]
 pub struct EdgeListReader {
     /// HeaderFormat
@@ -31,23 +53,23 @@ impl Default for EdgeListReader {
 }
 
 impl EdgeListReader {
-    /// Creates a new (default) reader
+    /// Creates a new EdgeListReader with default header and comment identifier.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Updates the header format
+    /// Updates the header format used by the reader.
     pub fn set_header_format(&mut self, format: Header) {
         self.header = format;
     }
 
-    /// Updates the header format
+    /// Updates the header format (builder style).
     pub fn header_format(mut self, format: Header) -> Self {
         self.set_header_format(format);
         self
     }
 
-    /// Updates the comment identifier
+    /// Updates the comment identifier used to skip lines.
     pub fn set_comment_identifier<S>(&mut self, c: S)
     where
         S: Into<String>,
@@ -55,7 +77,7 @@ impl EdgeListReader {
         self.comment_identifier = c.into();
     }
 
-    /// Updates the comment identifier
+    /// Updates the comment identifier (builder style).
     pub fn comment_identifier<S>(mut self, c: S) -> Self
     where
         S: Into<String>,
@@ -80,15 +102,16 @@ where
     }
 }
 
-/// Trait for creating graphs form an EdgeListReader.
-/// Used as shorthand for default EdgeListReader settings
+/// Trait for types that can be read from an EdgeList-formatted file.
+///
+/// Provides default implementations for reading from a file or any BufRead source.
 pub trait EdgeListRead: Sized {
-    /// Tries to read the graph from a given reader
+    /// Tries to read the graph from a `BufRead` reader.
     fn try_read_edge_list<R>(reader: R) -> Result<Self>
     where
         R: BufRead;
 
-    /// Tries to read the graph from a given file
+    /// Tries to read the graph from a file path.
     fn try_read_edge_list_file<P>(path: P) -> Result<Self>
     where
         P: AsRef<Path>,
@@ -109,7 +132,11 @@ where
     }
 }
 
-/// Real EdgeListReader that consumes the reader
+/// Consumes an EdgeList file and iterates over the edges.
+///
+/// Each line after the header represents a single edge. Lines starting
+/// with the comment identifier are ignored. The reader tracks the
+/// number of nodes and edges parsed from the header.
 pub struct EdgeListEdgesReader<'a, R> {
     /// Lines in the reader
     lines: Lines<R>,
@@ -125,7 +152,10 @@ impl<'a, R> EdgeListEdgesReader<'a, R>
 where
     R: BufRead,
 {
-    /// Creates a new EdgeListEdgesReader and tries to parse the first non-comment-line as the header
+    /// Creates a new EdgeListEdgesReader from a BufRead reader.
+    ///
+    /// Parses the first non-comment line as the header using the given
+    /// `Header` format, returning an error if missing or invalid.
     pub fn try_new(reader: R, header_format: &Header, comment_identifier: &'a str) -> Result<Self> {
         let mut edge_list_reader = Self {
             lines: reader.lines(),
@@ -146,12 +176,12 @@ where
         Ok(edge_list_reader)
     }
 
-    /// Returns the parsed number of edges in the graph
+    /// Returns the number of edges parsed from the header.
     pub fn number_of_edges(&self) -> NumEdges {
         self.number_of_edges
     }
 
-    /// Returns the parsed number of nodes in the graph
+    /// Returns the number of nodes parsed from the header.
     pub fn number_of_nodes(&self) -> NumNodes {
         self.number_of_nodes
     }
@@ -175,7 +205,8 @@ impl<'a, R> EdgeListEdgesReader<'a, R>
 where
     R: BufRead,
 {
-    /// Returns the next non-comment-line if it exists or propagate an error
+    /// Returns the next line that does not start with the comment identifier,
+    /// or `Ok(None)` if EOF is reached.
     fn next_non_comment_line(&mut self) -> Result<Option<String>> {
         loop {
             let line = self.lines.next();
@@ -188,7 +219,10 @@ where
         }
     }
 
-    /// Tries to parse an edge from the next non-comment-line
+    /// Parses the next edge from the EdgeList file.
+    ///
+    /// Returns an `Edge(u-1, v-1)` for internal 0-based representation,
+    /// or `Ok(None)` if EOF is reached.
     fn parse_edge_line(&mut self) -> Result<Option<Edge>> {
         let line = self.next_non_comment_line()?;
         if let Some(line) = line {
@@ -207,7 +241,9 @@ where
     }
 }
 
-/// A writer for the EdgeList-Format
+/// Writes graphs to an EdgeList format file.
+///
+/// Writes the header first, then `m` lines of edges as `u v` with 1-based indexing.
 #[derive(Debug, Clone, Default)]
 pub struct EdgeListWriter {
     /// HeaderFormat
@@ -215,17 +251,17 @@ pub struct EdgeListWriter {
 }
 
 impl EdgeListWriter {
-    /// Shorthand for default
+    /// Creates a new EdgeListWriter with default header.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Updates the header format
+    /// Updates the header format used by the writer.
     pub fn set_header_format(&mut self, format: Header) {
         self.header = format;
     }
 
-    /// Updates the header format
+    /// Updates the header format (builder style).
     pub fn header_format(mut self, format: Header) -> Self {
         self.set_header_format(format);
         self
@@ -254,15 +290,16 @@ where
     }
 }
 
-/// Trait for writing a graph to a writer in the EdgeList-Format.
-/// Shorthand for default settings.
+/// Trait for types that can be written to an EdgeList-formatted file.
+///
+/// Provides default implementations for writing to a file or any `Write` target.
 pub trait EdgeListWrite {
-    /// Tries to write the graph to a writer
+    /// Tries to write the graph to a writer.
     fn try_write_edge_list<W>(&self, writer: W) -> Result<()>
     where
         W: Write;
 
-    /// Tries to write the graph to a file
+    /// Tries to write the graph to a file path.
     fn try_write_edge_list_file<P>(&self, path: P) -> Result<()>
     where
         P: AsRef<Path>,

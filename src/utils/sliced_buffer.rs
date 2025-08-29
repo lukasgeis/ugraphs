@@ -1,20 +1,39 @@
+/*!
+# CSR-based Sliced Buffers
+
+This module provides a **Compressed Sparse Row (CSR)**-like data structure for storing
+variable-length slices efficiently.
+
+The key idea:
+
+- A contiguous `buffer: Vec<T>` stores all elements.
+- A non-decreasing `offsets: Vec<I>` stores slice boundaries, where slice `i` is `buffer[offsets[i]..offsets[i+1]]`.
+
+### Invariants
+All constructions verify the following invariants:
+
+1. `offsets.len() >= 2`
+2. `offsets` is non-decreasing
+3. `offsets` entries are within `buffer` bounds
+4. In `SlicedBufferWithDefault`, `buffer.len() == default.len()`
+
+These invariants allow **unchecked access** in methods for performance.
+
+### Variants
+- [`SlicedBuffer`] – basic CSR structure
+- [`SlicedBufferWithDefault`] – CSR with a backup copy to restore original data
+*/
+
 use std::ops::{Index, IndexMut};
 
 use stream_bitset::PrimIndex;
 
-// Implements the core data structure of CSR (i.e. a data vector `buffer`
-// and an non-decreasing index vector offsets, where the start of the
-// i-th slice in `buffer` is stored at `offsets[i]`.
-//
-// This implementation verifies the following invariants at construction
-// and to avoid repeated checks during accesses:
-//  (0) `offset` has at least two elements
-//  (1) `offset` is non-decreasing (i.e. produce a valid range) and
-//  (2) `offset` stays within bounds of `buffer`
-//
-// The implementation is its own module to prevent the other data structures
-// from manipulating the offsets vector directly, which may invalidate the aforementioned
-// invariants.
+/// CSR-like structure storing slices of elements.
+///
+/// - `buffer`: all elements contiguously
+/// - `offsets`: start indices of each slice
+///
+/// Provides indexed access to slices, and safe mutable access to two slices at a time.
 #[derive(Debug, Clone)]
 pub struct SlicedBuffer<T, I>
 where
@@ -37,8 +56,13 @@ impl<T, I> SlicedBuffer<T, I>
 where
     I: PrimIndex,
 {
-    /// Constructs the SlicedBuffer and panics if one of the three
-    /// invariants on offset are violated.
+    /// Constructs a new `SlicedBuffer`.
+    ///
+    /// # Panics
+    /// Panics if:
+    /// - `offsets.len() < 2`
+    /// - `offsets` is not sorted
+    /// - `offsets` exceed `buffer` length
     pub fn new(buffer: Vec<T>, offsets: Vec<I>) -> Self {
         assert!(offsets.len() > 1);
         assert!(offsets.len() - 1 <= I::max_value().to_usize().unwrap());
@@ -48,7 +72,7 @@ where
         Self { buffer, offsets }
     }
 
-    /// Returns the number of slices as `usize`#
+    /// Returns the number of slices as `usize`.
     #[allow(clippy::len_without_is_empty)]
     #[inline(always)]
     pub fn len(&self) -> usize {
@@ -56,37 +80,40 @@ where
         unsafe { self.offsets.len().unchecked_sub(1) }
     }
 
-    /// Returns the number of slices as `Idx: PrimInt`
+    /// Returns the number of slices as type `Idx: PrimIndex`.
     #[inline(always)]
     pub fn number_of_slices<Idx: PrimIndex>(&self) -> Idx {
         Idx::from_usize(self.len()).unwrap()
     }
 
-    /// Returns the number of entries in the buffer as `I`
+    /// Returns the total number of entries in the buffer.
     #[inline(always)]
     pub fn number_of_entries(&self) -> I {
         I::from_usize(self.buffer.len()).unwrap()
     }
 
-    /// Returns the size of a slice of a given index
+    /// Returns the length of slice `u`.
     #[inline(always)]
     pub fn size_of<Idx: PrimIndex>(&self, u: Idx) -> I {
         self.offsets[u.to_usize().unwrap() + 1] - self.offsets[u.to_usize().unwrap()]
     }
 
-    /// Returns the complete buffer
+    /// Returns a reference to the complete buffer.
     #[inline(always)]
     pub fn raw_buffer_slice(&self) -> &[T] {
         &self.buffer
     }
 
-    /// Returns the complete `offsets`-slice
+    /// Returns a reference to the offsets array.
     #[inline(always)]
     pub fn raw_offset_slice(&self) -> &[I] {
         &self.offsets
     }
 
-    /// Grants mutable access to two different slices concurrently
+    /// Returns mutable references to two distinct slices simultaneously.
+    ///
+    /// # Panics
+    /// Panics if `u == v`.
     #[inline(always)]
     pub fn double_mut<Idx: PrimIndex>(&mut self, u: Idx, v: Idx) -> (&mut [T], &mut [T]) {
         let (u, v) = (u.to_usize().unwrap(), v.to_usize().unwrap());
@@ -176,24 +203,10 @@ where
     }
 }
 
-// Extends on the core data structure of CSR (i.e. a data vector `buffer`
-// and an non-decreasing index vector offsets, where the start of the
-// i-th slice in `buffer` is stored at `offsets[i]`.
-//
-// Stores an additional default-buffer which is immutable and the same length
-// (and offsets) as the main buffer. Allows restoring of data by copying the
-// default data into the main buffer.
-//
-// This implementation verifies the following invariants at construction
-// and to avoid repeated checks during accesses:
-//  (0) `offset` has at least two elements
-//  (1) `offset` is non-decreasing (i.e. produce a valid range) and
-//  (2) `offset` stays within bounds of `buffer`
-//  (3) `buffer` and `default` have the same length
-//
-// The implementation is its own module to prevent other data structures
-// from manipulating the offsets vector, which may invalidate the aforementioned
-// invariants.
+/// CSR-like structure with a default buffer.
+///
+/// - Stores an immutable `default` buffer alongside `buffer`.
+/// - Can restore any slice to its default values using [`SlicedBufferWithDefault::restore_node`].
 #[derive(Debug, Clone)]
 pub struct SlicedBufferWithDefault<T, I>
 where
@@ -224,8 +237,11 @@ where
     T: Clone,
     I: PrimIndex,
 {
-    /// Constructs the SlicedBuffer and panics if one of the three
-    /// invariants on offset are violated.
+    /// Constructs a new `SlicedBufferWithDefault`.
+    ///
+    /// # Panics
+    /// Panics if offsets are invalid (same invariants as [`SlicedBuffer`])
+    /// Copies `buffer` to `default`.
     pub fn new(buffer: Vec<T>, offsets: Vec<I>) -> Self {
         assert!(offsets.len() > 1);
         assert!(offsets.len() - 1 <= I::max_value().to_usize().unwrap());
@@ -239,7 +255,7 @@ where
         }
     }
 
-    /// Returns the number of slices as `usize`
+    /// Returns the number of slices as `usize`.
     #[allow(clippy::len_without_is_empty)]
     #[inline(always)]
     pub fn len(&self) -> usize {
@@ -247,37 +263,40 @@ where
         unsafe { self.offsets.len().unchecked_sub(1) }
     }
 
-    /// Returns the number of slices as `Idx: PrimInt`
+    /// Returns the number of slices as type `Idx: PrimIndex`.
     #[inline(always)]
     pub fn number_of_slices<Idx: PrimIndex>(&self) -> Idx {
         Idx::from_usize(self.len()).unwrap()
     }
 
-    /// Returns the number of entries in the buffer as `I`
+    /// Returns the total number of entries in the buffer.
     #[inline(always)]
     pub fn number_of_entries(&self) -> I {
         I::from_usize(self.buffer.len()).unwrap()
     }
 
-    /// Returns the size of a slice of a given index
+    /// Returns the length of slice `u`.
     #[inline(always)]
     pub fn size_of<Idx: PrimIndex>(&self, u: Idx) -> I {
         self.offsets[u.to_usize().unwrap() + 1] - self.offsets[u.to_usize().unwrap()]
     }
 
-    /// Returns the complete buffer
+    /// Returns a reference to the complete buffer.
     #[inline(always)]
     pub fn raw_buffer_slice(&self) -> &[T] {
         &self.buffer
     }
 
-    /// Returns the complete `offsets`-slice
+    /// Returns a reference to the offsets array.
     #[inline(always)]
     pub fn raw_offset_slice(&self) -> &[I] {
         &self.offsets
     }
 
-    /// Grants mutable access to two different slices concurrently
+    /// Returns mutable references to two distinct slices simultaneously.
+    ///
+    /// # Panics
+    /// Panics if `u == v`.
     #[inline(always)]
     pub fn double_mut<Idx: PrimIndex>(&mut self, u: Idx, v: Idx) -> (&mut [T], &mut [T]) {
         let (u, v) = (u.to_usize().unwrap(), v.to_usize().unwrap());
@@ -324,7 +343,10 @@ where
         }
     }
 
-    /// Restores the values of slice `u` to its default values
+    /// Restores slice `u` to its default values from the `default` buffer.
+    ///
+    /// # Panics
+    /// Panics if `u` exceeds number of slices.
     #[inline(always)]
     pub fn restore_node<Idx: PrimIndex>(&mut self, u: Idx) {
         let u = u.to_usize().unwrap();
@@ -345,6 +367,7 @@ where
         }
     }
 
+    /// Returns a reference to the default values of slice `idx`.
     #[inline(always)]
     pub fn default_values<Idx: PrimIndex>(&self, idx: Idx) -> &[T] {
         let end = self.offsets[idx.to_usize().unwrap() + 1]

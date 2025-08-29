@@ -1,26 +1,31 @@
-//! # Dot
-//!
-//! The Dot-Format is a very extensive format used by [GraphViz](https://graphviz.org/) to allow
-//! for detailed visualizations. We only use basic functionality to draw (colored) nodes and edges.
-//!
-//! For example, drawing an uncolored (directed) graph where neighbors of `1` are colored red can be
-//! achieved via
-//! ```ignore
-//! let dot_writer = DotWriter::default();
-//! dot_writer.start_graph(&mut writer, true)?;
-//! dot_writer.write_edges(&mut writer, graph.edges(false), true, None)?;
-//! dot_writer.color_nodes(&mut writer, graph.neighbors_of(1), DotColor::Red)?;
-//! dot_writer.finish_graph(&mut writer)?;
-//! ```
-//!
-//! Note that for nodes, the latest coloring is the one that will be applied in a visualizer,
-//! whereas for edges, each new colored edge adds another edge to the graph. Use the inbuilt
-//! `.filter()` method to selectively prevent drawing edges prematurely.
+/*!
+ # Dot
+
+ Module for writing graphs in the [Dot-Format](https://graphviz.org/doc/info/lang.html).
+
+ The Dot format allows detailed visualization of graphs. This module supports
+ basic features: writing directed/undirected graphs, coloring nodes and edges,
+ and customizing node prefixes.
+ Nodes are by default incremented by 1 (`0` → `u1`) to conform to typical Dot usage.
+
+ Example usage:
+ ```ignore
+ let dot_writer = DotWriter::default();
+ dot_writer.start_graph(&mut writer, true)?;
+ dot_writer.write_edges(&mut writer, graph.edges(false), true, None)?;
+ dot_writer.color_nodes(&mut writer, graph.neighbors_of(1), DotColor::Red)?;
+ dot_writer.finish_graph(&mut writer)?;
+ ```
+*/
+
 use std::{fmt::Display, io::Write};
 
 use super::*;
 
-/// A writer for the Dot-Format
+/// A writer for the Dot-Format.
+///
+/// Allows customizing node prefixes and node incrementing. Supports writing
+/// edges (optionally colored) and coloring nodes independently.
 #[derive(Debug, Clone)]
 pub struct DotWriter {
     /// Increment nodes by 1 before writing
@@ -30,6 +35,7 @@ pub struct DotWriter {
 }
 
 impl Default for DotWriter {
+    /// Default DotWriter with node increment enabled and prefix `"u"`.
     fn default() -> Self {
         Self {
             inc_nodes: true,
@@ -39,24 +45,25 @@ impl Default for DotWriter {
 }
 
 impl DotWriter {
-    /// Shorthand for default
+    /// Shorthand for creating a default DotWriter.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// If *false*, nodes retain their interval value (-1 that of input)
+    /// Set whether nodes should be incremented before writing.
     pub fn set_inc_nodes(&mut self, inc_nodes: bool) {
         self.inc_nodes = inc_nodes;
     }
 
-    /// If *false*, nodes retain their interval value (-1 that of input)
+    /// Builder-style setter for node increment.
     pub fn inc_nodes(mut self, inc_nodes: bool) -> Self {
         self.set_inc_nodes(inc_nodes);
         self
     }
 
-    /// Set the prefix of a node (`u` by default). Can also be changed while drawing to draw
-    /// additional subgraphs apart from the original graph.
+    /// Set the prefix of a node.
+    ///
+    /// Can be used to draw additional subgraphs with a different prefix.
     pub fn set_node_prefix<S>(&mut self, prefix: S)
     where
         S: Into<String>,
@@ -64,8 +71,7 @@ impl DotWriter {
         self.prefix = prefix.into();
     }
 
-    /// Set the prefix of a node (`u` by default). Can also be changed while drawing to draw
-    /// additional subgraphs apart from the original graph.
+    /// Builder-style setter for node prefix.
     pub fn node_prefix<S>(mut self, prefix: S) -> Self
     where
         S: Into<String>,
@@ -74,8 +80,9 @@ impl DotWriter {
         self
     }
 
-    /// Writes the opening brackets of the graph.
-    /// Must know if the graph is undirected
+    /// Writes the opening bracket of a Dot graph.
+    ///
+    /// `directed = true` writes `digraph {`, otherwise `graph {`.
     pub fn start_graph<W>(&self, writer: &mut W, directed: bool) -> Result<()>
     where
         W: Write,
@@ -85,14 +92,18 @@ impl DotWriter {
         writeln!(writer, "{graph_name} {{")
     }
 
-    /// Formats a node depending on `self.prefix, self.inc_nodes`
+    /// Formats a node as a string using prefix and increment options.
     fn format_node(&self, u: Node) -> String {
         let u = u + self.inc_nodes as Node;
         format!("{}{u}", self.prefix)
     }
 
-    /// Writes an iterator of edges to `writer`. Must know if the edges are directed and if they
-    /// should be colored.
+    /// Writes edges to the Dot file.
+    ///
+    /// # Arguments
+    /// - `edges`: iterator over `Edge(u, v)`
+    /// - `directed`: if true, use `->`, otherwise `--`
+    /// - `color`: optional color for all edges
     pub fn write_edges<W, I>(
         &self,
         writer: &mut W,
@@ -123,9 +134,9 @@ impl DotWriter {
         writeln!(writer)
     }
 
-    /// Writes a list of colored nodes to `writer`.
-    /// This method should only be needed when wanting to color additional nodes which is why
-    /// `color` is not optional.
+    /// Colors nodes in the Dot output.
+    ///
+    /// Latest coloring for a node overwrites previous coloring.
     pub fn color_nodes<W, I>(&self, writer: &mut W, nodes: I, color: DotColor) -> Result<()>
     where
         W: Write,
@@ -141,7 +152,7 @@ impl DotWriter {
         writeln!(writer)
     }
 
-    /// Closes the Dot-Graph, thus finishing the graph
+    /// Closes the Dot graph (`}`).
     pub fn finish_graph<W>(&self, writer: &mut W) -> Result<()>
     where
         W: Write,
@@ -165,15 +176,16 @@ where
     }
 }
 
-/// Trait for writing a graph to a writer in the Dot-Format.
-/// Shorthand for default settings.
+/// Trait for writing a graph to a Dot-Format writer.
+///
+/// Provides default implementations for writing to any `Write` target or file.
 pub trait DotWrite {
-    /// Tries to write the graph to a writer
+    /// Writes the graph to a writer.
     fn try_write_dot<W>(&self, writer: W) -> Result<()>
     where
         W: Write;
 
-    /// Tries to write the graph to a file
+    /// Writes the graph to a file.
     fn try_write_dot_file<P>(&self, path: P) -> Result<()>
     where
         P: AsRef<Path>,
@@ -201,8 +213,9 @@ impl Display for DotColor {
     }
 }
 
-/// List of all permitted Colors in Svg-Dot taken from
-/// `https://graphviz.gitlab.io/doc/info/colors.html#svg`
+/// Enum representing all supported colors for Dot nodes/edges.
+///
+/// See [GraphViz SVG colors](https://graphviz.gitlab.io/doc/info/colors.html#svg).
 #[derive(Debug, Copy, Clone)]
 pub enum DotColor {
     AliceBlue,

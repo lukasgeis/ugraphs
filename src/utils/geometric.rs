@@ -1,17 +1,41 @@
+/*!
+# Geometric Jumper Utility
+
+This module provides utilities for efficiently generating *geometric jumps*,
+which are used in the `G(n,p)` random graph model. In such models, the presence
+of each edge is determined by independent Bernoulli trials with probability `p`.
+
+Instead of drawing `n^2` independent coin flips, one can **jump directly between
+successes** by sampling from a geometric distribution. This greatly reduces the
+number of random draws and improves efficiency.
+
+The [`GeometricJumper`] is the main utility here:
+- It starts at index `0` and repeatedly adds a *geometric step size* drawn
+  from a [`GeometricDistribution`].
+- Optionally, a stop value can be set to avoid overshooting.
+- The jumper produces an iterator (`GeometricJumperIter`) over successive jumps.
+
+The implementation also optimizes the common case of `p = 1/2` by using the
+faster [`StandardGeometric`] distribution.
+*/
+
 use rand::Rng;
 use rand_distr::{Distribution, Geometric, StandardGeometric};
 
 use super::Probability;
 
-/// A geometric distribution.
-/// As the case for `p = 1/2` can be siginificantly sped up by using `StandardGeometric` instead of
-/// `Geometric`, we abstract over both using an enum as `p = 1/2` is the base value for `G(n)`
-/// graphs and thus used often.
+/// Wrapper around different variants of a geometric distribution.
+///
+/// Normally, a geometric distribution is parametrized by a success probability `p`.
+/// For the common case `p = 1/2`, this type uses [`StandardGeometric`], which is
+/// significantly faster than the general [`Geometric`] distribution.
+///
+/// This abstraction is useful in `G(n)` random graphs, where `p = 1/2` is used.
 #[derive(Debug, Copy, Clone)]
 pub enum GeometricDistribution {
-    /// General geometric distribution
+    /// General case geometric distribution with arbitrary probability `p`.
     General(Geometric),
-    /// Geometric distribution for `p = 1/2`
+    /// Specialized geometric distribution for the case `p = 1/2`.
     OneHalf(StandardGeometric),
 }
 
@@ -25,7 +49,13 @@ impl Distribution<u64> for GeometricDistribution {
 }
 
 impl GeometricDistribution {
-    /// Creates a new geometric distribution from a given probability
+    /// Constructs a [`GeometricDistribution`] from a probability `p`.
+    ///
+    /// Uses [`StandardGeometric`] if `p == 0.5`, otherwise falls back to a general
+    /// [`Geometric`] distribution.
+    ///
+    /// # Panics
+    /// Panics if `p` is not in `[0, 1]`.
     pub fn from_prob(prob: f64) -> Self {
         if prob == 0.5 {
             Self::OneHalf(StandardGeometric)
@@ -34,9 +64,22 @@ impl GeometricDistribution {
         }
     }
 
-    /// Given a probability, returns a geometric distribution and *true* if the distribution is inversed:
-    /// For `p > 0.5`, it is beneficial to invert (`1.0 - p`) the distribution and iterate over the
-    /// non-successes in order to minimize draws from the distribution itself.
+    /// Constructs a [`GeometricDistribution`] from a probability `p`, possibly inverted.
+    ///
+    /// For `p > 0.5`, it is more efficient to sample from the complementary
+    /// distribution `1.0 - p` and invert the meaning of successes.
+    /// This reduces the expected number of random draws.
+    ///
+    /// Returns the distribution and a `bool` flag indicating whether inversion
+    /// should be applied.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::utils::*;
+    ///
+    /// let (geom, inv) = GeometricDistribution::from_prob_with_inv(0.8);
+    /// assert!(inv); // inversion used since p > 0.5
+    /// ```
     pub fn from_prob_with_inv(prob: f64) -> (Self, bool) {
         let mut inv = false;
 
@@ -53,8 +96,24 @@ impl GeometricDistribution {
     }
 }
 
-/// A geometric jumper starts at `0` and a step size from a geometric distribution.
-/// It keeps doing that until an optional stop value is reached.
+/// A geometric jumper that generates indices by repeatedly adding
+/// steps drawn from a geometric distribution.
+///
+/// The jumper starts at `0` and continues generating jumps until
+/// an optional stop value is reached. It is mainly used for
+/// efficiently sampling edges in `G(n,p)` random graphs.
+///
+/// Use [`GeometricJumper::iter`] to create an iterator over jumps.
+///
+/// # Examples
+/// ```
+/// use ugraphs::utils::*;
+///
+/// let mut rng = rand::rng();
+/// let jumper = GeometricJumper::new(0.5).stop_at(10);
+/// let jumps: Vec<_> = jumper.iter(&mut rng).collect();
+/// assert!(jumps.iter().all(|&x| x <= 10));
+/// ```
 #[derive(Debug, Copy, Clone)]
 pub struct GeometricJumper {
     /// Probability of the geometric distribution
@@ -64,25 +123,66 @@ pub struct GeometricJumper {
 }
 
 impl GeometricJumper {
-    /// Creates a new geometric jumper from a probability with no stop value
+    /// Creates a new [`GeometricJumper`] with probability `p` and no stop value.
+    ///
+    /// # Panics
+    /// Panics if `p` is not a valid probability (not in `[0, 1]`).
     pub fn new(prob: f64) -> Self {
         assert!(prob.is_valid_probility());
 
         Self { prob, stop: None }
     }
 
-    /// Updates the stop value of the jumper
+    /// Updates the stop value of the jumper in-place.
+    ///
+    /// After the stop value is exceeded, the iterator terminates.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::utils::*;
+    ///
+    /// let mut rng = rand::rng();
+    /// let mut jumper = GeometricJumper::new(0.5);
+    /// jumper.set_stop_at(5);
+    /// let vals: Vec<_> = jumper.iter(&mut rng).collect();
+    /// assert!(vals.iter().all(|&x| x <= 5));
+    /// ```
     pub fn set_stop_at(&mut self, stop: u64) {
         self.stop = Some(stop);
     }
 
-    /// Updates the stop value of the jumper
+    /// Builder-style version of [`GeometricJumper::set_stop_at`].
+    ///
+    /// Consumes the jumper, sets the stop value, and returns it.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::utils::*;
+    ///
+    /// let mut rng = rand::rng();
+    /// let jumper = GeometricJumper::new(0.5).stop_at(7);
+    /// let vals: Vec<_> = jumper.iter(&mut rng).collect();
+    /// assert!(vals.iter().all(|&x| x <= 7));
+    /// ```
     pub fn stop_at(mut self, stop: u64) -> Self {
         self.set_stop_at(stop);
         self
     }
 
-    /// Creates an iterator of geometric jumps starting at `0`
+    /// Creates an iterator over geometric jumps starting at `0`.
+    ///
+    /// The iterator yields successive positions until the stop value (if any)
+    /// is reached.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::utils::*;
+    ///
+    /// let mut rng = rand::rng();
+    /// let jumper = GeometricJumper::new(0.5).stop_at(5);
+    /// let vals: Vec<_> = jumper.iter(&mut rng).collect();
+    /// assert!(vals.iter().all(|&x| x <= 5));
+    /// ```
     pub fn iter<'a, R: Rng>(self, rng: &'a mut R) -> GeometricJumperIter<'a, R> {
         let (distr, inv) = GeometricDistribution::from_prob_with_inv(self.prob);
 
@@ -97,7 +197,12 @@ impl GeometricJumper {
     }
 }
 
-/// An iterator over geometric jumps starting at `0` with an optional stop value
+/// Iterator returned by [`GeometricJumper::iter`].
+///
+/// Internally tracks the current position, the geometric distribution,
+/// and an optional stop value.
+///
+/// Implements [`Iterator<Item = u64>`].
 #[derive(Debug)]
 pub struct GeometricJumperIter<'a, R>
 where
@@ -115,12 +220,37 @@ impl<'a, R> GeometricJumperIter<'a, R>
 where
     R: Rng,
 {
-    /// Updates the stop value (inplace)
+    /// Updates the stop value in-place.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::utils::*;
+    ///
+    /// let mut rng = rand::rng();
+    /// let mut iter = GeometricJumper::new(0.5).iter(&mut rng);
+    /// iter.change_stop(3);
+    /// let vals: Vec<_> = iter.collect();
+    /// assert!(vals.iter().all(|&x| x <= 3));
+    /// ```
     pub fn change_stop(&mut self, stop: u64) {
         self.stop = Some(stop);
     }
 
-    /// Updates the probability (inplace)
+    /// Updates the probability of the underlying geometric distribution in-place.
+    ///
+    /// The jumper will continue from the current position but use the new distribution.
+    ///
+    /// # Panics
+    /// Panics if `p` is not a valid probability (not in `(0, 1]`).
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::utils::*;
+    ///
+    /// let mut rng = rand::rng();
+    /// let mut iter = GeometricJumper::new(0.5).iter(&mut rng);
+    /// iter.change_prob(0.25);
+    /// ```
     pub fn change_prob(&mut self, prob: f64) {
         assert!(prob.is_valid_probility());
 
@@ -130,7 +260,21 @@ where
         self.next_inv = self.cur;
     }
 
-    /// Performs a geometric jump
+    /// Performs a single geometric jump and returns the next index, or `None` if
+    /// the stop value has been exceeded.
+    ///
+    /// Usually called internally by the iterator, but can also be invoked directly.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::utils::*;
+    ///
+    /// let mut rng = rand::rng();
+    /// let mut iter = GeometricJumper::new(0.5).stop_at(5).iter(&mut rng);
+    /// while let Some(val) = iter.jump() {
+    ///     assert!(val <= 5);
+    /// }
+    /// ```
     pub fn jump(&mut self) -> Option<u64> {
         if self.cur == u64::MAX {
             return None;

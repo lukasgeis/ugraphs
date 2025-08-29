@@ -1,8 +1,59 @@
-//! # Metis
-//!
-//! The Metis-Format consists of a typical header, followed by `n` non-comment-lines
-//! `v1 v2 v3 v4 ...` representing (directed) edges `Edge(u, v1 - 1), Edge(u, v2 - 1), ...`
-//! where `u` is the index of the current non-comment-line (i.e. first line are neighbors of `0`...).
+/*!
+# Metis
+
+This module provides readers and writers for the **Metis graph format**.
+
+A Metis file consists of:
+- a **header line**, which specifies the number of nodes and edges, and
+- `n` non-comment lines, each line describing the adjacency list of a node.
+
+Each line of the adjacency section has the form:
+```text
+v1 v2 v3 v4 ...
+```
+which represents edges
+```ignore
+Edge(u, v1 - 1), Edge(u, v2 - 1), ...
+```
+where `u` is the index of the current non-comment line (starting from `0`).
+
+Lines starting with a configurable **comment identifier** (default: `"c"`) are ignored.
+
+# Examples
+
+## Reading a graph
+```
+use ugraphs::prelude::*;
+use ugraphs::io::*;
+use std::io::Cursor;
+
+let data = b"p metis 3 4\n2 3\n1\n1\n";
+let cursor = Cursor::new(&data[..]);
+
+let g: AdjArray = MetisReader::new().try_read_graph(cursor).unwrap();
+
+assert_eq!(g.number_of_nodes(), 3);
+assert_eq!(g.number_of_edges(), 4);
+```
+
+## Writing a graph
+```
+use ugraphs::prelude::*;
+use ugraphs::io::*;
+use std::io::Cursor;
+
+let mut g = AdjArray::new(3);
+g.add_edge(0, 1);
+g.add_edge(0, 2);
+
+let mut buffer = Cursor::new(Vec::new());
+g.try_write_metis(&mut buffer).unwrap();
+
+let output = String::from_utf8(buffer.into_inner()).unwrap();
+assert!(output.contains("3 2")); // header
+assert!(output.contains("2 3")); // adjacency list of node 1
+```
+*/
 
 use std::{
     fs::File,
@@ -14,7 +65,10 @@ use itertools::Itertools;
 
 use super::*;
 
-/// A GraphReader for the Metis-Format
+/// A configurable reader for the **Metis format**.
+///
+/// Provides parsing of the header and adjacency lists,
+/// while skipping comment lines starting with a given identifier (default: `"c"`).
 #[derive(Debug, Clone)]
 pub struct MetisReader {
     /// HeaderFormat
@@ -34,23 +88,35 @@ impl Default for MetisReader {
 }
 
 impl MetisReader {
-    /// Creates a new (default) reader
+    /// Creates a new [`MetisReader`] with default settings (PACE-compatible).
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Updates the header format
+    /// Updates the expected [`Header`] format for parsing the file.
+    ///
+    /// Typically used if the Metis header differs from the PACE standard.
     pub fn set_header_format(&mut self, format: Header) {
         self.header = format;
     }
 
-    /// Updates the header format
+    /// Updates the header format, consuming and returning `self` for chaining.
+    ///
+    /// # Example
+    /// ```
+    /// use ugraphs::io::*;
+    ///
+    /// let reader = MetisReader::new()
+    ///     .header_format(Header::new_problem("metis"));
+    /// ```
     pub fn header_format(mut self, format: Header) -> Self {
         self.set_header_format(format);
         self
     }
 
-    /// Updates the comment identifier
+    /// Updates the identifier used for detecting comment lines.
+    ///
+    /// Default is `"c"`.
     pub fn set_comment_identifier<S>(&mut self, c: S)
     where
         S: Into<String>,
@@ -58,7 +124,15 @@ impl MetisReader {
         self.comment_identifier = c.into();
     }
 
-    /// Updates the comment identifier
+    /// Updates the comment identifier, consuming and returning `self` for chaining.
+    ///
+    /// # Example
+    /// ```
+    /// use ugraphs::io::*;
+    ///
+    /// let reader = MetisReader::new()
+    ///     .comment_identifier("%");
+    /// ```
     pub fn comment_identifier<S>(mut self, c: S) -> Self
     where
         S: Into<String>,
@@ -80,15 +154,36 @@ where
     }
 }
 
-/// Trait for creating graphs form an MetisReader.
-/// Used as shorthand for default MetisReader settings
+/// Trait for creating graphs from the **Metis format**.
+///
+/// Provides shorthand methods for reading graphs using the default [`MetisReader`] settings.
 pub trait MetisRead: Sized {
-    /// Tries to read the graph from a given reader
+    /// Tries to read a graph from a given buffered reader in **Metis format**.
+    ///
+    /// # Errors
+    /// Returns an error if the input cannot be parsed as a valid Metis graph.
+    ///
+    /// # Example
+    /// ```
+    /// use ugraphs::prelude::*;
+    /// use ugraphs::io::*;
+    /// use std::io::Cursor;
+    ///
+    /// let data = b"p metis 2 2\n2\n1\n";
+    /// let cursor = Cursor::new(&data[..]);
+    /// let g: AdjArray = AdjArray::try_read_metis(cursor).unwrap();
+    ///
+    /// assert_eq!(g.number_of_nodes(), 2);
+    /// assert_eq!(g.number_of_edges(), 2);
+    /// ```
     fn try_read_metis<R>(reader: R) -> Result<Self>
     where
         R: BufRead;
 
-    /// Tries to read the graph from a given file
+    /// Tries to read a graph from a file on disk in **Metis format**.
+    ///
+    /// # Errors
+    /// Returns an error if the file does not exist or is not a valid Metis file.
     fn try_read_metis_file<P>(path: P) -> Result<Self>
     where
         P: AsRef<Path>,
@@ -109,7 +204,10 @@ where
     }
 }
 
-/// Real MetisReader that consumes the reader
+/// Low-level reader that consumes a stream of lines
+/// and yields edges in the **Metis format**.
+///
+/// Usually constructed internally by [`MetisReader`].
 pub struct MetisEdgesReader<'a, R> {
     /// Lines in the reader
     lines: Lines<R>,
@@ -129,7 +227,10 @@ impl<'a, R> MetisEdgesReader<'a, R>
 where
     R: BufRead,
 {
-    /// Creates a new MetisEdgesReader and tries to parse the first non-comment-line as the header
+    /// Creates a new [`MetisEdgesReader`] and parses the first non-comment line as the header.
+    ///
+    /// # Errors
+    /// Returns an error if no valid header is found.
     pub fn try_new(reader: R, header_format: &Header, comment_identifier: &'a str) -> Result<Self> {
         let mut metis_reader = Self {
             lines: reader.lines(),
@@ -149,12 +250,12 @@ where
         Ok(metis_reader)
     }
 
-    /// Returns the parsed number of edges in the graph
+    /// Returns the number of edges as specified in the header.
     pub fn number_of_edges(&self) -> NumEdges {
         self.number_of_edges
     }
 
-    /// Returns the parsed number of nodes in the graph
+    /// Returns the number of nodes as specified in the header.
     pub fn number_of_nodes(&self) -> NumNodes {
         self.number_of_nodes
     }
@@ -237,7 +338,9 @@ where
     }
 }
 
-/// A writer for the Metis-Format
+/// A writer for exporting graphs in the **Metis format**.
+///
+/// Handles writing the header and adjacency lists.
 #[derive(Debug, Clone, Default)]
 pub struct MetisWriter {
     /// HeaderFormat
@@ -245,17 +348,25 @@ pub struct MetisWriter {
 }
 
 impl MetisWriter {
-    /// Shorthand for default
+    /// Creates a new [`MetisWriter`] with default settings (PACE-compatible).
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Updates the header format
+    /// Updates the [`Header`] format to be written at the beginning of the file.
     pub fn set_header_format(&mut self, format: Header) {
         self.header = format;
     }
 
-    /// Updates the header format
+    /// Updates the header format, consuming and returning `self` for chaining.
+    ///
+    /// # Example
+    /// ```
+    /// use ugraphs::io::*;
+    ///
+    /// let writer = MetisWriter::new()
+    ///     .header_format(Header::new_problem("metis"));
+    /// ```
     pub fn header_format(mut self, format: Header) -> Self {
         self.set_header_format(format);
         self
@@ -285,15 +396,49 @@ where
     }
 }
 
-/// Trait for writing a graph to a writer in the Metis-Format.
-/// Shorthand for default settings.
+/// Trait for writing a graph to a writer in the **Metis format**.
+///
+/// Provides shorthand methods using the default [`MetisWriter`] settings.
 pub trait MetisWrite {
-    /// Tries to write the graph to a writer
+    /// Tries to write the graph to a given writer in **Metis format**.
+    ///
+    /// # Errors
+    /// Returns an error if writing fails (e.g., due to I/O issues).
+    ///
+    /// # Example
+    /// ```
+    /// use ugraphs::prelude::*;
+    /// use ugraphs::io::*;
+    /// use std::io::Cursor;
+    ///
+    /// let mut g = AdjArray::new(2);
+    /// g.add_edge(0, 1);
+    ///
+    /// let mut buffer = Cursor::new(Vec::new());
+    /// g.try_write_metis(&mut buffer).unwrap();
+    ///
+    /// let output = String::from_utf8(buffer.into_inner()).unwrap();
+    /// assert!(output.contains("2 1")); // header line
+    /// ```
     fn try_write_metis<W>(&self, writer: W) -> Result<()>
     where
         W: Write;
 
-    /// Tries to write the graph to a file
+    /// Tries to write the graph to a file on disk in **Metis format**.
+    ///
+    /// # Errors
+    /// Returns an error if the file cannot be created or written to.
+    ///
+    /// # Example
+    /// ```ignore
+    /// use ugraphs::prelude::*;
+    /// use ugraphs::io::*;
+    ///
+    /// let mut g = AdjArray::new(2);
+    /// g.add_edge(0, 1);
+    ///
+    /// g.try_write_metis_file("graph.metis").unwrap();
+    /// ```
     fn try_write_metis_file<P>(&self, path: P) -> Result<()>
     where
         P: AsRef<Path>,
