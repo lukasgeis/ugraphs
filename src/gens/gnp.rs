@@ -1,3 +1,33 @@
+/*!
+# Erdős–Rényi Graph Generators: `G(n,p)` and `G(n)`
+
+This module provides random graph generators for the classical Erdős–Rényi models:
+
+- **`G(n,p)`**: each possible edge is included independently with probability `p`.
+- **`G(n)`**: shorthand for `G(n, 0.5)` — uniform distribution over all possible graphs with `n` nodes.
+
+Generation is implemented lazily using the [`GeometricJumper`] inversion method, which skips absent edges efficiently instead of flipping a coin for every possible edge.
+
+Both directed and undirected graphs are supported, depending on which graph type consumes the generated edges.
+
+# Examples
+```rust
+use ugraphs::{prelude::*, gens::*};
+use rand::SeedableRng;
+use rand_pcg::Pcg64Mcg;
+
+// Generate a G(n,p) graph with n=10, p=0.2
+let rng = &mut Pcg64Mcg::seed_from_u64(42);
+let g = AdjArray::gnp(rng, 10, 0.2);
+assert_eq!(g.number_of_nodes(), 10);
+
+// Generate a uniform G(n) graph with n=5
+let rng = &mut Pcg64Mcg::seed_from_u64(7);
+let g = AdjArray::gn(rng, 5);
+assert_eq!(g.number_of_nodes(), 5);
+```
+*/
+
 use std::{fmt::Debug, iter::Empty, ops::Range};
 
 use super::*;
@@ -5,14 +35,15 @@ use crate::utils::{GeometricJumper, GeometricJumperIter, Probability, TripleIter
 
 /// Internal representation of how a `G(n,p)` generator is parameterized.
 ///
-/// This enum allows the generator to be configured using either:
-/// - a direct edge probability (`p`), or
-/// - an average node degree (`d`), which is internally converted to a probability.
+/// A `Gnp` generator can be configured either with:
+/// - an explicit edge probability (`p`), or
+/// - an expected average degree (`d`), internally converted into `p = d / n`.
 ///
-/// Used internally by [`Gnp`] to delay parameter conversion until generation time.
+/// This enum is used internally to delay conversion until generation time.
 #[derive(Debug, Copy, Clone, Default)]
 enum GnpType {
-    /// No parameters set yet; using this will panic at runtime.
+    /// No parameters set yet.  
+    /// Using this will panic when attempting to generate edges.
     #[default]
     NotSet,
     /// Explicit edge probability value.
@@ -21,19 +52,32 @@ enum GnpType {
     AvgDeg(f64),
 }
 
-/// Generator for `G(n,p)` random graphs.
+/// Generator for Erdős–Rényi `G(n,p)` random graphs.
 ///
-/// In a `G(n,p)` graph, each of the `n*(n-1)/2` or `n*n` possible directed/undirected/self-loop
-/// edge combinations is included independently with probability `p`.
+/// In a `G(n,p)` graph, each of the `n * n` possible directed/self-loop edges
+/// (or `n * (n-1) / 2` possible undirected edges, depending on graph type)
+/// is included independently with probability `p`.
 ///
-/// This generator can be parameterized either by setting a direct probability `p`
-/// or by specifying an average degree `d`, which will be converted to `p = d/n`.
+/// The generator can be parameterized either by:
+/// - setting a direct probability `p`, or
+/// - specifying an average degree `d`, which is converted to `p = d / n`.
+///
+/// Generation is efficient thanks to the [`GeometricJumper`], which skips
+/// non-edges instead of flipping `n^2` coins.
 ///
 /// > **Note:** No filtering is done automatically.
 /// > Callers are responsible for filtering if needed.
 ///
-/// This generator produces edges lazily using the inversion method of [`GeometricJumper`] to
-/// sample edges efficiently.
+/// # Examples
+/// ```
+/// use ugraphs::{prelude::*, gens::*};
+/// use rand::SeedableRng;
+/// use rand_pcg::Pcg64Mcg;
+///
+/// let rng = &mut Pcg64Mcg::seed_from_u64(1);
+/// let edges: Vec<Edge> = Gnp::new().nodes(4).prob(0.5).generate(rng);
+/// assert!(edges.into_iter().all(|Edge(u, v)| u < 4 && v < 4));
+/// ```
 #[derive(Debug, Copy, Clone, Default)]
 pub struct Gnp {
     n: u64,
@@ -43,18 +87,26 @@ pub struct Gnp {
 impl Gnp {
     /// Creates a new, empty `G(n,p)` generator.
     ///
-    /// By default, this has no parameters set. Use builder methods to configure it.
+    /// By default, this has no parameters set.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Sets the probability `p` used for generating each edge independently.
+    /// Sets the probability `p` for including each edge independently.
     ///
     /// # Panics
-    /// Panics if `p` is not within the valid probability range `[0.0, 1.0]`.
-    pub fn prob(mut self, prob: f64) -> Self {
+    /// Panics if `p` is not in the valid range `[0.0, 1.0]`.
+    pub fn set_prob(&mut self, prob: f64) {
         assert!(prob.is_valid_probility());
         self.p = GnpType::Prob(prob);
+    }
+
+    /// Sets the probability `p` for including each edge independently (builder-style).
+    ///
+    /// # Panics
+    /// Panics if `p` is not in the valid range `[0.0, 1.0]`.
+    pub fn prob(mut self, prob: f64) -> Self {
+        self.set_prob(prob);
         self
     }
 }
@@ -75,6 +127,12 @@ impl AverageDegreeGen for Gnp {
 }
 
 impl GraphGenerator for Gnp {
+    /// Iterator type returned by the generator’s [`GraphGenerator::stream`] method.
+    ///
+    /// Internally a [`TripleIter`] which chooses between:
+    /// - empty iterator (`p = 0`),
+    /// - full range iterator (`p = 1`),
+    /// - geometric skipping iterator (`0 < p < 1`).
     type EdgeStream<'a, R>
         = TripleIter<
         Edge,
@@ -86,17 +144,28 @@ impl GraphGenerator for Gnp {
         R: Rng + 'a,
         Self: 'a;
 
-    /// Returns a lazily-evaluated iterator over randomly generated `G(n,p)` edges.
+    /// Produces a lazily-evaluated iterator over randomly generated edges.
     ///
-    /// The generator handles the edge generation strategy depending on the value of `p`:
-    /// - `p = 0.0`: produces no edges
-    /// - `p = 1.0`: generates all possible edges
-    /// - `0.0 < p < 1.0`: samples edges using a [`GeometricJumper`] for efficiency
+    /// Behavior depends on the configured probability:
+    /// - `p = 0.0` → no edges
+    /// - `p = 1.0` → all edges
+    /// - `0.0 < p < 1.0` → edges sampled via [`GeometricJumper`]
     ///
     /// # Panics
-    /// - If no node count is set (`n == 0`)
-    /// - If no valid probability is configured
-    /// - If average degree is invalid for the configured `n`
+    /// - If node count `n` is zero
+    /// - If no probability or average degree is set
+    /// - If average degree is invalid for the given `n`
+    ///
+    /// # Example
+    /// ```
+    /// use ugraphs::{prelude::*, gens::*};
+    /// use rand::SeedableRng;
+    /// use rand_pcg::Pcg64Mcg;
+    ///
+    /// let rng = &mut Pcg64Mcg::seed_from_u64(10);
+    /// let gnp = Gnp::new().nodes(3).prob(0.5);
+    /// assert!(gnp.stream(rng).all(|Edge(u, v)| u < 3 && v < 3));
+    /// ```
     fn stream<'a, R>(&'a self, rng: &'a mut R) -> Self::EdgeStream<'a, R>
     where
         R: Rng,
@@ -134,6 +203,9 @@ impl GraphGenerator for Gnp {
     }
 }
 
+/// Helper iterator adapter that maps `u64` indices to [`Edge`] values.
+///
+/// Used internally to translate sampled positions into `(source, target)` edges.
 pub struct MapToEdgeIter<I>
 where
     I: Iterator<Item = u64>,
@@ -153,21 +225,18 @@ where
     }
 }
 
-/// Generator for uniform `G(n)` graphs, equivalent to `G(n,0.5)`.
+/// Generator for uniform `G(n)` graphs, equivalent to `G(n, 0.5)`.
 ///
-/// In `G(n)`, each possible edge is included independently with 50% probability,
-/// representing a uniform distribution over all graphs with `n` nodes.
+/// Each possible edge is included independently with `50%` probability.
 ///
-/// This is a convenience wrapper for symmetric `G(n,p)` generation with `p = 0.5`.
+/// This is a convenience wrapper around `Gnp::new().prob(0.5)`.
 #[derive(Debug, Copy, Clone, Default)]
 pub struct Gn {
     n: u64,
 }
 
 impl Gn {
-    /// Creates a new `G(n)` generator.
-    ///
-    /// Defaults to zero nodes. Use `.nodes(n)` to set the node count.
+    /// Creates a new `Gn` generator with default parameters.
     pub fn new() -> Self {
         Self::default()
     }
@@ -186,9 +255,6 @@ impl GraphGenerator for Gn {
         R: Rng + 'a,
         Self: 'a;
 
-    /// Returns a lazily-evaluated iterator over edges generated with 50% probability.
-    ///
-    /// Internally equivalent to `Gnp::new().nodes(n).prob(0.5).stream(rng)`.
     fn stream<'a, R>(&'a self, rng: &'a mut R) -> Self::EdgeStream<'a, R>
     where
         R: Rng,

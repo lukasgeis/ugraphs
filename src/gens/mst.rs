@@ -1,13 +1,40 @@
-//! # Random Minimum Spanning Tree
-//!
-//! Provides a generator for a random minimum spanning tree.
+/*!
+# Random Minimum Spanning Tree (MST)
+
+This module provides generators for random **minimum spanning trees** (MSTs).
+Unlike general random graph generators, MST generation ensures:
+
+- The graph is connected.
+- It contains exactly `n-1` edges for `n` nodes.
+- If directed, all edges are oriented away from a designated root (default `0`).
+
+The generator uses a naive random-walk approach without explicit loops to
+incrementally grow a spanning tree.
+
+# Examples
+
+```
+use ugraphs::gens::*;
+
+let mut rng = rand::rng();
+// Generate a random MST on 5 nodes, rooted at 0
+let mst = Mst::new().nodes(5).root(0);
+let edges: Vec<_> = mst.generate(&mut rng);
+
+assert_eq!(edges.len(), 4); // Always n-1 edges
+```
+*/
 
 use rand::Rng;
 use rand_distr::{Distribution, Uniform};
 
 use super::*;
 
-/// Generator for a random Mst where all edges (if directed) are oriented away from a given root (0 by default).
+/// Generator for a random **Minimum Spanning Tree (MST)**.
+///
+/// The MST generator creates a tree of `n` nodes where edges are chosen randomly
+/// in a way that avoids cycles. If the graph is directed, all edges are oriented
+/// away from the specified root node (default: `0`).
 #[derive(Debug, Copy, Clone, Default)]
 pub struct Mst {
     n: NumNodes,
@@ -15,14 +42,40 @@ pub struct Mst {
 }
 
 impl Mst {
-    /// Shorthand for default
+    /// Creates a new MST generator with default settings.
+    ///
+    /// By default:
+    /// - `n = 0`
+    /// - `root = 0`
+    ///
+    /// # Example
+    /// ```
+    /// use ugraphs::gens::*;
+    ///
+    /// let mst = Mst::new();
+    /// ```
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Sets the root of the Mst
-    pub fn root(mut self, root: Node) -> Self {
+    /// Sets the root node of the MST.
+    ///
+    /// All edges in a directed MST are oriented away from this root.
+    ///
+    /// # Panics
+    /// Panics if `root >= n` when used in generation.
+    pub fn set_root(&mut self, root: Node) {
         self.root = root;
+    }
+
+    /// Sets the root node of the MST.
+    ///
+    /// All edges in a directed MST are oriented away from this root.
+    ///
+    /// # Panics
+    /// Panics if `root >= n` when used in generation.
+    pub fn root(mut self, root: Node) -> Self {
+        self.set_root(root);
         self
     }
 }
@@ -48,7 +101,33 @@ impl GraphGenerator for Mst {
     }
 }
 
-/// Generator for a random Mst using a naive loop-less random walk.
+/// Streaming generator for MST edges using a random-walk method.
+///
+/// This generator avoids explicit loops by marking visited nodes
+/// with bitsets and incrementally attaching them to the connected
+/// component until a spanning tree is formed.
+///
+/// Yields exactly `n-1` edges, where `n` is the number of nodes.
+///
+/// Implements [`Iterator`] with `Item = Edge`.
+///
+/// # Internal Algorithm
+///
+/// - Starts with the root as connected.
+/// - Performs a random walk over unconnected nodes.
+/// - When hitting a new node, connects it to the tree and yields an edge.
+/// - Ensures no cycles by rejecting already-on-path nodes.
+///
+/// # Example
+/// ```
+/// use ugraphs::gens::*;
+///
+/// let mut rng = rand::rng();
+/// let mut mst = MstGenerator::new(5, 0, &mut rng);
+///
+/// let edges: Vec<_> = mst.collect();
+/// assert_eq!(edges.len(), 4);
+/// ```
 pub struct MstGenerator<'a, R>
 where
     R: Rng,
@@ -65,6 +144,10 @@ impl<'a, R> MstGenerator<'a, R>
 where
     R: Rng,
 {
+    /// Creates a new [`MstGenerator`] for a tree of `n` nodes rooted at `root`.
+    ///
+    /// # Panics
+    /// Panics if `root >= n`.
     pub fn new(n: NumNodes, root: Node, rng: &'a mut R) -> Self {
         assert!(root < n as Node);
 
@@ -85,6 +168,11 @@ where
 {
     type Item = Edge;
 
+    /// Advances the MST generation and returns the next edge.
+    ///
+    /// - If there are still nodes to connect, yields an edge
+    ///   that attaches a new node to the existing tree.
+    /// - Once all nodes are connected, returns `None`.
     fn next(&mut self) -> Option<Self::Item> {
         if self.path_skip + 1 < self.path.len() {
             self.path_skip += 1;

@@ -12,7 +12,7 @@ Each line of the adjacency section has the form:
 v1 v2 v3 v4 ...
 ```
 which represents edges
-```ignore
+```text
 Edge(u, v1 - 1), Edge(u, v2 - 1), ...
 ```
 where `u` is the index of the current non-comment line (starting from `0`).

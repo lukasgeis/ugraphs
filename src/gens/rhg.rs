@@ -1,20 +1,27 @@
-//! # Random Hyperbolic Graph Generator (RHG)
-//!
-//! This module implements a generator for threshold-based random hyperbolic graphs (RHGs).
-//! RHGs embed nodes in a hyperbolic disk and connect pairs that lie within a distance threshold `R`.
-//! This reflects real-world network characteristics such as heavy-tailed degree distributions and high clustering.
-//!
-//! The implementation follows ideas from:
-//! - “Efficient Generation of Large-Scale Random Hyperbolic Graphs” by von Looz et al.
-//! - “Communication-free Massively Distributed Graph Generation” by Funke et al.
-//! - NetworKIT’s RHG generator (including safe region optimization)
-//!
-//! Nodes are sampled with:
-//! - Angular coordinate `phi ∈ [0, 2π)` uniformly
-//! - Radial coordinate `r` with probability density proportional to `sinh(αr)`
-//!
-//! The generator uses radial bands and angular slabs to reduce the number of pairwise distance checks.
-//! It supports fast preprocessing and streaming edge generation.
+/*!
+# Random Hyperbolic Graph Generator (`RHG`)
+
+This module provides an implementation of the **Random Hyperbolic Graph (RHG)** model, a widely used
+random graph model that generates graphs with power-law degree distributions, high clustering, and
+small-world properties.
+
+RHGs are constructed by placing nodes in a hyperbolic disk and connecting pairs of nodes whose
+hyperbolic distance is below a given threshold. The generator supports tuning of key parameters
+such as:
+
+- **Number of nodes (`n`)**
+- **Power-law exponent (`γ`)**
+- **Temperature (`T`)**, controlling clustering vs. randomness
+- **Radius scaling (`R`)**
+
+The implementation supports both directed and undirected graphs and is optimized with spatial
+partitioning and streaming edge generation.
+
+The implementation follows ideas from:
+- “Efficient Generation of Large-Scale Random Hyperbolic Graphs” by von Looz et al.
+- “Communication-free Massively Distributed Graph Generation” by Funke et al.
+- NetworKIT’s RHG generator (including safe region optimization)
+*/
 
 use super::*;
 use std::f64::consts::{PI, TAU};
@@ -62,7 +69,11 @@ pub enum RhgRadius {
     Radius(f64),
 }
 
-/// A RandomHyperbolicGraph-Generator for the threshold-case
+/// Random Hyperbolic Graph generator.
+///
+/// This struct encapsulates configuration parameters for generating an RHG.
+/// The generator supports tuning the number of nodes, power-law exponent,
+/// average degree, and/or radius. Edges are streamed using [`RhgGenerator`].
 #[derive(Debug, Copy, Clone)]
 pub struct Rhg {
     /// Number of nodes
@@ -87,27 +98,44 @@ impl Default for Rhg {
 }
 
 impl Rhg {
-    /// Creates a new generator with default parameters
+    /// Creates a new `Rhg` generator with default parameters.
+    ///
+    /// Equivalent to calling `Rhg::default()`.
     #[inline]
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Sets the alpha parameter, which controls radial node distribution
-    pub fn alpha(mut self, alpha: f64) -> Self {
+    pub fn set_alpha(&mut self, alpha: f64) {
         self.alpha = alpha;
+    }
+
+    /// Sets the alpha parameter, which controls radial node distribution
+    pub fn alpha(mut self, alpha: f64) -> Self {
+        self.set_alpha(alpha);
         self
     }
 
     /// Manually sets the radius of the hyperbolic disk
-    pub fn radius(mut self, radius: f64) -> Self {
+    pub fn set_radius(&mut self, radius: f64) {
         self.radius = RhgRadius::Radius(radius);
+    }
+
+    /// Manually sets the radius of the hyperbolic disk
+    pub fn radius(mut self, radius: f64) -> Self {
+        self.set_radius(radius);
         self
     }
 
     /// Sets the number of radial bands used for node partitioning
-    pub fn num_bands(mut self, num_bands: usize) -> Self {
+    pub fn set_num_bands(&mut self, num_bands: usize) {
         self.num_bands = Some(num_bands);
+    }
+
+    /// Sets the number of radial bands used for node partitioning
+    pub fn num_bands(mut self, num_bands: usize) -> Self {
+        self.set_num_bands(num_bands);
         self
     }
 }
@@ -139,7 +167,15 @@ impl GraphGenerator for Rhg {
     }
 }
 
-/// Iterator producing edges of the Random Hyperbolic Graph (threshold case)
+/// Streaming edge generator for the Random Hyperbolic Graph.
+///
+/// Produces edges one-by-one according to RHG rules without materializing
+/// the full adjacency list in memory.
+///
+/// Implements [`Iterator`] yielding [`Edge`]s.
+///
+/// The generator uses geometric partitioning to efficiently sample
+/// node pairs below the threshold distance.
 #[derive(Debug, Clone)]
 pub struct RhgGenerator {
     /// Coordinates of nodes in hyperbolic space, sorted by band and angular coordinate
@@ -167,7 +203,20 @@ pub struct RhgGenerator {
 }
 
 impl RhgGenerator {
-    /// Constructs a new RhgGenerator, computing node coordinates and partitions by bands
+    /// Creates a new `RhgGenerator` with the given parameters.
+    ///
+    /// This basically already does all the necessary preprocessing, including:
+    /// - sampling the coordinate values & computing associated constants
+    /// - partitioning coordinates into bands and sorting these bands by coordinate
+    ///
+    /// The returned iterator only finds the next pair of nodes which must be connected
+    /// as their hyperbolic distance is less than `radius`.
+    ///
+    /// # Panics
+    /// Panics if:
+    /// - `n == 0`
+    /// - `alpha == 0`
+    /// - incompatible parameter configurations were set in the [`Rhg`] instance
     pub fn new<R>(
         rng: &mut R,
         n: NumNodes,

@@ -9,7 +9,7 @@ Currently supported input formats:
 - **Metis**: Similar to `AdjArray`, represents the graph as a list of neighborhoods separated by line breaks.
 - **EdgeList**: Represents the graph as a list of edges separated by line breaks.
 
-Both formats require a `Header` as defined by a custom `HeaderFormat` in the [`header`] module.
+Both formats require a `Header` as defined by a custom `HeaderFormat`.
 
 ## Output Formats
 

@@ -1,6 +1,35 @@
-//! # Substructure Generators
-//!
-//! Provides methods to generate multiple substructures in an already existing graph.
+/*!
+# Substructure Generators
+
+This module provides utility methods to generate additional **substructures**
+inside an already existing graph.
+
+It allows adding common motifs such as:
+
+- **Paths**
+- **Cycles**
+- **Cliques**
+
+These methods are useful when enriching a graph with specific structures for
+testing algorithms, generating benchmark instances, or modeling networks with
+known sub-components.
+
+# Example
+
+```rust
+use ugraphs::{prelude::*, gens::*};
+
+let mut g = AdjArray::new(5);
+g.connect_path([0, 1, 2]);
+g.connect_cycle([2, 3, 4]);
+g.connect_clique(&NodeBitSet::new_with_bits_set(5, [0 as Node, 2, 4]), false);
+
+assert_eq!(
+    g.ordered_edges(false).collect::<Vec<Edge>>(),
+    vec![Edge(0, 1), Edge(0, 2), Edge(0, 4), Edge(1, 2), Edge(2, 0), Edge(2, 3), Edge(2, 4), Edge(3, 4), Edge(4, 0), Edge(4, 2)]
+);
+```
+*/
 
 use itertools::Itertools;
 
@@ -8,19 +37,66 @@ use crate::utils::Set;
 
 use super::*;
 
-/// Trait for creating additional substructures in a graph.
+/// Trait for creating additional **substructures** (paths, cycles, cliques)
+/// inside an already existing graph.
+///
+/// Implemented for all graphs that support edge editing and type queries.
 pub trait GeneratorSubstructures {
-    // connects the nodes passed with a simple path
+    /// Connects the given nodes in order with a **simple path**.
+    ///
+    /// Each consecutive pair of nodes is connected by a single edge.
+    ///
+    /// # Example
+    /// ```rust
+    /// use ugraphs::{prelude::*, gens::*};
+    ///
+    /// let mut g = AdjArray::new(4);
+    /// g.connect_path([0, 1, 2, 3]);
+    ///
+    /// assert!(g.has_edge(0, 1));
+    /// assert!(g.has_edge(1, 2));
+    /// assert!(g.has_edge(2, 3));
+    /// ```
     fn connect_path<P>(&mut self, nodes_on_path: P)
     where
         P: IntoIterator<Item = Node>;
 
-    // connects the nodes passed with a simple path and adds a connection between the first and the last node
+    /// Connects the given nodes with a **cycle**.
+    ///
+    /// - Consecutive nodes are connected by edges.
+    /// - Additionally, the last node is connected back to the first.
+    ///
+    /// # Example
+    /// ```rust
+    /// use ugraphs::{prelude::*, gens::*};
+    ///
+    /// let mut g = AdjArray::new(3);
+    /// g.connect_cycle([0, 1, 2]);
+    ///
+    /// assert!(g.has_edge(0, 1));
+    /// assert!(g.has_edge(1, 2));
+    /// assert!(g.has_edge(2, 0));
+    /// ```
     fn connect_cycle<C>(&mut self, nodes_in_cycle: C)
     where
         C: IntoIterator<Item = Node>;
 
-    // generates a clique of all nodes includes in the bit
+    /// Connects all given nodes into a **clique** (complete subgraph).
+    ///
+    /// - If `with_loops` is `true`, each node also gets a self-loop.
+    /// - For undirected graphs, edges are normalized so duplicates are avoided.
+    ///
+    /// # Example
+    /// ```rust
+    /// use ugraphs::{prelude::*, gens::*};
+    ///
+    /// let mut g = AdjArray::new(3);
+    /// g.connect_clique(&NodeBitSet::new_with_bits_set(3, [0 as Node, 1, 2]), false);
+    ///
+    /// assert!(g.has_edge(0, 1));
+    /// assert!(g.has_edge(1, 2));
+    /// assert!(g.has_edge(0, 2));
+    /// ```
     fn connect_clique<C: Set<Node>>(&mut self, nodes: &C, with_loops: bool);
 }
 
