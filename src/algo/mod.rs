@@ -3,7 +3,7 @@
 
 This module provides a suite of **graph algorithms** built on top of the graph representations in this crate.
 All algorithms are re-exported at the top level of this module, so you can simply do:
-```rust
+```
 use ugraphs::algo::*;
 ```
 and gain access to traversal, connectivity, matching, flow, and many other classical graph routines.
@@ -17,7 +17,6 @@ mod cuthill_mckee;
 mod distance_pairs;
 mod matching;
 mod network_flow;
-mod partition;
 mod path_iterator;
 mod subgraph;
 mod traversal;
@@ -32,8 +31,15 @@ pub use cuthill_mckee::*;
 pub use distance_pairs::*;
 pub use matching::*;
 pub use network_flow::*;
-pub use partition::*;
 pub use path_iterator::*;
 pub use subgraph::*;
 pub use traversal::*;
 pub use vertex_cuts::*;
+
+/// Most graph algorithms take an immutable reference to a graph while executing.
+/// This helper trait allows getting that reference.
+/// Useful when using another algorithm as a subroutine.
+pub trait WithGraphRef<G> {
+    /// Return the reference to the graph.
+    fn graph_ref(&self) -> &G;
+}

@@ -1,5 +1,5 @@
 /*!
-# Geometric Jumper Utility
+# Geometric Jumper
 
 This module provides utilities for efficiently generating *geometric jumps*,
 which are used in the `G(n,p)` random graph model. In such models, the presence
@@ -40,6 +40,7 @@ pub enum GeometricDistribution {
 }
 
 impl Distribution<u64> for GeometricDistribution {
+    #[inline(always)]
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> u64 {
         match self {
             GeometricDistribution::General(distr) => distr.sample(rng),
@@ -57,6 +58,8 @@ impl GeometricDistribution {
     /// # Panics
     /// Panics if `p` is not in `[0, 1]`.
     pub fn from_prob(prob: f64) -> Self {
+        assert!(prob.is_valid_probility());
+
         if prob == 0.5 {
             Self::OneHalf(StandardGeometric)
         } else {
@@ -67,20 +70,25 @@ impl GeometricDistribution {
     /// Constructs a [`GeometricDistribution`] from a probability `p`, possibly inverted.
     ///
     /// For `p > 0.5`, it is more efficient to sample from the complementary
-    /// distribution `1.0 - p` and invert the meaning of successes.
+    /// distribution `Geometric(1.0 - p)` and invert the meaning of successes.
     /// This reduces the expected number of random draws.
     ///
     /// Returns the distribution and a `bool` flag indicating whether inversion
     /// should be applied.
     ///
+    /// # Panics
+    /// Panics if `p` is not in `[0, 1]`.
+    ///
     /// # Examples
     /// ```
-    /// use ugraphs::utils::*;
+    /// use ugraphs::utils::geometric::*;
     ///
     /// let (geom, inv) = GeometricDistribution::from_prob_with_inv(0.8);
-    /// assert!(inv); // inversion used since p > 0.5
+    /// assert!(inv);
     /// ```
     pub fn from_prob_with_inv(prob: f64) -> (Self, bool) {
+        assert!(prob.is_valid_probility());
+
         let mut inv = false;
 
         let distr = if prob == 0.5 {
@@ -107,7 +115,7 @@ impl GeometricDistribution {
 ///
 /// # Examples
 /// ```
-/// use ugraphs::utils::*;
+/// use ugraphs::utils::geometric::*;
 ///
 /// let mut rng = rand::rng();
 /// let jumper = GeometricJumper::new(0.5).stop_at(10);
@@ -139,7 +147,7 @@ impl GeometricJumper {
     ///
     /// # Examples
     /// ```
-    /// use ugraphs::utils::*;
+    /// use ugraphs::utils::geometric::*;
     ///
     /// let mut rng = rand::rng();
     /// let mut jumper = GeometricJumper::new(0.5);
@@ -157,7 +165,7 @@ impl GeometricJumper {
     ///
     /// # Examples
     /// ```
-    /// use ugraphs::utils::*;
+    /// use ugraphs::utils::geometric::*;
     ///
     /// let mut rng = rand::rng();
     /// let jumper = GeometricJumper::new(0.5).stop_at(7);
@@ -176,7 +184,7 @@ impl GeometricJumper {
     ///
     /// # Examples
     /// ```
-    /// use ugraphs::utils::*;
+    /// use ugraphs::utils::geometric::*;
     ///
     /// let mut rng = rand::rng();
     /// let jumper = GeometricJumper::new(0.5).stop_at(5);
@@ -224,7 +232,7 @@ where
     ///
     /// # Examples
     /// ```
-    /// use ugraphs::utils::*;
+    /// use ugraphs::utils::geometric::*;
     ///
     /// let mut rng = rand::rng();
     /// let mut iter = GeometricJumper::new(0.5).iter(&mut rng);
@@ -241,11 +249,11 @@ where
     /// The jumper will continue from the current position but use the new distribution.
     ///
     /// # Panics
-    /// Panics if `p` is not a valid probability (not in `(0, 1]`).
+    /// Panics if `p` is not a valid probability (not in `[0, 1]`).
     ///
     /// # Examples
     /// ```
-    /// use ugraphs::utils::*;
+    /// use ugraphs::utils::geometric::*;
     ///
     /// let mut rng = rand::rng();
     /// let mut iter = GeometricJumper::new(0.5).iter(&mut rng);
@@ -267,7 +275,7 @@ where
     ///
     /// # Examples
     /// ```
-    /// use ugraphs::utils::*;
+    /// use ugraphs::utils::geometric::*;
     ///
     /// let mut rng = rand::rng();
     /// let mut iter = GeometricJumper::new(0.5).stop_at(5).iter(&mut rng);

@@ -7,9 +7,10 @@ This module defines the **fundamental traits** that all graph
 representations in `ugraphs` should implement (if possible).
 It covers:
 - **Graph type metadata** ([`GraphType`], [`GraphDir`], [`GraphDirection`]).
-- **Node and edge counts** ([`GraphNodeOrder`], [`GraphEdgeOrder`]).
-- **Neighborhood access** ([`AdjacencyList`], [`DirectedAdjacencyList`]).
-- **Edge testing and editing** ([`AdjacencyTest`], [`GraphEdgeEditing`], etc.).
+- **Node and edge counts** ([`GraphNodeOrder`], [`GraphEdgeOrder`], [`Singletons`]).
+- **Neighborhood access** ([`AdjacencyList`], [`DirectedAdjacencyList`], [`AdjacencyTest`], [`IndexedAdjacencyList`], [`NeighborsSlice`]).
+- **Edge editing** ([`GraphEdgeEditing`], [`GraphDirectedEdgeEditing`], [`GraphLocalEdgeEditing`], [`IndexedAdjacencySwap`], [`NeighborsSliceMut`]).
+- **New Graphs** ([`GraphNew`], [`GraphFromScratch`])
 
 These traits form the backbone for algorithms in `ugraphs` to work across
 multiple graph representations (static or dynamic, directed or undirected).
@@ -130,20 +131,20 @@ pub trait GraphNodeOrder {
     /// use ugraphs::prelude::*;
     ///
     /// let g = AdjArrayUndir::from_edges(3, [(0,1), (1,2)]);
-    /// assert_eq!(g.number_of_nodes(), 3);
+    /// assert_eq!(g.number_of_nodes(), 3 as NumNodes);
     /// ```
     fn number_of_nodes(&self) -> NumNodes;
 
     /// Returns the number of nodes as a `usize`.
     ///
-    /// Equivalent to `number_of_nodes()` but as a `usize`.
+    /// Equivalent to [`GraphNodeOrder::number_of_nodes`] but as a `usize`.
     ///
     /// # Examples
     /// ```
     /// use ugraphs::prelude::*;
     ///
     /// let g = AdjArrayUndir::from_edges(3, [(0,1), (1,2)]);
-    /// assert_eq!(g.len(), 3);
+    /// assert_eq!(g.len(), 3 as usize);
     /// ```
     fn len(&self) -> usize {
         self.number_of_nodes() as usize
@@ -172,7 +173,7 @@ pub trait GraphNodeOrder {
     /// let g = AdjArrayUndir::from_edges(3, [(0,1), (1,2)]);
     /// let bs = g.vertex_bitset_unset();
     /// assert_eq!(bs.number_of_bits(), 3);
-    /// assert!(bs.iter_set_bits().next().is_none());
+    /// assert!(bs.are_all_unset());
     /// ```
     fn vertex_bitset_unset(&self) -> NodeBitSet {
         NodeBitSet::new(self.number_of_nodes())
@@ -186,7 +187,7 @@ pub trait GraphNodeOrder {
     ///
     /// let g = AdjArrayUndir::from_edges(3, [(0,1), (1,2)]);
     /// let bs = g.vertex_bitset_set();
-    /// assert_eq!(bs.iter_set_bits().collect::<Vec<_>>(), vec![0,1,2]);
+    /// assert!(bs.are_all_set());
     /// ```
     fn vertex_bitset_set(&self) -> NodeBitSet {
         NodeBitSet::new_all_set(self.number_of_nodes())
@@ -256,7 +257,7 @@ pub trait GraphEdgeOrder {
     /// let g = AdjArrayUndir::from_edges(3, [(0,1), (1,2)]);
     /// let bs = g.edge_bitset_unset();
     /// assert_eq!(bs.number_of_bits(), 2);
-    /// assert!(bs.iter_set_bits().next().is_none());
+    /// assert!(bs.are_all_unset());
     /// ```
     fn edge_bitset_unset(&self) -> EdgeBitSet {
         EdgeBitSet::new(self.number_of_edges())
@@ -270,7 +271,7 @@ pub trait GraphEdgeOrder {
     ///
     /// let g = AdjArrayUndir::from_edges(3, [(0,1), (1,2)]);
     /// let bs = g.edge_bitset_set();
-    /// assert_eq!(bs.iter_set_bits().collect::<Vec<_>>(), vec![0,1]);
+    /// assert!(bs.are_all_set());
     /// ```
     fn edge_bitset_set(&self) -> EdgeBitSet {
         EdgeBitSet::new_all_set(self.number_of_edges())
@@ -296,7 +297,7 @@ pub trait GraphEdgeOrder {
 /// methods (e.g. [`AdjacencyList::degrees`], [`AdjacencyList::neighbors`],
 /// [`AdjacencyList::neighbors_as_bitset`]).
 ///
-/// Users will typically encounter it via its type aliases:
+/// You will typically encounter it via its type aliases:
 /// [`DegreesIter`], [`NeighborsIter`], [`NeighborsBitSetIter`].
 pub struct NodeMapIter<'a, G, T, I>
 where
@@ -524,6 +525,7 @@ pub trait AdjacencyList: GraphNodeOrder + Sized {
 
     /// Returns an iterator over the (open) neighborhood of a given vertex.
     ///
+    /// # Panics
     /// **Panics if `u >= n`.**
     ///
     /// Note: For directed graphs, this is equivalent to `out_neighbors_of`.
@@ -541,6 +543,7 @@ pub trait AdjacencyList: GraphNodeOrder + Sized {
     /// Returns an iterator over the closed neighborhood of a given vertex,
     /// including the vertex itself.
     ///
+    /// # Panics
     /// **Panics if `u >= n`.**
     ///
     /// # Examples
@@ -556,7 +559,8 @@ pub trait AdjacencyList: GraphNodeOrder + Sized {
 
     /// Returns the number of neighbors (degree) of a vertex.
     ///
-    ///  **Panics if `u >= n`.**
+    /// # Panics
+    /// **Panics if `u >= n`.**
     ///
     /// # Examples
     /// ```
@@ -677,6 +681,7 @@ pub trait AdjacencyList: GraphNodeOrder + Sized {
         ///
         /// The bitset has `true` for positions corresponding to neighbors of `u`.
         ///
+        /// # Panics
         /// **Panics if `u >= n`.**
         ///
         /// # Examples
@@ -719,31 +724,57 @@ pub trait AdjacencyList: GraphNodeOrder + Sized {
 
     /// Returns a BitmaskStream over the neighbors of a vertex.
     ///
+    /// # Panics
     /// **Panics if `u >= n`.**
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::prelude::*;
+    /// use stream_bitset::bitmask_stream_consumer::BitmaskStreamConsumer;
+    ///
+    /// let g = AdjArrayUndir::from_edges(3, [(0,1), (1,2)]);
+    /// assert_eq!(g.neighbors_of_as_stream(1).iter_set_bits().collect::<Vec<Node>>(), vec![0, 2]);
+    /// ```
     fn neighbors_of_as_stream(&self, u: Node) -> Self::NeighborsStream<'_>;
 
     /// Returns a NodeBitSet with bits set for nodes at most 2 hops away from `u`.
     ///
+    /// # Panics
     ///  **Panics if `u >= n`.**
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::prelude::*;
+    ///
+    /// let g = AdjArrayUndir::from_edges(3, [(0,1), (1,2)]);
+    /// assert_eq!(g.closed_two_neighborhood_of(0), NodeBitSet::new_with_bits_set(3, [0 as Node, 1, 2]));
+    /// ```
     fn closed_two_neighborhood_of(&self, u: Node) -> NodeBitSet {
         let mut ns = self.vertex_bitset_unset();
         ns.set_bit(u);
         for v in self.neighbors_of(u) {
-            ns.set_bit(v);
-            ns.set_bits(self.neighbors_of(v));
+            ns.set_bits(self.closed_neighbors_of(v));
         }
         ns
     }
 
     /// Returns a NodeBitSet with bits set for nodes at most 3 hops away from `u`.
     ///
-    ///  **Panics if `u >= n`.**
+    /// # Panics
+    /// **Panics if `u >= n`.**
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::prelude::*;
+    ///
+    /// let g = AdjArrayUndir::from_edges(4, [(0,1), (1,2), (2,3)]);
+    /// assert_eq!(g.closed_three_neighborhood_of(0), NodeBitSet::new_with_bits_set(4, [0 as Node, 1, 2, 3]));
+    /// ```
     fn closed_three_neighborhood_of(&self, u: Node) -> NodeBitSet {
         let mut ns = self.vertex_bitset_unset();
         ns.set_bit(u);
         for v in self.closed_two_neighborhood_of(u).iter_set_bits() {
-            ns.set_bit(v);
-            ns.set_bits(self.neighbors_of(v));
+            ns.set_bits(self.closed_neighbors_of(v));
         }
         ns
     }
@@ -752,7 +783,16 @@ pub trait AdjacencyList: GraphNodeOrder + Sized {
     ///
     /// If `only_normalized` is `true`, only edges `(u,v)` with `u <= v` are returned.
     ///
-    ///  **Panics if `u >= n`.**
+    /// # Panics
+    /// **Panics if `u >= n`.**
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::prelude::*;
+    ///
+    /// let g = AdjArrayUndir::from_edges(3, [(0,1), (1,2)]);
+    /// assert_eq!(g.edges_of(1, true).collect::<Vec<Edge>>(), vec![Edge(1, 2)]);
+    /// ```
     fn edges_of(&self, u: Node, only_normalized: bool) -> EdgesOf<'_, Self> {
         EdgesOfIterImpl {
             iter: self.neighbors_of(u),
@@ -765,7 +805,16 @@ pub trait AdjacencyList: GraphNodeOrder + Sized {
     ///
     /// If `only_normalized` is `true`, only edges `(u,v)` with `u <= v` are returned.
     ///
-    ///  **Panics if `u >= n`.**
+    /// # Panics
+    /// **Panics if `u >= n`.**
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::prelude::*;
+    ///
+    /// let g = AdjArrayUndir::from_edges(3, [(0,1), (1,2)]);
+    /// assert_eq!(g.ordered_edges_of(1, false).collect::<Vec<Edge>>(), vec![Edge(1,0), Edge(1,2)]);
+    /// ```
     fn ordered_edges_of(&self, u: Node, only_normalized: bool) -> OrderedEdgesOf {
         let mut edges = self.edges_of(u, only_normalized).collect_vec();
         edges.sort();
@@ -775,6 +824,14 @@ pub trait AdjacencyList: GraphNodeOrder + Sized {
     /// Returns an iterator over all edges in the graph.
     ///
     /// If `only_normalized` is `true`, only edges `(u,v)` with `u <= v` are returned.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::prelude::*;
+    ///
+    /// let g = AdjArrayUndir::from_edges(3, [(0,1), (1,2)]);
+    /// assert_eq!(g.edges(true).collect::<Vec<Edge>>(), vec![Edge(0,1), Edge(1,2)]);
+    /// ```
     fn edges(&self, only_normalized: bool) -> Edges<'_, Self> {
         EdgesIterImpl {
             iter: self.edges_of(0, only_normalized),
@@ -788,6 +845,14 @@ pub trait AdjacencyList: GraphNodeOrder + Sized {
     /// Returns an iterator over all edges in the graph in sorted order.
     ///
     /// If `only_normalized` is `true`, only edges `(u,v)` with `u <= v` are returned.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::prelude::*;
+    ///
+    /// let g = AdjArrayUndir::from_edges(3, [(0,1), (1,2)]);
+    /// assert_eq!(g.ordered_edges(false).collect::<Vec<Edge>>(), vec![Edge(0,1), Edge(1,0), Edge(1,2), Edge(2,1)]);
+    /// ```
     fn ordered_edges(&self, only_normalized: bool) -> OrderedEdges<'_, Self> {
         EdgesIterImpl {
             iter: self.ordered_edges_of(0, only_normalized),
@@ -876,8 +941,7 @@ pub type OrderedOutEdgesOf = std::vec::IntoIter<Edge>;
 /// Iterator over the incoming edges of a given node.
 ///
 /// Returned by [`DirectedAdjacencyList::in_edges_of`].
-pub type InEdgesOf<'a, G> =
-    EdgesOfIterImpl<<G as DirectedAdjacencyList>::InNeighborIter<'a>, false>;
+pub type InEdgesOf<'a, G> = EdgesOfIterImpl<<G as DirectedAdjacencyList>::InNeighborIter<'a>, true>;
 
 /// Iterator over incoming edges of a node, in deterministic order.
 ///
@@ -906,11 +970,13 @@ pub trait DirectedAdjacencyList: AdjacencyList + GraphType<Dir = Directed> {
         out_neighbors_of => neighbors_of(u : Node) -> Self::NeighborIter<'_>,
         /// Returns an iterator over outgoing neighbors of a given vertex.
         /// Delegates to [`AdjacencyList::neighbors_of`].
+        ///
+        /// # Panics
         /// **Panics if `u >= n`**
         ///
         /// # Examples
         /// ```
-        /// # use ugraphs::prelude::*;
+        /// use ugraphs::prelude::*;
         /// let g = AdjArray::from_edges(3, [(0,1), (0,2)]);
         /// let out: Vec<_> = g.out_neighbors_of(0).collect();
         /// assert_eq!(out, vec![1,2]);
@@ -920,11 +986,13 @@ pub trait DirectedAdjacencyList: AdjacencyList + GraphType<Dir = Directed> {
         out_degree_of => degree_of(u : Node) -> NumNodes,
         /// Returns the out-degree of a given vertex.
         /// Delegates to [`AdjacencyList::degree_of`].
+        ///
+        /// # Panics
         /// **Panics if `u >= n`**
         ///
         /// # Examples
         /// ```
-        /// # use ugraphs::prelude::*;
+        /// use ugraphs::prelude::*;
         /// let g = AdjArray::from_edges(3, [(0,1), (0,2)]);
         /// assert_eq!(g.out_degree_of(0), 2);
         /// ```
@@ -936,7 +1004,7 @@ pub trait DirectedAdjacencyList: AdjacencyList + GraphType<Dir = Directed> {
         ///
         /// # Examples
         /// ```
-        /// # use ugraphs::prelude::*;
+        /// use ugraphs::prelude::*;
         /// let g = AdjArray::from_edges(3, [(0,1)]);
         /// let verts: Vec<_> = g.vertices_with_out_neighbors().collect();
         /// assert_eq!(verts, vec![0]);
@@ -949,7 +1017,7 @@ pub trait DirectedAdjacencyList: AdjacencyList + GraphType<Dir = Directed> {
         ///
         /// # Examples
         /// ```
-        /// # use ugraphs::prelude::*;
+        /// use ugraphs::prelude::*;
         /// let g = AdjArray::from_edges(3, [(0,1)]);
         /// assert_eq!(g.number_of_nodes_with_out_neighbors(), 1);
         /// ```
@@ -961,7 +1029,7 @@ pub trait DirectedAdjacencyList: AdjacencyList + GraphType<Dir = Directed> {
         ///
         /// # Examples
         /// ```
-        /// # use ugraphs::prelude::*;
+        /// use ugraphs::prelude::*;
         /// let g = AdjArray::from_edges(3, [(0,1), (0,2)]);
         /// let dist = g.out_degree_distribution();
         /// assert_eq!(dist, vec![(0,2),(2,1)]); // depending on implementation
@@ -974,7 +1042,7 @@ pub trait DirectedAdjacencyList: AdjacencyList + GraphType<Dir = Directed> {
         ///
         /// # Examples
         /// ```
-        /// # use ugraphs::prelude::*;
+        /// use ugraphs::prelude::*;
         /// let g = AdjArray::from_edges(3, [(0,1), (0,2)]);
         /// assert_eq!(g.max_out_degree(), 2);
         /// ```
@@ -983,7 +1051,18 @@ pub trait DirectedAdjacencyList: AdjacencyList + GraphType<Dir = Directed> {
         out_neighbors_of_as_stream => neighbors_of_as_stream(u: Node) -> Self::NeighborsStream<'_>,
         /// Returns a [`BitmaskStream`] over outgoing neighbors of a vertex.
         /// Delegates to [`AdjacencyList::neighbors_of_as_stream`].
+        ///
+        /// # Panics
         /// **Panics if `u >= n`**
+        ///
+        /// # Examples
+        /// ```
+        /// use ugraphs::prelude::*;
+        /// use stream_bitset::bitmask_stream_consumer::BitmaskStreamConsumer;
+        ///
+        /// let g = AdjArray::from_edges(3, [(1,0), (1,2)]);
+        /// assert_eq!(g.out_neighbors_of_as_stream(1).iter_set_bits().collect::<Vec<Node>>(), vec![0,2]);
+        /// ```
     );
 
     node_iterator!(
@@ -995,7 +1074,7 @@ pub trait DirectedAdjacencyList: AdjacencyList + GraphType<Dir = Directed> {
         ///
         /// # Examples
         /// ```
-        /// # use ugraphs::prelude::*;
+        /// use ugraphs::prelude::*;
         /// let g = AdjArray::from_edges(3, [(0,1),(0,2)]);
         /// let degs: Vec<_> = g.out_degrees().collect();
         /// assert_eq!(degs, vec![2,0,0]);
@@ -1010,7 +1089,7 @@ pub trait DirectedAdjacencyList: AdjacencyList + GraphType<Dir = Directed> {
         ///
         /// # Examples
         /// ```
-        /// # use ugraphs::prelude::*;
+        /// use ugraphs::prelude::*;
         /// let g = AdjArray::from_edges(3, [(0,1)]);
         /// let neighbors: Vec<Vec<_>> = g.out_neighbors().map(|it| it.collect()).collect();
         /// assert_eq!(neighbors, vec![vec![1], vec![], vec![]]);
@@ -1020,22 +1099,48 @@ pub trait DirectedAdjacencyList: AdjacencyList + GraphType<Dir = Directed> {
         out_neighbors_of_as_bitset,
         out_neighbors_of,
         /// Returns a [`NodeBitSet`] where bits corresponding to outgoing neighbors are set.
+        ///
+        /// # Panics
         /// **Panics if `u >= n`**
+        ///
+        /// # Examples
+        /// ```
+        /// use ugraphs::prelude::*;
+        ///
+        /// let g = AdjArray::from_edges(3, [(1,0), (1,2)]);
+        /// let bitset = g.out_neighbors_of_as_bitset(1);
+        /// assert!(bitset.get_bit(0));
+        /// assert!(bitset.get_bit(2));
+        /// assert!(!bitset.get_bit(1));
+        /// ```
     );
     node_iterator!(
         out_neighbors_as_bitset,
         out_neighbors_of_as_bitset,
         OutNeighborsBitSetIter<'_, Self>,
         /// Returns an iterator over [`NodeBitSet`] for all vertices representing their outgoing neighbors.
+        ///
+        /// # Examples
+        /// ```
+        /// use ugraphs::prelude::*;
+        ///
+        /// let g = AdjArray::from_edges(3, [(0,1), (1,2)]);
+        /// let bitsets: Vec<_> = g.out_neighbors_as_bitset().collect();
+        /// assert_eq!(bitsets[0].iter_set_bits().collect::<Vec<_>>(), vec![1]);
+        /// assert_eq!(bitsets[1].iter_set_bits().collect::<Vec<_>>(), vec![2]);
+        /// assert_eq!(bitsets[2].iter_set_bits().collect::<Vec<_>>(), vec![]);
+        /// ```
     );
 
     /// Returns an iterator over outgoing edges of a given vertex `(u, v)`.
     /// Equivalent to [`edges_of(u, false)`].
+    ///
+    /// # Panics
     /// **Panics if `u >= n`**
     ///
     /// # Examples
     /// ```
-    /// # use ugraphs::prelude::*;
+    /// use ugraphs::prelude::*;
     /// let g = AdjArray::from_edges(3, [(0,1)]);
     /// let edges: Vec<_> = g.out_edges_of(0).collect();
     /// assert_eq!(edges, vec![Edge(0,1)]);
@@ -1046,7 +1151,17 @@ pub trait DirectedAdjacencyList: AdjacencyList + GraphType<Dir = Directed> {
 
     /// Returns an iterator over outgoing edges sorted by `(u,v)`.
     /// Equivalent to [`ordered_edges_of(u, false)`].
+    ///
+    /// # Panics
     /// **Panics if `u >= n`**
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::prelude::*;
+    ///
+    /// let g = AdjArray::from_edges(3, [(1,2), (1,0)]);
+    /// assert_eq!(g.ordered_out_edges_of(1).collect::<Vec<Edge>>(), vec![Edge(1,0), Edge(1,2)]);
+    /// ```
     fn ordered_out_edges_of(&self, u: Node) -> OrderedOutEdgesOf {
         self.ordered_edges_of(u, false)
     }
@@ -1059,11 +1174,13 @@ pub trait DirectedAdjacencyList: AdjacencyList + GraphType<Dir = Directed> {
         Self: 'a;
 
     /// Returns an iterator over incoming neighbors of a vertex (`v` such that `(v, u)` exists).
+    ///
+    /// # Panics
     /// **Panics if `u >= n`**
     ///
     /// # Examples
     /// ```
-    /// # use ugraphs::prelude::*;
+    /// use ugraphs::prelude::*;
     /// let g = AdjArrayIn::from_edges(3, [(0,1),(2,1)]);
     /// let incoming: Vec<_> = g.in_neighbors_of(1).collect();
     /// assert_eq!(incoming, vec![0,2]);
@@ -1071,20 +1188,40 @@ pub trait DirectedAdjacencyList: AdjacencyList + GraphType<Dir = Directed> {
     fn in_neighbors_of(&self, u: Node) -> Self::InNeighborIter<'_>;
 
     /// Returns the number of incoming edges for vertex `u`.
+    ///
+    /// # Panics
     /// **Panics if `u >= n`**
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::prelude::*;
+    ///
+    /// let g = AdjArray::from_edges(3, [(0,1), (2,1)]);
+    /// assert_eq!(g.in_degree_of(1), 2);
+    /// ```
     fn in_degree_of(&self, u: Node) -> NumNodes;
 
     /// Returns the sum of in-degree and out-degree for vertex `u`.
+    ///
+    /// # Panics
     /// **Panics if `u >= n`**
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::prelude::*;
+    ///
+    /// let g = AdjArray::from_edges(3, [(0,1), (1,2)]);
+    /// assert_eq!(g.total_degree_of(1), 2);
+    /// ```
     fn total_degree_of(&self, u: Node) -> NumNodes {
         self.out_degree_of(u) + self.in_degree_of(u)
     }
 
-    /// Returns an iterator to all vertices with non-zero in-degre/// Returns an iterator over vertices with non-zero in-degree.
+    /// Returns an iterator over vertices with non-zero in-degree.
     ///
     /// # Examples
     /// ```
-    /// # use ugraphs::prelude::*;
+    /// use ugraphs::prelude::*;
     /// let g = AdjArrayIn::from_edges(3, [(0,1),(2,1)]);
     /// let verts: Vec<_> = g.vertices_with_in_neighbors().collect();
     /// assert_eq!(verts, vec![1]);
@@ -1101,7 +1238,7 @@ pub trait DirectedAdjacencyList: AdjacencyList + GraphType<Dir = Directed> {
     ///
     /// # Examples
     /// ```
-    /// # use ugraphs::prelude::*;
+    /// use ugraphs::prelude::*;
     /// let g = AdjArrayIn::from_edges(3, [(0,1),(2,1)]);
     /// assert_eq!(g.number_of_nodes_with_in_neighbors(), 1);
     /// ```
@@ -1110,6 +1247,15 @@ pub trait DirectedAdjacencyList: AdjacencyList + GraphType<Dir = Directed> {
     }
 
     /// Returns a distribution of in-degrees as `(degree, count)`.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::prelude::*;
+    ///
+    /// let g = AdjArray::from_edges(3, [(0,1), (1,2)]);
+    /// let distr = g.in_degree_distribution();
+    /// assert_eq!(distr, vec![(0,1), (1,2)]);
+    /// ```
     fn in_degree_distribution(&self) -> Vec<(NumNodes, NumNodes)> {
         let mut distr = self
             .in_degrees()
@@ -1122,6 +1268,14 @@ pub trait DirectedAdjacencyList: AdjacencyList + GraphType<Dir = Directed> {
     }
 
     /// Returns the maximum in-degree in the graph.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::prelude::*;
+    ///
+    /// let g = AdjArray::from_edges(3, [(0,1), (1,2)]);
+    /// assert_eq!(g.max_in_degree(), 1);
+    /// ```
     fn max_in_degree(&self) -> NumNodes {
         self.in_degrees().max().unwrap_or(0)
     }
@@ -1131,25 +1285,67 @@ pub trait DirectedAdjacencyList: AdjacencyList + GraphType<Dir = Directed> {
         in_degree_of,
         InDegreesIter<'_, Self>,
         /// Returns an iterator over all vertex in-degrees.
+        ///
+        /// # Examples
+        /// ```
+        /// use ugraphs::prelude::*;
+        /// let g = AdjArray::from_edges(3, [(0,1),(0,2)]);
+        /// let degs: Vec<_> = g.in_degrees().collect();
+        /// assert_eq!(degs, vec![0,1,1]);
+        /// ```
     );
     node_iterator!(
         in_neighbors,
         in_neighbors_of,
         InNeighborsIter<'_, Self>,
         /// Returns an iterator over incoming neighbors for all vertices.
+        ///
+        /// # Examples
+        /// ```
+        /// use ugraphs::prelude::*;
+        /// let g = AdjArray::from_edges(3, [(0,1)]);
+        /// let neighbors: Vec<Vec<_>> = g.in_neighbors().map(|it| it.collect()).collect();
+        /// assert_eq!(neighbors, vec![vec![], vec![0], vec![]]);
+        /// ```
     );
     node_bitset_of!(
         in_neighbors_of_as_bitset,
         in_neighbors_of,
         /// Returns a [`NodeBitSet`] where bits corresponding to incoming neighbors are set.
+        ///
+        /// # Panics
         /// **Panics if `u >= n`**
+        ///
+        /// # Examples
+        /// ```
+        /// use ugraphs::prelude::*;
+        ///
+        /// let g = AdjArray::from_edges(3, [(0,1), (2,1)]);
+        /// let bitset = g.in_neighbors_of_as_bitset(1);
+        /// assert!(bitset.get_bit(0));
+        /// assert!(bitset.get_bit(2));
+        /// assert!(!bitset.get_bit(1));
+        /// ```
     );
     node_iterator!(
         in_neighbors_as_bitset,
         in_neighbors_of_as_bitset,
         InNeighborsBitSetIter<'_, Self>,
         /// Returns a [`NodeBitSet`] where bits corresponding to incoming neighbors are set.
+        ///
+        /// # Panics
         /// **Panics if `u >= n`**
+        ///
+        /// /// # Examples
+        /// ```
+        /// use ugraphs::prelude::*;
+        ///
+        /// let g = AdjArray::from_edges(3, [(0,1), (1,2)]);
+        /// let bitsets: Vec<_> = g.in_neighbors_as_bitset().collect();
+        /// assert_eq!(bitsets[0].iter_set_bits().collect::<Vec<_>>(), vec![]);
+        /// assert_eq!(bitsets[1].iter_set_bits().collect::<Vec<_>>(), vec![0]);
+        /// assert_eq!(bitsets[2].iter_set_bits().collect::<Vec<_>>(), vec![1]);
+        /// ```
     );
 
     /// BitmaskStream over all incoming neighbors in the open neighborhood of a vertex in the graph.
@@ -1160,11 +1356,32 @@ pub trait DirectedAdjacencyList: AdjacencyList + GraphType<Dir = Directed> {
         Self: 'a;
 
     /// Returns a [`BitmaskStream`] over incoming neighbors of a vertex.
+    ///
+    /// # Panics
     /// **Panics if `u >= n`**
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::prelude::*;
+    /// use stream_bitset::bitmask_stream_consumer::BitmaskStreamConsumer;
+    ///
+    /// let g = AdjArray::from_edges(3, [(0,1), (2,1)]);
+    /// assert_eq!(g.in_neighbors_of_as_stream(1).iter_set_bits().collect::<Vec<Node>>(), vec![0,2]);
+    /// ```
     fn in_neighbors_of_as_stream(&self, u: Node) -> Self::InNeighborsStream<'_>;
 
     /// Returns an iterator over incoming edges of a vertex `(v, u)`.
+    ///
+    /// # Panics
     /// **Panics if `u >= n`**
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::prelude::*;
+    /// let g = AdjArray::from_edges(3, [(0,1)]);
+    /// let edges: Vec<_> = g.in_edges_of(1).collect();
+    /// assert_eq!(edges, vec![Edge(0,1)]);
+    /// ```
     fn in_edges_of(&self, u: Node) -> InEdgesOf<'_, Self> {
         EdgesOfIterImpl {
             iter: self.in_neighbors_of(u),
@@ -1174,7 +1391,17 @@ pub trait DirectedAdjacencyList: AdjacencyList + GraphType<Dir = Directed> {
     }
 
     /// Returns an iterator over incoming edges of a vertex in sorted order.
+    ///
+    /// # Panics
     /// **Panics if `u >= n`**
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::prelude::*;
+    ///
+    /// let g = AdjArray::from_edges(3, [(2,1), (0,1)]);
+    /// assert_eq!(g.ordered_in_edges_of(1).collect::<Vec<Edge>>(), vec![Edge(0,1), Edge(2,1)]);
+    /// ```
     fn ordered_in_edges_of(&self, u: Node) -> OrderedInEdgesOf {
         let mut edges = self.in_edges_of(u).collect_vec();
         edges.sort();
@@ -1196,11 +1423,13 @@ pub trait DirectedAdjacencyList: AdjacencyList + GraphType<Dir = Directed> {
 /// ```
 pub trait AdjacencyTest: GraphNodeOrder {
     /// Returns `true` if the edge `(u, v)` exists in the graph.
+    ///
+    /// # Panics
     /// **Panics if `u >= n || v >= n`**
     ///
     /// # Examples
     /// ```
-    /// # use ugraphs::prelude::*;
+    /// use ugraphs::prelude::*;
     /// let g = AdjArrayUndir::from_edges(3, [(0,1)]);
     /// assert!(g.has_edge(0,1));
     /// assert!(!g.has_edge(1,2));
@@ -1210,11 +1439,12 @@ pub trait AdjacencyTest: GraphNodeOrder {
     /// Checks multiple neighbors for a single node at once, returning an array of booleans
     /// indicating for each neighbor whether the edge exists.
     ///
+    /// # Panics
     /// **Panics if `u >= n` or any neighbor `v >= n`**
     ///
     /// # Examples
     /// ```
-    /// # use ugraphs::prelude::*;
+    /// use ugraphs::prelude::*;
     /// let g = AdjArrayUndir::from_edges(3, [(0,1), (0,2)]);
     /// let res = g.has_neighbors(0, [1,2,0]);
     /// assert_eq!(res, [true,true,false]);
@@ -1224,11 +1454,13 @@ pub trait AdjacencyTest: GraphNodeOrder {
     }
 
     /// Returns `true` if a self-loop `(u, u)` exists at the given vertex.
+    ///
+    /// # Panics
     /// **Panics if `u >= n`**
     ///
     /// # Examples
     /// ```
-    /// # use ugraphs::prelude::*;
+    /// use ugraphs::prelude::*;
     /// let g = AdjArrayUndir::from_edges(3, [(1,1)]);
     /// assert!(g.has_self_loop(1));
     /// assert!(!g.has_self_loop(0));
@@ -1242,7 +1474,7 @@ pub trait AdjacencyTest: GraphNodeOrder {
     ///
     /// # Examples
     /// ```
-    /// # use ugraphs::prelude::*;
+    /// use ugraphs::prelude::*;
     /// let g = AdjArrayUndir::from_edges(3, [(0,0),(1,2)]);
     /// assert!(g.has_self_loops());
     /// ```
@@ -1252,11 +1484,13 @@ pub trait AdjacencyTest: GraphNodeOrder {
 
     /// Returns `true` if both `(u, v)` and `(v, u)` exist in the graph.
     /// For undirected graphs, any edge `{u,v}` always returns `true`.
+    ///
+    /// # Panics
     /// **Panics if `u >= n || v >= n`**
     ///
     /// # Examples
     /// ```
-    /// # use ugraphs::prelude::*;
+    /// use ugraphs::prelude::*;
     /// let g = AdjArray::from_edges(3, [(0,1)]);
     /// assert!(!g.has_bidirected_edge(0,1)); // directed graph
     ///
@@ -1316,11 +1550,12 @@ pub trait Singletons: GraphNodeOrder + Sized {
     /// - For undirected graphs: `degree_of(u) == 0`
     /// - For directed graphs: `total_degree_of(u) == 0`
     ///
+    /// # Panics
     /// **Panics if `u >= n`**
     ///
     /// # Examples
     /// ```
-    /// # use ugraphs::prelude::*;
+    /// use ugraphs::prelude::*;
     /// let g = AdjArrayUndir::from_edges(4, [(0,1), (1,2)]);
     /// assert!(g.is_singleton(3));
     /// assert!(!g.is_singleton(1));
@@ -1331,7 +1566,7 @@ pub trait Singletons: GraphNodeOrder + Sized {
     ///
     /// # Examples
     /// ```
-    /// # use ugraphs::prelude::*;
+    /// use ugraphs::prelude::*;
     /// let g = AdjArrayUndir::from_edges(4, [(0,1), (1,2)]);
     /// let non_singletons: Vec<_> = g.vertices_no_singletons().collect();
     /// assert_eq!(non_singletons, vec![0,1,2]);
@@ -1373,7 +1608,7 @@ pub trait IndexedAdjacencyList: AdjacencyList {
     ///
     /// # Examples
     /// ```
-    /// # use ugraphs::prelude::*;
+    /// use ugraphs::prelude::*;
     /// let g = AdjArrayUndir::from_edges(3, [(0,1), (1,2)]);
     /// assert_eq!(g.ith_neighbor(1, 0), 0);
     /// assert_eq!(g.ith_neighbor(1, 1), 2);
@@ -1396,11 +1631,12 @@ pub trait IndexedAdjacencyList: AdjacencyList {
 pub trait IndexedAdjacencySwap: IndexedAdjacencyList {
     /// Swaps the `i`-th and `j`-th neighbors of vertex `u`.
     ///
+    /// # Panics
     /// **Panics if `u >= n`, `i >= degree_of(u)`, or `j >= degree_of(u)`**
     ///
     /// # Examples
     /// ```
-    /// # use ugraphs::prelude::*;
+    /// use ugraphs::prelude::*;
     /// let mut g = AdjArrayUndir::from_edges(3, [(0,1), (1,2)]);
     /// let before = g.as_neighbors_slice(1).to_vec();
     /// g.swap_neighbors(1, 0, 1);
@@ -1432,9 +1668,12 @@ pub trait NeighborsSlice {
     /// This is intended for performance-sensitive algorithms that require
     /// direct slice access instead of iterators.
     ///
+    /// # Panics
+    /// **Panics if `u >= n`**
+    ///
     /// # Examples
     /// ```
-    /// # use ugraphs::prelude::*;
+    /// use ugraphs::prelude::*;
     /// let g = AdjArrayUndir::from_edges(3, [(0,1), (1,2)]);
     /// let slice = g.as_neighbors_slice(1);
     /// assert!(slice.contains(&0));
@@ -1471,9 +1710,12 @@ pub trait NeighborsSliceMut: NeighborsSlice {
     /// modify adjacency arrays in place. Prefer higher-level methods
     /// unless writing optimized routines.
     ///
+    /// # Panics
+    /// **Panics if `u >= n`**
+    ///
     /// # Examples
     /// ```
-    /// # use ugraphs::prelude::*;
+    /// use ugraphs::prelude::*;
     /// let mut g = AdjArrayUndir::from_edges(3, [(0,1), (1,2)]);
     /// let slice = g.as_neighbors_slice_mut(1);
     /// slice.swap(0, 1); // Swap neighbors of node 1
@@ -1514,9 +1756,13 @@ where
 pub trait GraphNew {
     /// Creates a new graph with `n` singleton nodes (nodes with no edges).
     ///
+    /// Note that some algorithms do not work with empty graphs (`n == 0`).
+    /// Thus, if your goal is to create a placeholder graph you will run some algorithms on,
+    /// it is recommended to use `G::new(1)` instead even though this does allocate memory.
+    ///
     /// # Examples
     /// ```
-    /// # use ugraphs::prelude::*;
+    /// use ugraphs::prelude::*;
     /// let g = AdjArrayUndir::new(3);
     /// assert_eq!(g.number_of_nodes(), 3);
     /// assert!(g.is_singleton_graph());
@@ -1539,11 +1785,12 @@ pub trait GraphNew {
 pub trait GraphEdgeEditing: GraphNew {
     /// Adds the edge `(u, v)` to the graph.
     ///
+    /// # Panics
     /// **Panics if `u >= n` or `v >= n`, or if the edge already exists**
     ///
     /// # Examples
     /// ```
-    /// # use ugraphs::prelude::*;
+    /// use ugraphs::prelude::*;
     /// let mut g = AdjArrayUndir::new(3);
     /// g.add_edge(0, 1);
     /// assert!(g.has_edge(0, 1));
@@ -1556,11 +1803,12 @@ pub trait GraphEdgeEditing: GraphNew {
     ///
     /// Returns `true` exactly if the edge was present previously.
     ///
+    /// # Panics
     /// **Panics if `u >= n || v >= n`**
     ///
     /// # Examples
     /// ```
-    /// # use ugraphs::prelude::*;
+    /// use ugraphs::prelude::*;
     /// let mut g = AdjArrayUndir::new(3);
     /// assert!(!g.try_add_edge(0, 1));
     /// assert!(g.try_add_edge(0, 1)); // Already present
@@ -1569,11 +1817,12 @@ pub trait GraphEdgeEditing: GraphNew {
 
     /// Adds all edges in the provided collection to the graph.
     ///
+    /// # Panics
     /// **Panics if any edge `(u, v)` is invalid or already exists**
     ///
     /// # Examples
     /// ```
-    /// # use ugraphs::prelude::*;
+    /// use ugraphs::prelude::*;
     /// let mut g = AdjArrayUndir::new(3);
     /// g.add_edges([(0,1), (1,2)]);
     /// assert!(g.has_edge(0,1));
@@ -1593,11 +1842,12 @@ pub trait GraphEdgeEditing: GraphNew {
     ///
     /// Returns the number of edges successfully added.
     ///
+    /// # Panics
     /// **Panics if any edge `(u, v)` is invalid**
     ///
     /// # Examples
     /// ```
-    /// # use ugraphs::prelude::*;
+    /// use ugraphs::prelude::*;
     /// let mut g = AdjArrayUndir::new(3);
     /// let added = g.try_add_edges([(0,1), (1,2)]);
     /// assert_eq!(added, 2);
@@ -1618,11 +1868,12 @@ pub trait GraphEdgeEditing: GraphNew {
 
     /// Removes the edge `(u, v)` from the graph.
     ///
+    /// # Panics
     /// **Panics if the edge does not exist or if `u >= n || v >= n`**
     ///
     /// # Examples
     /// ```
-    /// # use ugraphs::prelude::*;
+    /// use ugraphs::prelude::*;
     /// let mut g = AdjArrayUndir::from_edges(3, [(0,1)]);
     /// g.remove_edge(0,1);
     /// assert!(!g.has_edge(0,1));
@@ -1633,11 +1884,12 @@ pub trait GraphEdgeEditing: GraphNew {
 
     /// Removes all edges in the provided collection from the graph.
     ///
+    /// # Panics
     /// **Panics if any edge does not exist or is invalid**
     ///
     /// # Examples
     /// ```
-    /// # use ugraphs::prelude::*;
+    /// use ugraphs::prelude::*;
     /// let mut g = AdjArrayUndir::from_edges(3, [(0,1), (1,2)]);
     /// g.remove_edges([(0,1), (1,2)]);
     /// assert!(!g.has_edge(0,1));
@@ -1657,11 +1909,12 @@ pub trait GraphEdgeEditing: GraphNew {
     ///
     /// Returns `true` if the edge was present previously.
     ///
+    /// # Panics
     /// **Panics if `u >= n || v >= n`**
     ///
     /// # Examples
     /// ```
-    /// # use ugraphs::prelude::*;
+    /// use ugraphs::prelude::*;
     /// let mut g = AdjArrayUndir::from_edges(3, [(0,1)]);
     /// assert!(g.try_remove_edge(0,1));
     /// assert!(!g.try_remove_edge(0,1)); // Already removed
@@ -1685,11 +1938,12 @@ pub trait GraphEdgeEditing: GraphNew {
 pub trait GraphDirectedEdgeEditing: GraphEdgeEditing + GraphType<Dir = Directed> {
     /// Removes all incoming edges `(v, u)` to the given node `u`.
     ///
+    /// # Panics
     /// **Panics if `u >= n`**
     ///
     /// # Examples
     /// ```
-    /// # use ugraphs::prelude::*;
+    /// use ugraphs::prelude::*;
     /// let mut g = AdjArrayIn::from_edges(3, [(0,1), (2,1)]);
     /// g.remove_edges_into_node(1);
     /// assert_eq!(g.in_degree_of(1), 0);
@@ -1698,11 +1952,12 @@ pub trait GraphDirectedEdgeEditing: GraphEdgeEditing + GraphType<Dir = Directed>
 
     /// Removes all outgoing edges `(u, v)` from the given node `u`.
     ///
+    /// # Panics
     /// **Panics if `u >= n`**
     ///
     /// # Examples
     /// ```
-    /// # use ugraphs::prelude::*;
+    /// use ugraphs::prelude::*;
     /// let mut g = AdjArray::from_edges(3, [(0,1), (0,2)]);
     /// g.remove_edges_out_of_node(0);
     /// assert_eq!(g.out_degree_of(0), 0);
@@ -1725,11 +1980,12 @@ pub trait GraphDirectedEdgeEditing: GraphEdgeEditing + GraphType<Dir = Directed>
 pub trait GraphLocalEdgeEditing: GraphEdgeEditing {
     /// Removes all edges adjacent to the given node `u` (both incoming and outgoing for directed graphs, or all incident edges for undirected graphs).
     ///
+    /// # Panics
     /// **Panics if `u >= n`**
     ///
     /// # Examples
     /// ```
-    /// # use ugraphs::prelude::*;
+    /// use ugraphs::prelude::*;
     /// let mut g = AdjArrayUndir::from_edges(3, [(0,1), (1,2)]);
     /// g.remove_edges_at_node(1);
     /// assert_eq!(g.number_of_edges(), 0);
@@ -1738,11 +1994,12 @@ pub trait GraphLocalEdgeEditing: GraphEdgeEditing {
 
     /// Removes all edges adjacent to any node in the provided iterator.
     ///
+    /// # Panics
     /// **Panics if any node in the iterator is `>= n`**
     ///
     /// # Examples
     /// ```
-    /// # use ugraphs::prelude::*;
+    /// use ugraphs::prelude::*;
     /// let mut g = AdjArrayUndir::from_edges(3, [(0,1), (1,2)]);
     /// g.remove_edges_at_nodes([0,2]);
     /// assert_eq!(g.number_of_edges(), 0);
@@ -1777,7 +2034,7 @@ pub trait GraphFromScratch {
     ///
     /// # Examples
     /// ```
-    /// # use ugraphs::prelude::*;
+    /// use ugraphs::prelude::*;
     /// let g = AdjArrayUndir::from_edges(3, [(0,1), (1,2)]);
     /// assert_eq!(g.number_of_nodes(), 3);
     /// assert!(g.has_edge(0,1));
@@ -1795,7 +2052,7 @@ pub trait GraphFromScratch {
     ///
     /// # Examples
     /// ```
-    /// # use ugraphs::prelude::*;
+    /// use ugraphs::prelude::*;
     /// let g = AdjArrayUndir::from_try_edges(3, [(0,1), (1,2), (0,1)]);
     /// assert_eq!(g.number_of_nodes(), 3);
     /// assert!(g.has_edge(0,1));

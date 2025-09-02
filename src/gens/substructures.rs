@@ -16,7 +16,7 @@ known sub-components.
 
 # Example
 
-```rust
+```
 use ugraphs::{prelude::*, gens::*};
 
 let mut g = AdjArray::new(5);
@@ -47,7 +47,7 @@ pub trait GeneratorSubstructures {
     /// Each consecutive pair of nodes is connected by a single edge.
     ///
     /// # Example
-    /// ```rust
+    /// ```
     /// use ugraphs::{prelude::*, gens::*};
     ///
     /// let mut g = AdjArray::new(4);
@@ -67,7 +67,7 @@ pub trait GeneratorSubstructures {
     /// - Additionally, the last node is connected back to the first.
     ///
     /// # Example
-    /// ```rust
+    /// ```
     /// use ugraphs::{prelude::*, gens::*};
     ///
     /// let mut g = AdjArray::new(3);
@@ -87,7 +87,7 @@ pub trait GeneratorSubstructures {
     /// - For undirected graphs, edges are normalized so duplicates are avoided.
     ///
     /// # Example
-    /// ```rust
+    /// ```
     /// use ugraphs::{prelude::*, gens::*};
     ///
     /// let mut g = AdjArray::new(3);

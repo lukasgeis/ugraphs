@@ -18,10 +18,6 @@ efficient and lazy.
 use super::*;
 use std::{collections::VecDeque, marker::PhantomData};
 
-pub trait WithGraphRef<G> {
-    fn graph(&self) -> &G;
-}
-
 pub trait TraversalState<S>
 where
     S: Set<Node>,
@@ -181,7 +177,7 @@ where
     V: Set<Node>,
 {
     /// Returns the graph being traversed.
-    fn graph(&self) -> &G {
+    fn graph_ref(&self) -> &G {
         self.graph
     }
 }
@@ -360,7 +356,7 @@ where
     /// # Panics
     /// Panics if the iterator yields the same node more than once.
     fn ranking(mut self) -> Option<Vec<Node>> {
-        let mut ranking = vec![INVALID_NODE; self.graph().len()];
+        let mut ranking = vec![INVALID_NODE; self.graph_ref().len()];
         let mut rank: Node = 0;
 
         for u in self.by_ref() {
@@ -369,7 +365,7 @@ where
             rank += 1;
         }
 
-        if rank == self.graph().number_of_nodes() {
+        if rank == self.graph_ref().number_of_nodes() {
             Some(ranking)
         } else {
             None
@@ -412,7 +408,7 @@ where
     /// each node is initially set to be its own parent.
     /// Then fills in the traversal tree structure using `parent_array_into`.
     fn parent_array(&mut self) -> Vec<Node> {
-        let mut tree: Vec<_> = self.graph().vertices_range().collect();
+        let mut tree: Vec<_> = self.graph_ref().vertices_range().collect();
         self.parent_array_into(&mut tree);
         tree
     }
@@ -436,7 +432,7 @@ where
     /// Constructs a fresh depth array of size `graph.len()` initialized with 0.
     /// Then fills in the traversal tree depths using `depths_into`.
     fn depths(&mut self) -> Vec<Node> {
-        let mut depths: Vec<_> = vec![0; self.graph().number_of_nodes() as usize];
+        let mut depths: Vec<_> = vec![0; self.graph_ref().number_of_nodes() as usize];
         self.depths_into(&mut depths);
         depths
     }
@@ -467,7 +463,7 @@ impl<'a, G> WithGraphRef<G> for TopoSearch<'a, G>
 where
     G: DirectedAdjacencyList,
 {
-    fn graph(&self) -> &G {
+    fn graph_ref(&self) -> &G {
         self.graph
     }
 }

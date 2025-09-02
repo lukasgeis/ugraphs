@@ -9,7 +9,7 @@ Generators encapsulate common random graph models (e.g., Erdős–Rényi G(n, p)
 - **Edge production**: either as a collected list (`generate`) or a lazy stream (`stream`).
 
 Typical usage:
-```rust
+```
 use ugraphs::{prelude::*, gens::*};
 use rand::SeedableRng;
 use rand_pcg::Pcg64Mcg;

@@ -1,11 +1,45 @@
+/*!
+# Vertex Cuts (Minimum and Balanced)
+
+This module provides algorithms to compute **minimum vertex cuts** and **approximate balanced cuts**
+in directed graphs. Unlike the heuristic cuts in [`GraphCutBuilder`](super::GraphCutBuilder),
+the algorithms in this module are based on **flow-based methods** (Edmonds–Karp style).
+
+## Core concepts
+- A **vertex cut** is a set of vertices whose removal disconnects a chosen source `s` from a
+  target `t` in a directed graph.
+- A **minimum vertex cut** has the smallest possible size among all such cuts.
+- A **balanced cut** attempts to partition the graph into two reasonably sized subsets while
+  disconnecting `s` from `t`.
+
+## Implementations
+- [`MinVertexCut`] provides flow-based routines for computing (s, t) vertex cuts and for
+  approximating balanced cuts.
+- [`EdmondsKarpGeneric`] implements the Edmonds–Karp augmenting path algorithm for finding
+  **edge-disjoint or vertex-disjoint paths**, which form the basis for computing vertex cuts.
+- [`STFlow`] is a utility trait for constructing and running (s, t)-flow computations with
+  the option to **undo or persist changes** to the graph.
+
+## Use cases
+- Exact minimum vertex cut computation (flow-based).
+- Approximate balanced partitioning subject to vertex cut constraints.
+- Analysis of connectivity and disjoint paths in directed graphs.
+*/
+
 use super::*;
 use num::Integer;
 use rand::Rng;
 use std::{collections::HashSet, ops::Range};
 use stream_bitset::{bitset::BitsetStream, prelude::*};
 
-/// Implements the Edmonds-Karp algorithm for finding maximum flow
-/// and edge-disjoint paths in a network.
+/// Implementation of the Edmonds–Karp algorithm for finding
+/// edge-disjoint (or vertex-disjoint, depending on network construction)
+/// paths between a given source and target in a directed graph.
+///
+/// Internally, it maintains a residual network and a predecessor array
+/// used for BFS. It also supports optionally tracking modifications
+/// to the residual network, which is useful when computing
+/// special structures such as *petals* that require undoing changes.
 pub struct EdmondsKarp {
     residual_network: ResidualBitMatrix,
     predecessor: Vec<Node>,
@@ -13,37 +47,47 @@ pub struct EdmondsKarp {
     remember_changes: bool,
 }
 
-/// Trait representing a residual network used in flow computations.
+/// A residual network data structure for flow algorithms.
+///
+/// Provides primitives for reversing edges and constructing networks
+/// specialized for computing:
+/// - edge-disjoint paths,
+/// - vertex-disjoint paths,
+/// - and *petals* (vertex-disjoint cycles all sharing a root vertex).
+///
+/// Additionally, it allows creating networks directly from an
+/// externally provided capacity/label structure and supports undoing
+/// changes when flows are rolled back.
 pub trait ResidualNetwork: SourceTarget + DirectedAdjacencyList + Label<Node> {
-    /// Reverses the edge (u, v) to (v, u).
+    /// Reverses the directed edge `(u, v)` into `(v, u)`
+    /// in the residual network.
     fn reverse(&mut self, u: Node, v: Node);
 
-    /// Constructs a network to find edge-disjoint paths from s to t
+    /// Constructs a residual network to compute **edge-disjoint paths**
+    /// between source `s` and target `t`.
     fn edge_disjoint<G>(graph: &G, s: Node, t: Node) -> Self
     where
         G: GraphNodeOrder + DirectedAdjacencyList;
 
-    /// To find vertex disjoint paths the graph must be transformed:
-    /// for each vertex v create two vertices v_in (with index v) and v_out (with index v + n).
-    /// for each original edge (u, v) create the edge (u_out, v_in)
-    /// for each v_in add the edge (v_in, v_out).
-    ///
-    /// Ignore this procedure for the vertices s and t. For those simply
-    /// add the edges (s, v_in) for each edge (s, v) in the original graph
-    /// and the edge (v_out, t) for each edge (v, t) in the original graph.
+    /// Constructs a residual network to compute **vertex-disjoint paths**.
+    /// Each vertex `v` is split into `v_in` and `v_out` with an edge between them,
+    /// except for `s` and `t` which are handled specially.
     fn vertex_disjoint<G>(graph: &G, s: Node, t: Node) -> Self
     where
         G: GraphNodeOrder + DirectedAdjacencyList;
 
-    /// creates network for finding vertex disjoint cycles that all share the vertex s. the
-    /// same as vertex disjoint, but s is handled the same as all other vertices, except that
-    /// s_in and s_out are not connected. Then, s_out is the source and s_in is the target.
+    /// Constructs a residual network for finding **petals**,
+    /// i.e. vertex-disjoint cycles all passing through vertex `s`.
+    ///
+    /// Similar to vertex-disjoint construction, except `s_in` and `s_out`
+    /// are not connected, and the source is `s_out` while the target is `s_in`.
     fn petals<G>(graph: &G, s: Node) -> Self
     where
         G: GraphNodeOrder + DirectedAdjacencyList;
 
-    /// can be useful if one wants to reuse a capacity many times.
-    /// creating a new capacity could be expensive.
+    /// Builds a residual network directly from a provided set of
+    /// capacity bitsets and vertex labels. Useful when reusing
+    /// previously computed capacities.
     fn from_capacity_and_labels(
         capacity: Vec<NodeBitSet>,
         labels: Vec<Node>,
@@ -51,13 +95,23 @@ pub trait ResidualNetwork: SourceTarget + DirectedAdjacencyList + Label<Node> {
         t: Node,
     ) -> Self;
 
-    /// While petals get calculated, the capacity changes its bits. undo_changes reverts all these changes.
+    /// Undoes previously applied changes (edge reversals) to restore
+    /// the residual network to an earlier state.
     fn undo_changes<I>(&mut self, changes_on_bitmatrix: I)
     where
         I: IntoIterator<Item = (Node, Node)>;
 }
 
-/// Residual network represented with a bit matrix for capacity.
+/// Residual network implementation based on a bit-matrix adjacency structure.
+///
+/// Stores:
+/// - the source and target nodes,
+/// - the number of nodes and edges,
+/// - adjacency represented as `NodeBitSet` capacities,
+/// - and per-node labels.
+///
+/// Efficiently supports adjacency queries needed by max-flow/path-packing
+/// algorithms such as Edmonds–Karp.
 pub struct ResidualBitMatrix {
     s: Node,
     t: Node,
@@ -67,11 +121,12 @@ pub struct ResidualBitMatrix {
     labels: Vec<Node>,
 }
 
-/// Trait to access the label of a node.
+/// Provides access to per-vertex labels in the residual network.
 ///
-/// Exception to the `unlabelled` part of `ugraphs`.
+/// Labels are used to map auxiliary vertices (e.g. `v_in`, `v_out`)
+/// back to their corresponding original graph vertices.
 pub trait Label<T> {
-    /// Returns a reference to the label of `u`.
+    /// Returns the label associated with vertex `u`.
     fn label(&self, u: Node) -> &T;
 }
 
@@ -81,7 +136,8 @@ impl Label<Node> for ResidualBitMatrix {
     }
 }
 
-/// Trait to access source and target nodes.
+/// Provides accessors for the source and target nodes
+/// of a residual network.
 pub trait SourceTarget {
     /// Returns a reference to the source node.
     fn source(&self) -> &Node;
@@ -349,14 +405,15 @@ impl ResidualNetwork for ResidualBitMatrix {
 }
 
 impl ResidualBitMatrix {
-    /// Dissolves `self` to the BitMatrix and the vector of labels
+    /// Consumes the residual network and returns its capacity
+    /// and label vectors for reuse.
     pub fn take(self) -> (Vec<NodeBitSet>, Vec<Node>) {
         (self.capacity, self.labels)
     }
 }
 
 impl EdmondsKarp {
-    /// Creates a new instance of `EdmondsKarp`
+    /// Creates a new Edmonds–Karp solver from a given residual network.
     pub fn new(residual_network: ResidualBitMatrix) -> Self {
         let n = residual_network.len();
         Self {
@@ -367,7 +424,8 @@ impl EdmondsKarp {
         }
     }
 
-    /// Runs `bfs_with_predecessor` from the source node to the target node.
+    /// Performs BFS to find an augmenting path from source to target.
+    /// Updates the predecessor array and returns whether the target was reached.
     fn bfs(&mut self) -> bool {
         let s = *self.residual_network.source();
         let t = *self.residual_network.target();
@@ -378,48 +436,55 @@ impl EdmondsKarp {
         bfs.did_visit_node(t)
     }
 
-    /// Finds the number of edge disjoint paths from s to t
+    /// Returns the total number of disjoint paths between source and target.
     pub fn num_disjoint(&mut self) -> usize {
         self.count()
     }
 
-    /// Finds the number of edge discoint paths from s to t, but stops counting at a given k.
+    /// Returns the number of disjoint paths found, but stops early once
+    /// `k` disjoint paths are reached.
     pub fn count_num_disjoint_upto(&mut self, k: Node) -> Node {
         self.take(k as usize).count() as Node
     }
 
-    /// Outputs all edge disjoint paths from s to t. The paths are vertex disjoint in the original graph
-    /// when the network has been constructed for said restriction.
-    /// Each path is represented as a vector of vertices
+    /// Returns all disjoint paths between source and target.
+    /// Each path is represented as a vector of vertices.
+    /// When constructed with vertex-disjoint gadgets, the paths
+    /// are vertex-disjoint in the original graph.
     pub fn disjoint_paths(&mut self) -> Vec<Vec<Node>> {
         self.collect()
     }
 
-    /// Sets/Unsets remember_changes to true/false. If its true, the changes, that are made on
-    /// the capacity, are remembered. With that it is possible to undo these changes later.
+    /// Enables or disables remembering residual network modifications.
+    /// Useful when changes must later be undone.
     pub fn set_remember_changes(&mut self, remember_changes: bool) {
         self.remember_changes = remember_changes;
     }
 
-    /// Chainable version of [`Self::set_remember_changes`]
+    /// Chainable version of [`Self::set_remember_changes`].
     pub fn remember_changes(mut self, remember_changes: bool) -> Self {
         self.set_remember_changes(remember_changes);
         self
     }
 
-    /// reverts each edge in capacity, that got changed while petals were calculated.
+    /// Reverts all recorded changes in the residual network.
+    /// Used after computing petals or other structures that modify edges.
     pub fn undo_changes(&mut self) {
         self.residual_network
             .undo_changes(self.changes_on_bitmatrix.iter().rev().copied());
     }
 
-    /// gives access to the capacity, so it can for example be reused for a new ResidualBitMatrix.
+    /// Consumes the solver and returns the underlying residual
+    /// capacity and labels for reuse.
     pub fn take(self) -> (Vec<NodeBitSet>, Vec<Node>) {
         self.residual_network.take()
     }
 }
 
+/// Records modifications to the residual network, so they
+/// can be undone later.
 pub trait RememberChanges {
+    /// Remembers that edge `(u, v)` was reversed in the residual network.
     fn remember_change(&mut self, u: Node, v: Node);
 }
 
@@ -429,6 +494,9 @@ impl RememberChanges for EdmondsKarp {
     }
 }
 
+/// Iterates over disjoint paths found by the Edmonds–Karp algorithm.
+/// Each iteration returns a path from source to target as a vector of nodes.
+/// The iterator terminates when no further augmenting paths exist.
 impl Iterator for EdmondsKarp {
     type Item = Vec<Node>;
 
@@ -465,11 +533,16 @@ impl Iterator for EdmondsKarp {
     }
 }
 
+/// Algorithms for computing minimum (s, t) vertex cuts and approximating balanced cuts in directed graphs.
 pub trait MinVertexCut: DirectedAdjacencyList {
-    /// Computes a minimum (s, t) vertex cut and returns the number of vertices reachable from and
-    /// including `s` after the cut is applied. For performance reasons a maximal acceptable size
-    /// (inclusive) may be supplied. The methods returns `None` iff the minimum (s, t) cut size excceds
-    /// `max_size`.
+    /// Computes a **minimum (s, t) vertex cut** using a flow-based method.
+    ///
+    /// Returns:
+    /// - The set of cut vertices.
+    /// - The number of vertices reachable from and including `s` after the cut.
+    ///
+    /// A maximal acceptable cut size (`max_size`) may be supplied as a performance bound.
+    /// Returns `None` iff the minimum cut exceeds `max_size`.
     fn min_st_vertex_cut(
         &self,
         s: Node,
@@ -477,13 +550,19 @@ pub trait MinVertexCut: DirectedAdjacencyList {
         max_size: Option<Node>,
     ) -> Option<(Vec<Node>, Node)>;
 
-    /// Approximates a balanced min vertex cut as follows: repeat `attempts` many times:
-    /// Randomly select `s` and `t` and compute a minimum (s-t). If the number of nodes reachable
-    /// from `s` AND the number of nodes that can reach `t` reach at least `self.len() * imbalance - 1`
-    /// declare the cut legal. Then return the small legal cut.
+    /// Approximates a **balanced minimum vertex cut** by repeatedly sampling source-target pairs.
+    ///
+    /// Algorithm:
+    /// - Perform `attempts` iterations.
+    /// - In each iteration, choose random `s` and `t`.
+    /// - Compute a minimum (s, t) cut.
+    /// - If the cut splits the graph such that both sides have size at least
+    ///   `self.len() * imbalance - 1`, declare the cut "legal".
+    ///
+    /// Returns the smallest legal cut found.
     ///
     /// # Warning
-    /// If `imbalance` exceeds 0.5 no solution will be found
+    /// If `imbalance > 0.5`, no legal solution can exist.
     fn approx_min_balanced_cut<R>(
         &self,
         rng: &mut R,
@@ -618,11 +697,20 @@ where
     }
 }
 
+/// Enum representing structural modifications applied during flow computations
+/// when path augmentations are carried out.
 enum Change {
+    /// Indicates an edge `(u, v)` was added during augmentation.
     Add(Node, Node),
+    /// Indicates an edge `(u, v)` was removed during augmentation.
     Remove(Node, Node),
 }
 
+/// Flow-based algorithm for computing edge/vertex-disjoint paths between `s` and `t` in a directed graph.
+///
+/// This generic Edmonds–Karp variant supports both **vertex-disjoint** and **edge-disjoint** flow
+/// formulations depending on the input graph construction. It can optionally remember all graph
+/// modifications (edge additions/removals) in order to undo them when dropped.
 pub struct EdmondsKarpGeneric<'a, G, T, L>
 where
     G: DirectedAdjacencyList + GraphEdgeEditing,
@@ -637,7 +725,10 @@ where
     changes: Option<Vec<Change>>,
 }
 
+/// Utility trait for computing (s, t)-flows in graphs with **undoable or permanent modifications**.
 pub trait STFlow: DirectedAdjacencyList + GraphEdgeEditing {
+    /// Runs an Edmonds–Karp style (s, t)-flow computation while remembering changes
+    /// to the graph, which will be automatically undone when the flow object is dropped.
     fn st_flow_undo_changes<T, L>(
         &mut self,
         labels: T,
@@ -648,6 +739,8 @@ pub trait STFlow: DirectedAdjacencyList + GraphEdgeEditing {
         T: Fn(Node) -> L,
         L: Eq + Copy;
 
+    /// Runs an Edmonds–Karp style (s, t)-flow computation, keeping changes to the graph
+    /// permanently applied (i.e., without rollback).
     fn st_flow_keep_changes<T, L>(
         &mut self,
         labels: T,
@@ -698,6 +791,7 @@ where
     T: Fn(Node) -> L,
     L: Eq + Copy,
 {
+    /// Creates a new instance of the Edmonds–Karp generic flow computation.
     pub fn new(graph: &'a mut G, labels: T, source: Node, target: Node) -> Self {
         let n = graph.len();
         Self {
@@ -710,6 +804,7 @@ where
         }
     }
 
+    /// Performs a BFS in the residual network to find an augmenting path.
     fn bfs(&mut self) -> bool {
         let mut bfs = self.graph.bfs_with_predecessor(self.source);
         bfs.set_stop_at(self.target);
@@ -717,25 +812,23 @@ where
         bfs.did_visit_node(self.target)
     }
 
-    /// Finds the number of edge disjoint paths from s to t
+    /// Computes the **number of disjoint (s, t)-paths** by fully exhausting augmentations.
     pub fn num_disjoint(&mut self) -> usize {
         self.count()
     }
 
-    /// Finds the number of edge discoint paths from s to t, but stops counting at a given k.
+    /// Computes the number of disjoint (s, t)-paths, but stops counting early at a threshold `k`.
     pub fn count_num_disjoint_upto(&mut self, k: Node) -> Node {
         self.take(k as usize).count() as Node
     }
 
-    /// Outputs all edge disjoint paths from s to t. The paths are vertex disjoint in the original graph
-    /// when the network has been constructed for said restriction.
-    /// Each path is represented as a vector of vertices
+    /// Returns all edge/vertex-disjoint (s, t)-paths as vectors of labeled vertices.
     pub fn disjoint_paths(&mut self) -> Vec<Vec<L>> {
         self.collect()
     }
 
-    /// Sets/Unsets remember_changes to true/false. If its true, the changes, that are made on
-    /// the capacity, are remembered. With that it is possible to undo these changes later.
+    /// Configures whether changes to the residual network should be remembered
+    /// (to allow undoing them later).
     pub fn set_remember_changes(&mut self, remember_changes: bool) {
         if remember_changes {
             assert!(self.changes.as_ref().is_none_or(|v| v.is_empty()));
@@ -745,13 +838,14 @@ where
         }
     }
 
+    /// Builder-style version of [`Self::set_remember_changes`].
     pub fn remember_changes(mut self, remember_changes: bool) -> Self {
         self.set_remember_changes(remember_changes);
         self
     }
 
-    /// reverts each edge in capacity, that got changed while petals were calculated.
-    /// may only be called after [`STFlow::set_remember_changes`](true)
+    /// Undoes all graph modifications performed during augmentation.
+    /// Requires that remembering changes was enabled.
     pub fn undo_changes(&mut self) {
         let stack = self.changes.as_mut().unwrap();
 
@@ -785,6 +879,8 @@ where
 {
     type Item = Vec<L>;
 
+    /// Extracts the next disjoint (s, t)-path from the residual network by performing
+    /// one Edmonds–Karp augmentation step. Returns `None` once no augmenting path exists.
     fn next(&mut self) -> Option<Self::Item> {
         if !self.bfs() {
             return None;

@@ -52,21 +52,25 @@ impl Edge {
     /// let e = Edge(3, 1);
     /// assert_eq!(e.normalized(), Edge(1, 3));
     /// ```
+    #[inline(always)]
     pub fn normalized(&self) -> Self {
         Edge(self.0.min(self.1), self.0.max(self.1))
     }
 
     /// Returns `true` if the smaller endpoint comes first (i.e., `u <= v`).
+    #[inline(always)]
     pub fn is_normalized(&self) -> bool {
         self.0 <= self.1
     }
 
     /// Returns `true` if the edge is a self-loop (`u == v`).
+    #[inline(always)]
     pub fn is_loop(&self) -> bool {
         self.0 == self.1
     }
 
     /// Returns the edge with endpoints swapped (`Edge(v, u)`).
+    #[inline(always)]
     pub fn reverse(&self) -> Self {
         Edge(self.1, self.0)
     }
@@ -79,9 +83,17 @@ impl Edge {
     /// # Example
     /// ```
     /// # use ugraphs::edge::Edge;
-    /// let e = Edge::from_u64(5, 3);
-    /// assert!(matches!(e, Edge(1,2) | Edge(2,1) | Edge(0,2) | Edge(2,0) | Edge(0,1) | Edge(1,0)));
+    ///
+    /// let n = 10u64;
+    /// let ub = n * n;
+    ///
+    /// let mut edges: Vec<Edge> = (0..ub).map(|x| Edge::from_u64(x, n)).collect();
+    /// edges.sort_unstable();
+    /// edges.dedup();
+    ///
+    /// assert_eq!(edges.len(), ub as usize);
     /// ```
+    #[inline(always)]
     pub fn from_u64(x: u64, n: u64) -> Self {
         debug_assert!(x < n * n);
 
@@ -91,8 +103,6 @@ impl Edge {
     }
 
     /// Maps a number `x` in `0..(n choose 2)` to a normalized undirected edge `(u, v)`.
-    ///
-    /// Handles both even and odd number of neighbors to enumerate all normalized edges.
     ///
     /// # Panics
     /// Debug-asserts if `x >= n * (n - 1) / 2`.
@@ -104,7 +114,7 @@ impl Edge {
     /// let n = 10u64;
     /// let ub = n * (n - 1) / 2;
     ///
-    /// let mut edges: Vec<_> = (0..ub).map(|x| Edge::from_u64_undir(x, n)).collect();
+    /// let mut edges: Vec<Edge> = (0..ub).map(|x| Edge::from_u64_undir(x, n)).collect();
     /// edges.sort_unstable();
     /// edges.dedup();
     ///

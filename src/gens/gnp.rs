@@ -11,7 +11,7 @@ Generation is implemented lazily using the [`GeometricJumper`] inversion method,
 Both directed and undirected graphs are supported, depending on which graph type consumes the generated edges.
 
 # Examples
-```rust
+```
 use ugraphs::{prelude::*, gens::*};
 use rand::SeedableRng;
 use rand_pcg::Pcg64Mcg;
@@ -31,7 +31,7 @@ assert_eq!(g.number_of_nodes(), 5);
 use std::{fmt::Debug, iter::Empty, ops::Range};
 
 use super::*;
-use crate::utils::{GeometricJumper, GeometricJumperIter, Probability, TripleIter};
+use crate::utils::{Probability, geometric::*, multi_traits::TripleIter};
 
 /// Internal representation of how a `G(n,p)` generator is parameterized.
 ///

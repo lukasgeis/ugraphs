@@ -19,10 +19,12 @@ The [`Partition`] struct allows:
 Helper traits like [`IntoPartition`] simplify construction from higher-level
 representations (e.g. collections of node sets).
 
+Note that using [`Partition`] always incurs `O(n)` memory usage regardless of nodes partitioned.
+
 # Example
 
-```rust
-use ugraphs::algo::Partition;
+```
+use ugraphs::utils::Partition;
 
 let mut part = Partition::new(5);
 
@@ -83,8 +85,8 @@ impl Partition {
     /// Creates a new partition over `nodes` nodes, all initially unassigned.
     ///
     /// # Example
-    /// ```rust
-    /// use ugraphs::algo::Partition;
+    /// ```
+    /// use ugraphs::utils::Partition;
     ///
     /// let part = Partition::new(4);
     /// assert_eq!(part.number_of_unassigned(), 4);
@@ -107,8 +109,8 @@ impl Partition {
     /// - If any provided node was already assigned to another class.
     ///
     /// # Example
-    /// ```rust
-    /// use ugraphs::algo::Partition;
+    /// ```
+    /// use ugraphs::utils::Partition;
     ///
     /// let mut part = Partition::new(4);
     /// let c0 = part.add_class([0, 1]);
@@ -143,8 +145,8 @@ impl Partition {
     /// - If the node was unassigned, it becomes assigned.
     ///
     /// # Example
-    /// ```rust
-    /// use ugraphs::algo::Partition;
+    /// ```
+    /// use ugraphs::utils::Partition;
     ///
     /// let mut part = Partition::new(3);
     /// let c0 = part.add_class([0]);
@@ -166,8 +168,8 @@ impl Partition {
     /// Returns the class identifier of a node, or `None` if the node is unassigned.
     ///
     /// # Example
-    /// ```rust
-    /// use ugraphs::algo::Partition;
+    /// ```
+    /// use ugraphs::utils::Partition;
     ///
     /// let mut part = Partition::new(2);
     /// let c0 = part.add_class([0]);
@@ -183,8 +185,8 @@ impl Partition {
     /// to the same class, or `None` otherwise.
     ///
     /// # Example
-    /// ```rust
-    /// use ugraphs::algo::Partition;
+    /// ```
+    /// use ugraphs::utils::Partition;
     ///
     /// let mut part = Partition::new(3);
     /// let c0 = part.add_class([0, 1]);
@@ -199,16 +201,46 @@ impl Partition {
     }
 
     /// Returns the number of currently unassigned nodes.
+    ///
+    /// # Example
+    /// ```
+    /// use ugraphs::utils::Partition;
+    ///
+    /// let mut part = Partition::new(3);
+    /// let c0 = part.add_class([0, 1]);
+    ///
+    /// assert_eq!(part.number_of_unassigned(), 1);
+    /// ```
     pub fn number_of_unassigned(&self) -> NumNodes {
         self.unassigned
     }
 
     /// Returns the number of nodes in the specified class.
+    ///
+    /// # Example
+    /// ```
+    /// use ugraphs::utils::Partition;
+    ///
+    /// let mut part = Partition::new(3);
+    /// let c0 = part.add_class([0, 1]);
+    ///
+    /// assert_eq!(part.number_in_class(c0), 2);
+    /// ```
     pub fn number_in_class(&self, class_id: PartitionClass) -> NumNodes {
         self.class_sizes[class_id as usize]
     }
 
     /// Returns the number of partition classes (0 if all nodes are unassigned)
+    ///
+    /// # Example
+    /// ```
+    /// use ugraphs::utils::Partition;
+    ///
+    /// let mut part = Partition::new(3);
+    /// let c0 = part.add_class([0, 1]);
+    ///
+    /// assert_eq!(part.number_of_classes(), 1);
+    /// ```
     pub fn number_of_classes(&self) -> NumNodes {
         self.class_sizes.len() as NumNodes
     }
@@ -220,8 +252,8 @@ impl Partition {
     /// not the size of the class itself.
     ///
     /// # Example
-    /// ```rust
-    /// use ugraphs::algo::Partition;
+    /// ```
+    /// use ugraphs::utils::Partition;
     ///
     /// let mut part = Partition::new(3);
     /// let c0 = part.add_class([0, 2]);
@@ -245,8 +277,8 @@ impl Partition {
     ///   by class `i` and its node mapping.
     ///
     /// # Example
-    /// ```rust
-    /// use ugraphs::{prelude::*, algo::Partition, utils::NodeMapper};
+    /// ```
+    /// use ugraphs::{prelude::*, utils::{Partition, NodeMapper}};
     ///
     /// let mut g = AdjArray::new(4);
     /// g.add_edge(0, 1);
@@ -350,8 +382,8 @@ pub trait IntoPartition {
     /// Consumes the collection and builds a [`Partition`] with `n` total nodes.
     ///
     /// # Example
-    /// ```rust
-    /// use ugraphs::algo::{Partition, IntoPartition};
+    /// ```
+    /// use ugraphs::utils::{Partition, IntoPartition};
     ///
     /// let classes = vec![vec![0, 1], vec![2, 3]];
     /// let part = classes.into_partition(4);

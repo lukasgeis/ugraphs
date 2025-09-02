@@ -25,7 +25,7 @@ pub trait NodeMapSetter: Sized {
     /// Subsequent calls to [`NodeMapSetter::map_node_to`] are forbidden.
     ///
     /// # Example
-    /// ```rust
+    /// ```
     /// use ugraphs::utils::*;
     ///
     /// let mapper = NodeMapper::identity(5);
@@ -37,6 +37,15 @@ pub trait NodeMapSetter: Sized {
     fn map_node_to(&mut self, old: Node, new: Node);
 
     /// Constructs a mapper from a Node-slice `new_ids` where `new_ids[i]` stores the new id of the old node `i`.
+    ///
+    /// # Example
+    /// ```
+    /// use ugraphs::utils::*;
+    ///
+    /// let mapper = NodeMapper::from_rank(&[1, 0]);
+    /// assert_eq!(mapper.new_id_of(0), Some(1));
+    /// assert_eq!(mapper.new_id_of(1), Some(0));
+    /// ```
     fn from_rank(new_ids: &[Node]) -> Self {
         let cap = new_ids
             .iter()
@@ -52,6 +61,15 @@ pub trait NodeMapSetter: Sized {
     }
 
     /// Constructs a mapper from a sequence of tuples `(old, new)`.
+    ///
+    /// # Example
+    /// ```
+    /// use ugraphs::utils::*;
+    ///
+    /// let mapper = NodeMapper::from_sequence(&[(1, 0), (0, 1)]);
+    /// assert_eq!(mapper.new_id_of(0), Some(1));
+    /// assert_eq!(mapper.new_id_of(1), Some(0));
+    /// ```
     fn from_sequence(seq: &[(Node, Node)]) -> Self {
         if seq.is_empty() {
             return Self::with_capacity(0);
@@ -137,7 +155,7 @@ pub trait NodeMapGetter {
     /// If the mapping `(old, new)` exists, returns `Some(new)`, otherwise `None`.
     ///
     /// # Example
-    /// ```rust
+    /// ```
     /// use ugraphs::utils::*;
     ///
     /// let mut mapper = NodeMapper::with_capacity(3);
@@ -149,7 +167,7 @@ pub trait NodeMapGetter {
     /// If the mapping `(old, new)` exists, returns `Some(old)`, otherwise `None`.
     ///
     /// # Example
-    /// ```rust
+    /// ```
     /// use ugraphs::utils::*;
     ///
     /// let mut mapper = NodeMapper::with_capacity(3);
@@ -161,7 +179,7 @@ pub trait NodeMapGetter {
     /// Returns the number of explicitly stored mappings; returns `0` for identity mapping.
     ///
     /// # Example
-    /// ```rust
+    /// ```
     /// use ugraphs::utils::*;
     ///
     /// let mapper = NodeMapper::identity(5);
@@ -178,7 +196,7 @@ pub trait NodeMapGetter {
     /// if the mapping does not exist.
     ///
     /// # Example
-    /// ```rust
+    /// ```
     /// use ugraphs::utils::*;
     ///
     /// let mapper = NodeMapper::identity(3);
@@ -198,6 +216,15 @@ pub trait NodeMapGetter {
     }
 
     /// Applies [`NodeMapGetter::old_id_of`] to each iterator item and returns only items for which a mapping exists.
+    ///
+    /// # Example
+    /// ```
+    /// use ugraphs::utils::*;
+    ///
+    /// let mapper = NodeMapper::from_sequence(&[(1, 0), (2, 1)]);
+    /// let old_ids: Vec<_> = mapper.get_filtered_old_ids(vec![0, 1, 2]).collect();
+    /// assert_eq!(old_ids, vec![1, 2]);
+    /// ```
     fn get_filtered_old_ids<'a, I>(&self, new_ids: I) -> FilteredOldIds<'_, Self, I>
     where
         I: IntoIterator<Item = Node> + 'a,
@@ -212,6 +239,14 @@ pub trait NodeMapGetter {
 
     /// Applies [`NodeMapGetter::new_id_of`] to each iterator item. Uses the iterator item (old) as a fallback
     /// if the mapping does not exist.
+    /// # Example
+    /// ```
+    /// use ugraphs::utils::*;
+    ///
+    /// let mapper = NodeMapper::identity(3);
+    /// let new_ids: Vec<_> = mapper.get_old_ids(vec![0, 1, 2]).collect();
+    /// assert_eq!(new_ids, vec![0, 1, 2]);
+    /// ```
     fn get_new_ids<'a, I>(&self, old_ids: I) -> NewIds<'_, Self, I>
     where
         I: IntoIterator<Item = Node> + 'a,
@@ -225,6 +260,15 @@ pub trait NodeMapGetter {
     }
 
     /// Applies [`NodeMapGetter::new_id_of`] to each iterator item and returns only items for which a mapping exists.
+    ///
+    /// # Example
+    /// ```
+    /// use ugraphs::utils::*;
+    ///
+    /// let mapper = NodeMapper::from_sequence(&[(1, 0), (2, 1)]);
+    /// let new_ids: Vec<_> = mapper.get_filtered_new_ids(vec![0, 1, 2]).collect();
+    /// assert_eq!(new_ids, vec![0, 1]);
+    /// ```
     fn get_filtered_new_ids<'a, I>(&self, old_ids: I) -> FilteredNewIds<'_, Self, I>
     where
         I: IntoIterator<Item = Node> + 'a,
@@ -239,6 +283,20 @@ pub trait NodeMapGetter {
 
     /// Create a 'copy' of type `GO` from the input graph where all nodes are relabelled according to this mapper.
     /// Any node `u` (and its incident edges) is dropped if there is no mapping.
+    ///
+    /// # Example
+    /// ```
+    /// use ugraphs::{prelude::*, utils::*};
+    ///
+    /// let g = AdjArray::from_edges(2, [(0, 1)]);
+    /// assert!(g.has_edge(0, 1));
+    /// assert!(!g.has_edge(1, 0));
+    ///
+    /// let mapper = NodeMapper::from_rank(&[1, 0]);
+    /// let gm: AdjMatrix = mapper.relabelled_graph_as(&g);
+    /// assert!(!gm.has_edge(0, 1));
+    /// assert!(gm.has_edge(1, 0));
+    /// ```
     fn relabelled_graph_as<GI, GO>(&self, input: &GI) -> GO
     where
         GI: GraphNodeOrder + AdjacencyList + GraphType,
@@ -285,13 +343,13 @@ pub trait NodeMapGetter {
 /// mapping and then the second in sequence.
 ///
 /// This is useful for building complex node reorderings step by step.
-pub trait Compose {
+pub trait NodeMapCompose {
     /// Takes two mappers `M1` (original -> intermediate) and `M2` (intermediate -> final)
     /// and produces a new mapper (original -> final). All mappings without a correspondence
     /// in the other mapper are dropped.
     ///
     /// # Example
-    /// ```rust
+    /// ```
     /// use ugraphs::utils::*;
     ///
     /// let mut m1 = NodeMapper::with_capacity(5);
@@ -305,12 +363,12 @@ pub trait Compose {
 }
 
 /// A trait for inverting a node mapping.
-pub trait Inverse {
+pub trait NodeMapInverse {
     /// Returns a new mapper where for each mapping `(a, b)` of the original,
     /// there exists a mapping `(b, a)` in the new mapper.
     ///
     /// # Example
-    /// ```rust
+    /// ```
     /// use ugraphs::utils::*;
     ///
     /// let mut mapper = NodeMapper::with_capacity(3);
@@ -401,7 +459,7 @@ impl NodeMapGetter for NodeMapper {
     }
 }
 
-impl Compose for NodeMapper {
+impl NodeMapCompose for NodeMapper {
     fn compose(first: &Self, second: &Self) -> Self {
         if first.is_identity {
             return second.clone();
@@ -421,7 +479,7 @@ impl Compose for NodeMapper {
     }
 }
 
-impl Inverse for NodeMapper {
+impl NodeMapInverse for NodeMapper {
     fn inverse(&self) -> Self {
         Self {
             old_to_new: self.new_to_old.clone(),
@@ -451,7 +509,7 @@ impl fmt::Debug for NodeMapper {
 /// A mapping based on the index order of nodes in a given iterator.
 ///
 /// Each node is assigned a new id based on its position in the sequence.
-/// Useful for compressing or reordering node identifiers.
+/// Less overhead than [`NodeMapper`] but only useful for complete (dense) mappings.
 #[derive(Clone)]
 pub struct IndexMapper {
     new_to_old: Vec<Node>,
@@ -460,6 +518,7 @@ pub struct IndexMapper {
 
 impl IndexMapper {
     /// Creates a new `IndexMapper` from two `Vec`-mappings.
+    /// Does not assert that these value are correct at runtime.
     pub fn from_vecs(old_to_new: Vec<Node>, new_to_old: Vec<Node>) -> Self {
         Self {
             old_to_new,

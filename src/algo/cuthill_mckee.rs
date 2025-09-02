@@ -12,6 +12,8 @@ use std::ops::Range;
 
 use itertools::Itertools;
 
+use crate::utils::set::NodeSet;
+
 use super::*;
 
 /// A trait implementing the **Cuthill–McKee algorithm** for undirected graphs.

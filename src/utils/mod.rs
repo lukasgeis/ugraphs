@@ -2,14 +2,15 @@
 # Utilities
 
 Provides a variety of utility traits/structs such as
-- [`SlicedBuffer`]: the internal representation for [`CsrGraph`](crate::repr::CsrGraph),
-- [`GeometricJumper`]: the generator for [`G(n,p)`](crate::gens::Gnp) graphs,
+- [`SlicedBuffer`](self::sliced_buffer::SlicedBuffer): the internal representation for [`CsrGraph`],
+- [`GeometricJumper`](self::geometric::GeometricJumper): the generator for [`G(n,p)`](crate::gens::Gnp) graphs,
 - abstractions over [`Set`] and [`Map`] for more flexibility in certain algorithms,
 - the `NodeMapper`-framework for mapping one graph to another (see [`NodeMapSetter`] / [`NodeMapGetter`]),
 - utility traits for combining multiple objects with less overhead.
 
 Apart from `Set, Map, NodeMapSetter, NodeMapGetter`, you probably do not need to interact with this module directly.
 */
+
 use std::{
     collections::{HashMap, HashSet},
     hash::RandomState,
@@ -18,17 +19,22 @@ use std::{
 use fxhash::{FxBuildHasher, FxHashMap, FxHashSet};
 use num::{One, Zero};
 
-mod geometric;
-mod multi_traits;
-mod node_mapper;
-mod set_map;
-mod sliced_buffer;
+use crate::prelude::*;
 
-pub use geometric::*;
-pub use multi_traits::*;
-pub use node_mapper::*;
-pub use set_map::*;
-pub use sliced_buffer::*;
+pub mod geometric;
+pub mod map;
+pub mod multi_traits;
+pub mod node_mapper;
+pub mod partition;
+pub mod set;
+pub mod sliced_buffer;
+
+// Only export most important traits / structs
+
+pub use map::Map;
+pub use node_mapper::{NodeMapCompose, NodeMapGetter, NodeMapInverse, NodeMapSetter, NodeMapper};
+pub use partition::{IntoPartition, Partition};
+pub use set::Set;
 
 use stream_bitset::{PrimIndex, bitset::BitSetImpl};
 
@@ -48,7 +54,11 @@ where
 }
 
 /// Helper trait for datastructure that can be initialized with capacity.
-/// Can be interpreted as reserved space or guaranteed used space
+/// Can be interpreted as reserved space or guaranteed used space.
+///
+/// Note that this should mainly be used in conjunction with either [`Set`] or [`Map`]
+/// datastructures and not synonym to common implementations (`Vec<T>` for example) treats
+/// total capacity differently normally than intended here when `Vec<T>` is used as `Map`.
 pub trait FromCapacity: Sized {
     /// Create a new instance with a given capacity
     fn from_capacity(capacity: usize) -> Self {
@@ -56,7 +66,11 @@ pub trait FromCapacity: Sized {
     }
 
     /// Creates a new instance from the total capacity (ie. max-value for example) and the actual
-    /// capacity that will be used (space-wise)
+    /// capacity that will be used (space-wise).
+    ///
+    /// While seeming complex, this method often defaults to using [`FromCapacity::from_capacity`]
+    /// with either `total` or `used`. If you only have one value as an upper bound, provide it as
+    /// both arguments if possible.
     fn from_total_used_capacity(total: usize, used: usize) -> Self;
 }
 

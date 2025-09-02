@@ -1,7 +1,7 @@
 /*!
-# Generalized Sets and Maps
+# Generalized Sets
 
-This module provides abstractions over `Set` and `Map` data structures, allowing algorithms
+This module provides abstractions over `Set` data structures, allowing algorithms
 to choose the most efficient implementation based on context.
 
 Examples:
@@ -11,12 +11,11 @@ Examples:
 
 The module includes:
 - [`Set<T>`]: trait for generic set-like operations
-- [`Map<K, V>`]: trait for generic map-like operations
-- Concrete implementations: `HashSet`, `BitSetImpl`, `NodeSet`, `EmptySet`, `HashMap`, `[Option<T>]`.
+- Concrete implementations: `HashSet`, `BitSetImpl`, `NodeSet`, `EmptySet`.
 */
 
 use std::{
-    collections::{HashMap, HashSet, hash_set::Iter},
+    collections::{HashSet, hash_set::Iter},
     hash::{BuildHasher, Hash},
     iter::{Cloned, Copied, Empty},
 };
@@ -280,85 +279,5 @@ impl<T> Set<T> for EmptySet {
 
     fn len(&self) -> usize {
         0
-    }
-}
-
-/// Minimalist trait for map-like collections.
-///
-/// Supports insertion, removal, lookup, clearing, and size queries.
-pub trait Map<K, V> {
-    /// Inserts an `(key, value)` pair into the map.
-    /// If the key was present before, returns the previous value, otherwise returns `None`.
-    fn insert(&mut self, key: K, value: V) -> Option<V>;
-
-    /// Removes a key from the map and returns the associated value if it existed.
-    fn remove(&mut self, key: &K) -> Option<V>;
-
-    /// Returns a reference to the value corresponding to the given key, or `None` if the key is not present.
-    fn get(&self, key: &K) -> Option<&V>;
-
-    /// Clears all elements from the map.
-    fn clear(&mut self);
-
-    /// Returns the number of elements currently stored in the map.
-    fn len(&self) -> usize;
-
-    /// Returns `true` if the map is empty. Default implementation uses `len()`.
-    fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-}
-
-impl<K, V, S> Map<K, V> for HashMap<K, V, S>
-where
-    K: Eq + Hash,
-    S: BuildHasher,
-{
-    fn insert(&mut self, key: K, value: V) -> Option<V> {
-        HashMap::insert(self, key, value)
-    }
-
-    fn remove(&mut self, key: &K) -> Option<V> {
-        HashMap::remove(self, key)
-    }
-
-    fn get(&self, key: &K) -> Option<&V> {
-        HashMap::get(self, key)
-    }
-
-    fn clear(&mut self) {
-        HashMap::clear(self)
-    }
-
-    fn len(&self) -> usize {
-        HashMap::len(self)
-    }
-}
-
-impl<I, T> Map<I, T> for [Option<T>]
-where
-    I: ToPrimitive,
-{
-    fn insert(&mut self, key: I, value: T) -> Option<T> {
-        let key = key.to_usize().unwrap();
-        self[key].replace(value)
-    }
-
-    fn remove(&mut self, key: &I) -> Option<T> {
-        let key = key.to_usize().unwrap();
-        self[key].take()
-    }
-
-    fn get(&self, key: &I) -> Option<&T> {
-        let key = key.to_usize().unwrap();
-        self[key].as_ref()
-    }
-
-    fn clear(&mut self) {
-        self.iter_mut().for_each(|x| *x = None);
-    }
-
-    fn len(&self) -> usize {
-        self.len()
     }
 }

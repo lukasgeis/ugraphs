@@ -1,5 +1,5 @@
 use super::*;
-use crate::{testing::test_graph_ops, utils::SlicedBuffer};
+use crate::{testing::test_graph_ops, utils::sliced_buffer::SlicedBuffer};
 use std::{iter::Copied, ops::Range, slice::Iter};
 use stream_bitset::{bitmask_stream::IntoBitmaskStream, bitset::BitsetStream};
 
