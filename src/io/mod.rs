@@ -29,14 +29,14 @@ To generalize over reading/writing:
 
 */
 
-mod dot;
-mod edge_list;
-mod header;
-mod metis;
+pub mod dot;
+pub mod edge_list;
+pub mod header;
+pub mod metis;
 
 use std::{
     fs::File,
-    io::{BufRead, BufReader, BufWriter, ErrorKind, Write},
+    io::{BufRead, BufReader, BufWriter, ErrorKind, Result, Write},
     path::Path,
     str::FromStr,
 };
@@ -47,8 +47,6 @@ pub use dot::*;
 pub use edge_list::*;
 pub use header::*;
 pub use metis::*;
-
-type Result<T> = std::io::Result<T>;
 
 /// Identifier for a graph file format.
 ///

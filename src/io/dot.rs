@@ -9,7 +9,7 @@
  Nodes are by default incremented by 1 (`0` → `u1`) to conform to typical Dot usage.
 
  Example usage:
- ```ignore
+ ```text
  let dot_writer = DotWriter::default();
  dot_writer.start_graph(&mut writer, true)?;
  dot_writer.write_edges(&mut writer, graph.edges(false), true, None)?;

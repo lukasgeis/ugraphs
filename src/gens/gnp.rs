@@ -70,7 +70,7 @@ enum GnpType {
 ///
 /// # Examples
 /// ```
-/// use ugraphs::{prelude::*, gens::*};
+/// use ugraphs::{prelude::*, gens::{*, gnp::*}};
 /// use rand::SeedableRng;
 /// use rand_pcg::Pcg64Mcg;
 ///
@@ -147,9 +147,9 @@ impl GraphGenerator for Gnp {
     /// Produces a lazily-evaluated iterator over randomly generated edges.
     ///
     /// Behavior depends on the configured probability:
-    /// - `p = 0.0` → no edges
-    /// - `p = 1.0` → all edges
-    /// - `0.0 < p < 1.0` → edges sampled via [`GeometricJumper`]
+    /// - `p = 0.0` -> no edges
+    /// - `p = 1.0` -> all edges
+    /// - `0.0 < p < 1.0` -> edges sampled via [`GeometricJumper`]
     ///
     /// # Panics
     /// - If node count `n` is zero
@@ -158,7 +158,7 @@ impl GraphGenerator for Gnp {
     ///
     /// # Example
     /// ```
-    /// use ugraphs::{prelude::*, gens::*};
+    /// use ugraphs::{prelude::*, gens::{*, gnp::*}};
     /// use rand::SeedableRng;
     /// use rand_pcg::Pcg64Mcg;
     ///

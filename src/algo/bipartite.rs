@@ -10,7 +10,7 @@ Functionality includes:
 - Editing a graph to remove edges that violate bipartiteness
 */
 
-use super::*;
+use super::{traversal::*, *};
 
 /// A trait for representing a bipartition of the node set.
 ///

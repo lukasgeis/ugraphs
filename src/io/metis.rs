@@ -430,7 +430,7 @@ pub trait MetisWrite {
     /// Returns an error if the file cannot be created or written to.
     ///
     /// # Example
-    /// ```ignore
+    /// ```text
     /// use ugraphs::prelude::*;
     /// use ugraphs::io::*;
     ///

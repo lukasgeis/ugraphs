@@ -10,31 +10,31 @@ and gain access to traversal, connectivity, matching, flow, and many other class
 If possible, algorithms are provided as **iterators**, making it easy to consume results lazily.
 */
 
-mod bipartite;
-mod bridges;
-mod connectivity;
-mod cuthill_mckee;
-mod distance_pairs;
-mod matching;
-mod network_flow;
-mod path_iterator;
-mod subgraph;
-mod traversal;
-mod vertex_cuts;
+pub mod bipartite;
+pub mod bridges;
+pub mod connectivity;
+pub mod cuthill_mckee;
+pub mod distance_pairs;
+pub mod matching;
+pub mod network_flow;
+pub mod path_iterator;
+pub mod subgraph;
+pub mod traversal;
+pub mod vertex_cuts;
 
 use crate::{prelude::*, utils::*};
 
-pub use bipartite::*;
-pub use bridges::*;
-pub use connectivity::*;
-pub use cuthill_mckee::*;
-pub use distance_pairs::*;
-pub use matching::*;
-pub use network_flow::*;
-pub use path_iterator::*;
-pub use subgraph::*;
-pub use traversal::*;
-pub use vertex_cuts::*;
+pub use bipartite::{BipartiteEdit, BipartiteTest, Bipartition};
+pub use bridges::Bridges;
+pub use connectivity::Connectivity;
+pub use cuthill_mckee::CuthillMcKee;
+pub use distance_pairs::DistancePairs;
+pub use matching::Matching;
+pub use network_flow::{MinVertexCut, STFlow};
+pub use path_iterator::PathIterator;
+pub use subgraph::{GraphConcat, Subgraph};
+pub use traversal::{RankFromOrder, Traversal};
+pub use vertex_cuts::ArticluationPoint;
 
 /// Most graph algorithms take an immutable reference to a graph while executing.
 /// This helper trait allows getting that reference.

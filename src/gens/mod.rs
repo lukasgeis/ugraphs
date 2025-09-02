@@ -34,16 +34,16 @@ use rand::Rng;
 
 use crate::prelude::*;
 
-mod gnm;
-mod gnp;
-mod mst;
-mod rhg;
-mod substructures;
+pub mod gnm;
+pub mod gnp;
+pub mod mst;
+pub mod rhg;
+pub mod substructures;
 
-pub use gnm::*;
-pub use gnp::*;
-pub use mst::*;
-pub use rhg::*;
+use gnm::*;
+use gnp::*;
+use mst::*;
+use rhg::*;
 pub use substructures::*;
 
 /// Trait for generators that allow specifying the number of nodes.
@@ -123,7 +123,7 @@ pub trait AverageDegreeGen: Sized {
 ///
 /// # Example
 /// ```
-/// use ugraphs::{prelude::*, gens::*};
+/// use ugraphs::{prelude::*, gens::{*, gnp::*}};
 /// use rand::SeedableRng;
 /// use rand_pcg::Pcg64Mcg;
 ///
@@ -156,7 +156,7 @@ pub trait GraphGenerator {
     ///
     /// # Example
     /// ```
-    /// use ugraphs::{prelude::*, gens::*};
+    /// use ugraphs::{prelude::*, gens::{*, gnp::*}};
     /// use rand::SeedableRng;
     /// use rand_pcg::Pcg64Mcg;
     ///

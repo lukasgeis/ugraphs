@@ -10,7 +10,7 @@ each line representing a directed edge as `u v`. Nodes in the file are
 Lines starting with a comment identifier (default `"c"`) are ignored.
 
 Example usage:
-```ignore
+```text
 use ugraphs::prelude::*;
 use ugraphs::io::*;
 

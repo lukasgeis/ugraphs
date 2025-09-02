@@ -577,7 +577,7 @@ impl RankingForwardMapper {
     /// The resulting mapping assigns lower new ids to nodes ranked earlier.
     ///
     /// # Example
-    /// ```ignore
+    /// ```text
     /// let mapper = RankingForwardMapper::from_graph_sort_by(&graph, |a, b| degree[a].cmp(&degree[b]));
     /// ```
     pub fn from_graph_sort_by<G, F>(graph: &G, mut compare: F) -> Self
@@ -597,7 +597,7 @@ impl RankingForwardMapper {
     /// Nodes with smaller keys receive smaller new ids.
     ///
     /// # Example
-    /// ```ignore
+    /// ```text
     /// let mapper = RankingForwardMapper::from_graph_sort_by_key(&graph, |u| weight[u]);
     /// ```
     pub fn from_graph_sort_by_key<G, F, K>(graph: &G, mut key: F) -> Self
@@ -616,7 +616,7 @@ impl RankingForwardMapper {
     /// Nodes with larger keys receive smaller new ids.
     ///
     /// # Example
-    /// ```ignore
+    /// ```text
     /// let mapper = RankingForwardMapper::from_graph_sort_by_key_reverse(&graph, |u| centrality[u]);
     /// ```
     pub fn from_graph_sort_by_key_reverse<G, F, K>(graph: &G, mut key: F) -> Self

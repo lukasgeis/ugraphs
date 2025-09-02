@@ -15,7 +15,7 @@ use std::iter::FusedIterator;
 
 use itertools::Itertools;
 
-use super::*;
+use super::{traversal::*, *};
 
 /// A trait providing algorithms for analyzing connectivity in graphs.
 ///

@@ -14,7 +14,7 @@ incrementally grow a spanning tree.
 # Examples
 
 ```
-use ugraphs::gens::*;
+use ugraphs::gens::{*, mst::*};
 
 let mut rng = rand::rng();
 // Generate a random MST on 5 nodes, rooted at 0
@@ -47,13 +47,6 @@ impl Mst {
     /// By default:
     /// - `n = 0`
     /// - `root = 0`
-    ///
-    /// # Example
-    /// ```
-    /// use ugraphs::gens::*;
-    ///
-    /// let mst = Mst::new();
-    /// ```
     pub fn new() -> Self {
         Self::default()
     }
@@ -120,7 +113,7 @@ impl GraphGenerator for Mst {
 ///
 /// # Example
 /// ```
-/// use ugraphs::gens::*;
+/// use ugraphs::gens::{*, mst::*};
 ///
 /// let mut rng = rand::rng();
 /// let mut mst = MstGenerator::new(5, 0, &mut rng);

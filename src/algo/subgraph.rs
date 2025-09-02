@@ -136,7 +136,7 @@ where
 /// Each input graph is copied into the new graph, with all node IDs
 /// shifted to avoid collisions. This allows concatenating graphs into
 /// a single larger graph where their node sets are disjoint.
-pub trait Concat {
+pub trait GraphConcat {
     /// Concatenates a collection of graphs into one disjoint union graph.
     ///
     /// Node relabeling rule:  
@@ -158,7 +158,7 @@ pub trait Concat {
         T: IntoIterator<Item = &'a IG> + Clone;
 }
 
-impl<G> Concat for G
+impl<G> GraphConcat for G
 where
     G: GraphFromScratch + GraphType,
 {

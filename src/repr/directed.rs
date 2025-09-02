@@ -1,7 +1,9 @@
 use stream_bitset::{bitset::BitsetStream, prelude::IntoBitmaskStream};
 
+use std::ops::Range;
+
 use crate::{
-    repr::macros::{impl_common_graph_ops, impl_try_add_edge},
+    repr::neighborhood::macros::{impl_common_graph_ops, impl_try_add_edge},
     testing::test_graph_ops,
 };
 

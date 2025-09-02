@@ -1,7 +1,9 @@
 use crate::{
-    repr::macros::{impl_common_graph_ops, impl_try_add_edge},
+    repr::neighborhood::macros::{impl_common_graph_ops, impl_try_add_edge},
     testing::test_graph_ops,
 };
+
+use std::ops::Range;
 
 use super::*;
 

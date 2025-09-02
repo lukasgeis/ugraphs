@@ -26,7 +26,7 @@ the algorithms in this module are based on **flow-based methods** (Edmonds–Kar
 - Analysis of connectivity and disjoint paths in directed graphs.
 */
 
-use super::*;
+use super::{traversal::*, *};
 use num::Integer;
 use rand::Rng;
 use std::{collections::HashSet, ops::Range};
