@@ -1,15 +1,34 @@
+/*!
+# Cuthill–McKee Ordering
+
+Provides an implementation of the **Cuthill–McKee algorithm** for
+relabeling the nodes of an undirected graph to reduce the bandwidth
+of its adjacency matrix. This reordering can improve cache
+efficiency and performance in algorithms that depend on adjacency
+traversal.
+*/
+
 use std::ops::Range;
 
 use itertools::Itertools;
 
 use super::*;
 
+/// A trait implementing the **Cuthill–McKee algorithm** for undirected graphs.
+///
+/// The algorithm finds an ordering of nodes that reduces the bandwidth
+/// of the adjacency matrix. Nodes of degree zero (singletons) are not
+/// mapped.
 pub trait CuthillMcKee: GraphType<Dir = Undirected> {
-    /// some text that i am writing here until the line no longer supports this many characters or
-    /// I
-    /// Computes a node label mapping intended to minimize the bandwidth of the graph's adjacency
-    /// matrix. This can might improve performance down the road as it may reduce the cache misses
-    /// when working with the algorithm. The algorithm does not map singleton nodes (degree = 0).
+    /// Computes a node relabeling intended to minimize the adjacency
+    /// matrix bandwidth.
+    ///
+    /// This method runs the Cuthill–McKee algorithm and returns only
+    /// the node mapping.
+    ///
+    /// # Returns
+    /// A node mapping `M` where each original node is mapped to its new ID.
+    /// Singleton nodes (degree 0) are not included in the mapping.
     fn cuthill_mckee<M>(&self) -> M
     where
         M: NodeMapGetter + NodeMapSetter,
@@ -17,10 +36,18 @@ pub trait CuthillMcKee: GraphType<Dir = Undirected> {
         self.cuthill_mckee_cc(false).0
     }
 
-    /// Same as `cuthill_mckee`, but also returns a vector of all non-trivial connected components
-    /// (i.e. ccs with at least 2 nodes) if requested.
+    /// Computes the Cuthill–McKee node mapping and optionally collects
+    /// the connected components found along the way.
     ///
-    /// `return_ccs = false` implies that the vector returns is empty and of capacity 0.
+    /// # Arguments
+    /// - `return_ccs`: If `true`, also return all non-trivial connected
+    ///   components (size ≥ 2) as contiguous node ID ranges.  
+    ///   If `false`, the returned vector is empty and has capacity 0.
+    ///
+    /// # Returns
+    /// A pair `(mapping, components)`:
+    /// - `mapping`: Node mapping produced by the algorithm
+    /// - `components`: Vector of node ID ranges, one per connected component
     fn cuthill_mckee_cc<M>(&self, return_ccs: bool) -> (M, Vec<Range<Node>>)
     where
         M: NodeMapGetter + NodeMapSetter;

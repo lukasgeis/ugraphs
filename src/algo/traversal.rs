@@ -1,3 +1,20 @@
+/*!
+Graph traversal algorithms and traversal-derived utilities.
+
+This module provides:
+- Generic traversal iterators (BFS, DFS, with and without predecessor tracking).
+- Abstractions (`TraversalSearch`, `TraversalTree`, `RankFromOrder`) that
+  turn traversals into useful structures such as parent arrays, rankings,
+  or depth arrays.
+- Topological ordering for directed acyclic graphs.
+- A high-level `Traversal` trait that exposes traversal algorithms
+  directly as methods on graph data structures.
+
+The implementation emphasizes composability: traversal iterators can be
+combined, filtered, or extended with additional state while still being
+efficient and lazy.
+*/
+
 use super::*;
 use std::{collections::VecDeque, marker::PhantomData};
 
@@ -52,9 +69,13 @@ impl SequencedItem for PredecessorOfNode {
     fn new_without_predecessor(item: Node) -> Self {
         (item, item)
     }
+
+    /// Returns the node represented by this item.
     fn item(&self) -> Node {
         self.1
     }
+
+    /// Returns the predecessor of this node in the traversal tree, if any.
     fn predecessor(&self) -> Option<Node> {
         if self.0 == self.1 { None } else { Some(self.0) }
     }
@@ -111,7 +132,12 @@ where
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////////////// BFS & DFS
+/// Generic traversal iterator supporting BFS and DFS variants.
+///
+/// Maintains an explicit "frontier" (queue or stack) of nodes to visit,
+/// a set of visited nodes, and optionally records predecessor information.
+/// Parameterized by the container type for the frontier and the type of
+/// items yielded (either `Node` or `PredecessorOfNode`).
 pub struct TraversalSearch<'a, G, S, I, V>
 where
     G: AdjacencyList,
@@ -129,10 +155,21 @@ where
 pub type BFSWithSet<'a, G, V> = TraversalSearch<'a, G, VecDeque<Node>, Node, V>;
 pub type DFSWithSet<'a, G, V> = TraversalSearch<'a, G, Vec<Node>, Node, V>;
 
+/// A BFS traversal iterator over the graph, visiting nodes in
+/// breadth-first order from a given starting node.
 pub type BFS<'a, G> = TraversalSearch<'a, G, VecDeque<Node>, Node, NodeBitSet>;
+
+/// A DFS traversal iterator over the graph, visiting nodes in
+/// depth-first order from a given starting node.
 pub type DFS<'a, G> = TraversalSearch<'a, G, Vec<Node>, Node, NodeBitSet>;
+
+/// A BFS traversal iterator that records predecessor information,
+/// producing a spanning tree of the search.
 pub type BFSWithPredecessor<'a, G> =
     TraversalSearch<'a, G, VecDeque<PredecessorOfNode>, PredecessorOfNode, NodeBitSet>;
+
+/// A DFS traversal iterator that records predecessor information,
+/// producing a spanning tree of the search.
 pub type DFSWithPredecessor<'a, G> =
     TraversalSearch<'a, G, Vec<PredecessorOfNode>, PredecessorOfNode, NodeBitSet>;
 
@@ -143,6 +180,7 @@ where
     I: SequencedItem,
     V: Set<Node>,
 {
+    /// Returns the graph being traversed.
     fn graph(&self) -> &G {
         self.graph
     }
@@ -202,6 +240,10 @@ where
     I: SequencedItem,
     V: Set<Node> + FromCapacity,
 {
+    /// Creates a new traversal iterator starting from `start`.
+    ///
+    /// - `graph`: The graph to traverse.
+    /// - `start`: The starting node.
     pub fn new(graph: &'a G, start: Node) -> Self {
         let len = graph.len();
         let mut visited = V::from_total_used_capacity(len, len);
@@ -244,6 +286,7 @@ where
         self.stop_at = Some(stopper);
     }
 
+    /// Sets a stopper node. If this node is reached, the iterator returns it and afterwards only None.
     pub fn stop_at(mut self, stopper: Node) -> Self {
         self.set_stop_at(stopper);
         self
@@ -301,14 +344,21 @@ where
     }
 }
 
-//////////////////////////////////////////////////////////////////////////////////////// Convenience
+/// Extension trait for traversal iterators that allows computing a ranking (iteration order)
+/// of the nodes in the graph.
 pub trait RankFromOrder<'a, G>: WithGraphRef<G> + Iterator<Item = Node> + Sized
 where
     G: 'a + AdjacencyList,
 {
-    /// Consumes a graph traversal iterator and returns a mapping, where the i-th
-    /// item contains the rank (starting from 0) as which it was iterated over.
-    /// Returns None iff not all nodes were iterated
+    /// Consumes the traversal iterator and produces a vector `ranking` where
+    /// `ranking[u]` gives the position (rank, starting at 0) at which node `u`
+    /// was visited.
+    ///
+    /// - Returns `Some(ranking)` if **all nodes of the graph** were visited.
+    /// - Returns `None` if the iterator did not cover every node.
+    ///
+    /// # Panics
+    /// Panics if the iterator yields the same node more than once.
     fn ranking(mut self) -> Option<Vec<Node>> {
         let mut ranking = vec![INVALID_NODE; self.graph().len()];
         let mut rank: Node = 0;
@@ -335,15 +385,21 @@ where
 {
 }
 
+/// Extension trait for traversal iterators that return `PredecessorOfNode`,
+/// enabling extraction of the implied spanning tree structure (parents, depths).
 pub trait TraversalTree<'a, G>:
     WithGraphRef<G> + Iterator<Item = PredecessorOfNode> + Sized
 where
     G: 'a + AdjacencyList,
 {
-    /// Consumes the underlying graph traversal iterator and records the implied tree structure
-    /// into an parent-array, i.e. `result[i]` stores the predecessor of node `i`. It is the
-    /// calling code's responsibility to ensure that the slice `tree` is sufficiently large to
-    /// store all reachable nodes (i.e. in general of size at least `graph.len()`).
+    /// Consumes the iterator and records the parent of each node in the implied
+    /// traversal tree into the provided slice `tree`.
+    ///
+    /// - For each visited node `v`, `tree[v]` is set to its predecessor.
+    /// - Unvisited entries remain unchanged.
+    ///
+    /// # Requirements
+    /// - `tree.len()` must be at least `graph.len()`.
     fn parent_array_into(&mut self, tree: &mut [Node]) {
         for pred_with_item in self.by_ref() {
             if let Some(p) = pred_with_item.predecessor() {
@@ -352,18 +408,23 @@ where
         }
     }
 
-    /// Calls allocates a vector of size `graph.len()` and calls `self.parent_array_into` on it.
-    /// Unvisited nodes have themselves as parents.
+    /// Constructs a fresh parent array of size `graph.len()` where
+    /// each node is initially set to be its own parent.
+    /// Then fills in the traversal tree structure using `parent_array_into`.
     fn parent_array(&mut self) -> Vec<Node> {
         let mut tree: Vec<_> = self.graph().vertices_range().collect();
         self.parent_array_into(&mut tree);
         tree
     }
 
-    /// Consumes the underlying graph traversal iterator and depth of nodes in the implied
-    /// tree structure, i.e. `result[i]` stores the depth of node `i` where a root has depth 0.
-    /// It is the calling code's responsibility to ensure that the slice `depths` is sufficiently
-    /// large to store all reachable nodes (i.e. in general of size at least `graph.len()`).
+    /// Consumes the iterator and computes the depth of each visited node in
+    /// the traversal tree (root depth = 0).
+    ///
+    /// - For each visited node `v`, `depths[v]` is set accordingly.
+    /// - Unvisited entries remain unchanged.
+    ///
+    /// # Requirements
+    /// - `depths.len()` must be at least `graph.len()`.
     fn depths_into(&mut self, depths: &mut [Node]) {
         for pred_with_item in self.by_ref() {
             depths[pred_with_item.item() as usize] = pred_with_item
@@ -372,8 +433,8 @@ where
         }
     }
 
-    /// Calls allocates a vector of size `graph.len()` and calls `self.parent_array_into` on it.
-    /// Unvisited nodes have themselves as parents.
+    /// Constructs a fresh depth array of size `graph.len()` initialized with 0.
+    /// Then fills in the traversal tree depths using `depths_into`.
     fn depths(&mut self) -> Vec<Node> {
         let mut depths: Vec<_> = vec![0; self.graph().number_of_nodes() as usize];
         self.depths_into(&mut depths);
@@ -389,7 +450,13 @@ where
 {
 }
 
-///////////////////////////////////////////////////////////////////////////////////////// TopoSearch
+/// Iterator implementing topological ordering over a directed acyclic graph (DAG).
+///
+/// Uses a variant of Kahn's algorithm:
+/// - Initializes with all nodes of in-degree 0.
+/// - Repeatedly removes a node, decreasing in-degrees of its successors,
+///   and enqueues new nodes of in-degree 0.
+/// - Stops once all nodes are output or a cycle is detected.
 pub struct TopoSearch<'a, G> {
     graph: &'a G,
     in_degs: Vec<Node>,
@@ -411,6 +478,11 @@ where
 {
     type Item = Node;
 
+    /// Returns the next node in topological order, if available.
+    ///
+    /// - Each returned node is guaranteed to appear after all its predecessors.
+    /// - If the graph has a cycle, iteration will terminate early without
+    ///   covering all nodes.
     fn next(&mut self) -> Option<Self::Item> {
         let u = self.stack.pop()?;
 
@@ -433,6 +505,9 @@ impl<'a, G> TopoSearch<'a, G>
 where
     G: DirectedAdjacencyList,
 {
+    /// Constructs a new topological search on the given directed graph,
+    /// initializing in-degree counts and collecting the initial set of
+    /// zero in-degree nodes.
     fn new(graph: &'a G) -> Self {
         // add an in_degree getter to each graph?
         let mut in_degs: Vec<Node> = vec![0; graph.len()];
@@ -459,32 +534,36 @@ where
 
 impl<'a, G> RankFromOrder<'a, G> for TopoSearch<'a, G> where G: DirectedAdjacencyList {}
 
-/// Offers graph traversal algorithms as methods of the graph representation
+/// Provides convenient traversal methods (BFS, DFS, topological order, etc.)
 pub trait Traversal: AdjacencyList + Sized {
-    /// Returns an iterator traversing nodes reachable from `start` in breadth-first-search order
+    /// Returns an iterator that traverses nodes reachable from `start`
+    /// in **breadth-first search (BFS) order**.
     fn bfs(&self, start: Node) -> BFS<'_, Self> {
         BFS::new(self, start)
     }
 
-    /// Returns an iterator traversing nodes reachable from `start` in depth-first-search order
+    /// Returns an iterator that traverses nodes reachable from `start`
+    /// in **breadth-first search (BFS) order**.
     fn dfs(&self, start: Node) -> DFS<'_, Self> {
         DFS::new(self, start)
     }
 
-    /// Returns an iterator traversing nodes reachable from `start` in breadth-first-search order
-    /// The items returned are the edges taken
+    /// Returns a BFS iterator starting from `start` that additionally
+    /// yields the predecessor relation (edges traversed).
     fn bfs_with_predecessor(&self, start: Node) -> BFSWithPredecessor<'_, Self> {
         BFSWithPredecessor::new(self, start)
     }
 
-    /// Returns an iterator traversing nodes reachable from `start` in depth-first-search order
-    /// The items returned are the edges taken
+    /// Returns a DFS iterator starting from `start` that additionally
+    /// yields the predecessor relation (edges traversed).
     fn dfs_with_predecessor(&self, start: Node) -> DFSWithPredecessor<'_, Self> {
         DFSWithPredecessor::new(self, start)
     }
 
-    /// Returns an iterator traversing nodes in acyclic order. The iterator stops prematurely
-    /// iff the graph is not acyclic (see `is_acyclic`); only implemented for directed graphs
+    /// Returns an iterator yielding nodes in a valid **topological order**.
+    ///
+    /// - Only available for directed graphs.
+    /// - Terminates early if the graph contains a cycle.
     fn topo_search(&self) -> TopoSearch<'_, Self>
     where
         Self: DirectedAdjacencyList,
@@ -492,8 +571,10 @@ pub trait Traversal: AdjacencyList + Sized {
         TopoSearch::new(self)
     }
 
-    /// Returns true iff the graph is acyclic, i.e. there exists a order f of nodes, such that
-    /// for all edge (u, v) we have f(u) < f(v); only implemented for directed graphs
+    /// Returns `true` if the directed graph is **acyclic**.
+    ///
+    /// Implementation: runs a topological search and checks whether
+    /// all nodes were output.
     fn is_acyclic(&self) -> bool
     where
         Self: DirectedAdjacencyList,
@@ -501,8 +582,11 @@ pub trait Traversal: AdjacencyList + Sized {
         self.topo_search().count() == self.len()
     }
 
-    /// Returns true iff there exists a directed path from u to u itself, i.e. if u is part of a
-    /// non-trivial SCC; only implemented for directed graphs
+    /// Returns `true` if node `u` lies on a directed cycle
+    /// (i.e. if there is a non-trivial strongly connected component
+    /// containing `u`).
+    ///
+    /// Only available for directed graphs.
     fn is_node_on_cycle(&self, u: Node) -> bool
     where
         Self: GraphType<Dir = Directed>,
@@ -510,11 +594,13 @@ pub trait Traversal: AdjacencyList + Sized {
         self.bfs(u).is_node_reachable(u)
     }
 
-    /// Returns true iff there exists a directed path from u to u itself without using any nodes in
-    /// deleted. The method ignores a potential entry u in deleted, i.e. behaves as if it were not
-    /// in deleted.
+    /// Returns `true` if node `u` lies on a directed cycle **after
+    /// removing the given set of nodes** from the graph.
     ///
-    /// Only implemented for directed graphs
+    /// - `deleted` specifies nodes to exclude from the search.
+    /// - If `u` itself is in `deleted`, it is treated as if it were not.
+    ///
+    /// Only available for directed graphs.
     fn is_node_on_cycle_after_deleting<I>(&self, u: Node, deleted: I) -> bool
     where
         I: IntoIterator<Item = Node>,
@@ -525,7 +611,15 @@ pub trait Traversal: AdjacencyList + Sized {
             .is_node_reachable(u)
     }
 
-    /// Computes the shortest path from `start` to `end` using BFS and returns the path if it exists.
+    /// Computes the **shortest path** from `start` to `end` using BFS.
+    ///
+    /// - Returns `Some(path)` if a path exists, where `path` is the sequence
+    ///   of intermediate nodes (excluding `start`, ending before `end`).
+    /// - Returns `None` if no path exists.
+    ///
+    /// # Note
+    /// This method uses BFS with explicit predecessor tracking to reconstruct
+    /// the path.
     fn shortest_path<S, M>(&self, start: Node, end: Node) -> Option<Vec<Node>>
     where
         S: Set<Node> + FromCapacity,

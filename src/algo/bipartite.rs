@@ -1,9 +1,28 @@
+/*!
+# Bipartite Graph Algorithms
+
+This module provides traits and algorithms for working with **bipartite graphs**.
+
+Functionality includes:
+- Defining and handling bipartitions of a graph
+- Testing whether a graph is bipartite
+- Computing a valid bipartition if one exists
+- Editing a graph to remove edges that violate bipartiteness
+*/
+
 use super::*;
 
-/// We define a Bipartition over a set of nodes where nodes in the Set are considered to be on the
-/// 'right' (1) side whereas nodes not in the Set are considered to be on the 'left' (0) side.
+/// A trait for representing a bipartition of the node set.
+///
+/// - Nodes in the set are considered to be on the **right** (1) side  
+/// - Nodes not in the set are considered to be on the **left** (0) side
+///
+/// Provides convenience methods to check the side of a node.
 pub trait Bipartition: Set<Node> {
+    /// Returns `true` if the node is on the left (0) side of the partition.
     fn is_on_left_side(&self, u: Node) -> bool;
+
+    /// Returns `true` if the node is on the right (1) side of the partition.
     fn is_on_right_side(&self, u: Node) -> bool;
 }
 
@@ -22,6 +41,12 @@ where
     }
 }
 
+/// A trait for testing and computing bipartitions in graphs.
+///
+/// Provides methods to:
+/// - Verify whether a given bipartition is valid
+/// - Compute a bipartition of the graph, if one exists
+/// - Test whether the graph is bipartite
 pub trait BipartiteTest {
     /// Tests whether the given candidate partition is a valid bipartition.
     fn is_bipartition<B>(&self, bipartition: &B) -> bool
@@ -29,11 +54,15 @@ pub trait BipartiteTest {
         B: Bipartition;
 
     /// Computes a valid bipartition of the graph, if one exists.
+    /// Returns `None` if the graph is not bipartite.
     fn compute_bipartition<B>(&self) -> Option<B>
     where
         B: Bipartition + FromCapacity;
 
     /// Tests whether the graph is bipartite.
+    ///
+    /// This is equivalent to checking whether `compute_bipartition` succeeds
+    /// when using `NodeBitSet` as the underlying bipartition representation.
     fn is_bipartite(&self) -> bool {
         self.compute_bipartition::<NodeBitSet>().is_some()
     }
@@ -60,8 +89,12 @@ where
     }
 }
 
+/// A trait for editing graphs with respect to bipartitions.
+///
+/// Provides methods to enforce bipartiteness by removing edges that connect nodes
+/// within the same side of a bipartition.
 pub trait BipartiteEdit {
-    /// Remove all edges that connect nodes in the same partition.
+    /// Removes all edges that connect nodes within the same bipartition class.
     fn remove_edges_within_bipartition_class<B>(&mut self, bipartition: &B)
     where
         B: Bipartition;
@@ -83,8 +116,12 @@ where
     }
 }
 
-// Compute a bipartition of `graph` if `graph` is bipartite; otherwise an arbitrary
-// partition is returned
+/// Computes a candidate bipartition of the graph using BFS traversal.
+///
+/// - If the graph is bipartite, the returned partition is valid
+/// - If the graph is not bipartite, the returned partition may be invalid
+///
+/// Used internally as a heuristic before validation.
 fn propose_possibly_illegal_bipartition<G, B>(graph: &G) -> B
 where
     G: AdjacencyList,

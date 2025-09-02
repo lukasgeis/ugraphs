@@ -1,20 +1,69 @@
+/*!
+# Partitioning of Nodes
+
+This module provides data structures and utilities to partition the nodes of a graph
+into disjoint **classes** (also called "blocks" or "subsets").
+
+A partition is a common concept in graph algorithms, e.g.:
+
+- Strongly Connected Components (SCCs)
+- Bipartite classes
+- Communities in clustering
+
+The [`Partition`] struct allows:
+- Creating and managing classes of nodes
+- Moving nodes between classes
+- Querying class membership
+- Splitting a graph into subgraphs along partition boundaries
+
+Helper traits like [`IntoPartition`] simplify construction from higher-level
+representations (e.g. collections of node sets).
+
+# Example
+
+```rust
+use ugraphs::algo::Partition;
+
+let mut part = Partition::new(5);
+
+// Add first class with nodes 0, 1
+let c0 = part.add_class([0, 1]);
+
+// Add second class with nodes 2, 3
+let c1 = part.add_class([2, 3]);
+
+// Move node 4 into class 0
+part.move_node(4, c0);
+
+assert_eq!(part.number_of_classes(), 2);
+assert_eq!(part.number_in_class(c0), 3);
+assert_eq!(part.class_of_edge(0, 4), Some(c0));
+```
+*/
+
 use std::{iter::Enumerate, slice::Iter};
 
 use itertools::Itertools;
 
 use super::*;
 
-/// Internally, we store PartitionClasses as Options whereas we expose NumNodes as PartitionClasses
-/// to the user
+/// Internally, we store PartitionClasses as Options whereas we expose NumNodes as PartitionClasses to the user
 type PartitionClass = NumNodes;
 
-/// A partition splits a graph into node-disjoint substructures (think SCCs, bipartite classes, etc)
+/// Represents a **partition** of the node set into disjoint classes.
+///
+/// Each node can belong to at most one class, or remain **unassigned**.
+/// Classes are internally identified by integer IDs and stored along with
+/// their sizes.
 pub struct Partition {
     classes: Vec<Option<OptionalNode>>,
     class_sizes: Vec<NumNodes>,
     unassigned: NumNodes,
 }
 
+/// Iterator over the members of a single partition class.
+///
+/// Returned by [`Partition::members_of_class`].
 pub struct ClassMemberIter<'a> {
     classes: Enumerate<Iter<'a, Option<OptionalNode>>>,
     class_id: Option<OptionalNode>,
@@ -31,7 +80,16 @@ impl<'a> Iterator for ClassMemberIter<'a> {
 }
 
 impl Partition {
-    /// Creates a partition for `nodes` nodes which are initially all unassigned
+    /// Creates a new partition over `nodes` nodes, all initially unassigned.
+    ///
+    /// # Example
+    /// ```rust
+    /// use ugraphs::algo::Partition;
+    ///
+    /// let part = Partition::new(4);
+    /// assert_eq!(part.number_of_unassigned(), 4);
+    /// assert_eq!(part.number_of_classes(), 0);
+    /// ```
     pub fn new(nodes: Node) -> Self {
         Self {
             classes: vec![None; nodes as usize],
@@ -40,8 +98,24 @@ impl Partition {
         }
     }
 
-    /// Creates a new partition class and assigns all provided nodes to it; we require that these
-    /// nodes were previously unassigned.
+    /// Creates a new class and assigns the given nodes to it.
+    ///
+    /// All nodes must be **previously unassigned**.
+    /// Returns the new class identifier.
+    ///
+    /// # Panics
+    /// - If any provided node was already assigned to another class.
+    ///
+    /// # Example
+    /// ```rust
+    /// use ugraphs::algo::Partition;
+    ///
+    /// let mut part = Partition::new(4);
+    /// let c0 = part.add_class([0, 1]);
+    ///
+    /// assert_eq!(part.number_in_class(c0), 2);
+    /// assert_eq!(part.number_of_unassigned(), 2);
+    /// ```
     pub fn add_class<I>(&mut self, nodes: I) -> PartitionClass
     where
         I: IntoIterator<Item = Node>,
@@ -63,7 +137,22 @@ impl Partition {
         raw_class_id as NumNodes
     }
 
-    /// Moves node into an existing partition class. The node may or may not have been previously assigned.
+    /// Moves a node into an existing partition class.
+    ///
+    /// - If the node was already in a class, it is removed from its old class.
+    /// - If the node was unassigned, it becomes assigned.
+    ///
+    /// # Example
+    /// ```rust
+    /// use ugraphs::algo::Partition;
+    ///
+    /// let mut part = Partition::new(3);
+    /// let c0 = part.add_class([0]);
+    /// let c1 = part.add_class([1]);
+    ///
+    /// part.move_node(2, c0);
+    /// assert_eq!(part.class_of_node(2), Some(c0));
+    /// ```
     pub fn move_node(&mut self, node: Node, new_class: PartitionClass) {
         if let Some(old_class) = self.classes[node as usize].map(|old_class| old_class.get()) {
             self.class_sizes[old_class as usize] -= 1;
@@ -74,25 +163,47 @@ impl Partition {
         self.class_sizes[new_class as usize] += 1;
     }
 
-    /// Returns the class identifier of node `node` or `None` if `node` is unassigned
+    /// Returns the class identifier of a node, or `None` if the node is unassigned.
+    ///
+    /// # Example
+    /// ```rust
+    /// use ugraphs::algo::Partition;
+    ///
+    /// let mut part = Partition::new(2);
+    /// let c0 = part.add_class([0]);
+    ///
+    /// assert_eq!(part.class_of_node(0), Some(c0));
+    /// assert_eq!(part.class_of_node(1), None);
+    /// ```
     pub fn class_of_node(&self, node: Node) -> Option<PartitionClass> {
         self.classes[node as usize].map(|class| class.get() as NumNodes)
     }
 
-    /// Returns the class identifier if both nodes `u` and `v` are assigned to the same class
-    /// and `None` otherwise.
+    /// Returns the class identifier if both endpoints of an edge belong
+    /// to the same class, or `None` otherwise.
+    ///
+    /// # Example
+    /// ```rust
+    /// use ugraphs::algo::Partition;
+    ///
+    /// let mut part = Partition::new(3);
+    /// let c0 = part.add_class([0, 1]);
+    ///
+    /// assert_eq!(part.class_of_edge(0, 1), Some(c0));
+    /// assert_eq!(part.class_of_edge(1, 2), None);
+    /// ```
     pub fn class_of_edge(&self, u: Node, v: Node) -> Option<PartitionClass> {
         let cu = self.class_of_node(u)?;
         let cv = self.class_of_node(v)?;
         if cu == cv { Some(cu) } else { None }
     }
 
-    /// Returns the number of unassigned nodes
+    /// Returns the number of currently unassigned nodes.
     pub fn number_of_unassigned(&self) -> NumNodes {
         self.unassigned
     }
 
-    /// Returns the number of nodes in class `class_id`
+    /// Returns the number of nodes in the specified class.
     pub fn number_in_class(&self, class_id: PartitionClass) -> NumNodes {
         self.class_sizes[class_id as usize]
     }
@@ -102,11 +213,22 @@ impl Partition {
         self.class_sizes.len() as NumNodes
     }
 
-    /// Returns the members of a partition class in order.
+    /// Returns an iterator over all members of a given class.
     ///
     /// # Warning
-    /// This operation is expensive and requires time linear in the total number of nodes, i.e. it
-    /// is roughly independent of the actual size of partition class `class_id`.
+    /// This operation is **linear in the total number of nodes**,
+    /// not the size of the class itself.
+    ///
+    /// # Example
+    /// ```rust
+    /// use ugraphs::algo::Partition;
+    ///
+    /// let mut part = Partition::new(3);
+    /// let c0 = part.add_class([0, 2]);
+    ///
+    /// let members: Vec<_> = part.members_of_class(c0).collect();
+    /// assert_eq!(members, vec![0, 2]);
+    /// ```
     pub fn members_of_class(&self, class_id: Node) -> ClassMemberIter<'_> {
         let class = OptionalNode::new(class_id);
         assert!(self.class_sizes.len() > class_id as usize);
@@ -116,8 +238,29 @@ impl Partition {
         }
     }
 
-    /// Splits the input graph `graph` (has to have the same number of nodes as `self`) into
-    /// one subgraph per partition class; the `result[i]` corresponds to partition class `i`.
+    /// Splits the graph into one subgraph per partition class.
+    ///
+    /// - The input graph must have the same number of nodes as the partition.
+    /// - Returns a vector where `result[i]` corresponds to the subgraph induced
+    ///   by class `i` and its node mapping.
+    ///
+    /// # Example
+    /// ```rust
+    /// use ugraphs::{prelude::*, algo::Partition, utils::NodeMapper};
+    ///
+    /// let mut g = AdjArray::new(4);
+    /// g.add_edge(0, 1);
+    /// g.add_edge(2, 3);
+    ///
+    /// let mut part = Partition::new(4);
+    /// part.add_class([0, 1]);
+    /// part.add_class([2, 3]);
+    ///
+    /// let subs = part.split_into_subgraphs_as::<_, AdjArray, NodeMapper>(&g);
+    /// assert_eq!(subs.len(), 2);
+    /// assert_eq!(subs[0].0.len(), 2);
+    /// assert_eq!(subs[1].0.len(), 2);
+    /// ```
     pub fn split_into_subgraphs_as<GI, GO, M>(&self, graph: &GI) -> Vec<(GO, M)>
     where
         GI: AdjacencyList,
@@ -176,6 +319,7 @@ impl Partition {
     }
 
     /// Shorthand for [`Partition::split_into_subgraphs_as`]
+    /// using the same graph type and [`NodeMapper`].
     pub fn split_into_subgraphs<G>(&self, graph: &G) -> Vec<(G, NodeMapper)>
     where
         G: AdjacencyList + GraphNew + GraphEdgeEditing,
@@ -199,8 +343,23 @@ impl From<NodeBitSet> for Partition {
     }
 }
 
-/// Convencience Trait to convert Collections of classes into a Partition
+/// Convenience trait for converting a collection of classes into a [`Partition`].
+///
+/// Each inner collection is interpreted as one partition class.
 pub trait IntoPartition {
+    /// Consumes the collection and builds a [`Partition`] with `n` total nodes.
+    ///
+    /// # Example
+    /// ```rust
+    /// use ugraphs::algo::{Partition, IntoPartition};
+    ///
+    /// let classes = vec![vec![0, 1], vec![2, 3]];
+    /// let part = classes.into_partition(4);
+    ///
+    /// assert_eq!(part.number_of_classes(), 2);
+    /// assert_eq!(part.class_of_edge(0, 1), Some(0));
+    /// assert_eq!(part.class_of_edge(2, 3), Some(1));
+    /// ```
     fn into_partition(self, n: NumNodes) -> Partition;
 }
 

@@ -4,6 +4,8 @@ use rand::Rng;
 use std::{collections::HashSet, ops::Range};
 use stream_bitset::{bitset::BitsetStream, prelude::*};
 
+/// Implements the Edmonds-Karp algorithm for finding maximum flow
+/// and edge-disjoint paths in a network.
 pub struct EdmondsKarp {
     residual_network: ResidualBitMatrix,
     predecessor: Vec<Node>,
@@ -11,6 +13,7 @@ pub struct EdmondsKarp {
     remember_changes: bool,
 }
 
+/// Trait representing a residual network used in flow computations.
 pub trait ResidualNetwork: SourceTarget + DirectedAdjacencyList + Label<Node> {
     /// Reverses the edge (u, v) to (v, u).
     fn reverse(&mut self, u: Node, v: Node);
@@ -54,6 +57,7 @@ pub trait ResidualNetwork: SourceTarget + DirectedAdjacencyList + Label<Node> {
         I: IntoIterator<Item = (Node, Node)>;
 }
 
+/// Residual network represented with a bit matrix for capacity.
 pub struct ResidualBitMatrix {
     s: Node,
     t: Node,
@@ -63,7 +67,11 @@ pub struct ResidualBitMatrix {
     labels: Vec<Node>,
 }
 
+/// Trait to access the label of a node.
+///
+/// Exception to the `unlabelled` part of `ugraphs`.
 pub trait Label<T> {
+    /// Returns a reference to the label of `u`.
     fn label(&self, u: Node) -> &T;
 }
 
@@ -73,10 +81,18 @@ impl Label<Node> for ResidualBitMatrix {
     }
 }
 
+/// Trait to access source and target nodes.
 pub trait SourceTarget {
+    /// Returns a reference to the source node.
     fn source(&self) -> &Node;
+
+    /// Returns a reference to the target node.
     fn target(&self) -> &Node;
+
+    /// Returns a mutable reference to the source node.
     fn source_mut(&mut self) -> &mut Node;
+
+    /// Returns a mutable reference to the target node.
     fn target_mut(&mut self) -> &mut Node;
 }
 
@@ -156,6 +172,10 @@ impl AdjacencyList for ResidualBitMatrix {
     }
 }
 
+/// Helper struct to allow implementing [`DirectedAdjacencyList::in_neighbors_of`].
+///
+/// While we currently do not use this method on [`ResidualBitMatrix`], we implement it for
+/// completeness and to adhere to trait-bounds.
 pub struct ResidualInNeighbors<'a> {
     graph: &'a ResidualBitMatrix,
     node: Node,
@@ -178,7 +198,7 @@ impl<'a> Iterator for ResidualInNeighbors<'a> {
     }
 }
 
-/// Implementation for completeness even though we only need functionality already provided by [`DirectedAdjacencyList`]
+/// Implementation for completeness even though we only need functionality already provided by [`AdjacencyList`]
 impl DirectedAdjacencyList for ResidualBitMatrix {
     type InNeighborIter<'a>
         = ResidualInNeighbors<'a>
@@ -329,12 +349,14 @@ impl ResidualNetwork for ResidualBitMatrix {
 }
 
 impl ResidualBitMatrix {
+    /// Dissolves `self` to the BitMatrix and the vector of labels
     pub fn take(self) -> (Vec<NodeBitSet>, Vec<Node>) {
         (self.capacity, self.labels)
     }
 }
 
 impl EdmondsKarp {
+    /// Creates a new instance of `EdmondsKarp`
     pub fn new(residual_network: ResidualBitMatrix) -> Self {
         let n = residual_network.len();
         Self {
@@ -345,6 +367,7 @@ impl EdmondsKarp {
         }
     }
 
+    /// Runs `bfs_with_predecessor` from the source node to the target node.
     fn bfs(&mut self) -> bool {
         let s = *self.residual_network.source();
         let t = *self.residual_network.target();
@@ -378,6 +401,7 @@ impl EdmondsKarp {
         self.remember_changes = remember_changes;
     }
 
+    /// Chainable version of [`Self::set_remember_changes`]
     pub fn remember_changes(mut self, remember_changes: bool) -> Self {
         self.set_remember_changes(remember_changes);
         self

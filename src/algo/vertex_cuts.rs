@@ -1,9 +1,48 @@
+/*!
+# Vertex Cuts
+
+This module provides algorithms for computing **vertex cuts** in undirected graphs.
+
+A *vertex cut* is a set of nodes whose removal increases the number of
+connected components of the graph. This is important for analyzing graph
+connectivity, robustness, and fault tolerance.
+
+## Features
+- Exact computation of articulation points (1-vertex cuts).
+- Heuristic computation of 2- and 3-vertex cuts using articulation search.
+- Builder interface for enabling/disabling cut types and applying
+  filtering constraints.
+
+## Notes
+- Only articulation points (1-cuts) are computed exactly.
+- Higher-order cuts (2- and 3-cuts) are found heuristically by
+  repeatedly marking nodes as visited and recomputing articulation points.
+  These are **not guaranteed to be complete**.
+*/
+
 use fxhash::FxHashSet;
 
 use super::*;
 
+/// Provides functionality to compute **articulation points**
+/// (1-vertex cuts) in undirected graphs.
+///
+/// An articulation point is a vertex whose removal increases the number
+/// of connected components in the graph.
 pub trait ArticluationPoint: GraphType<Dir = Undirected> {
+    /// Computes the articulation points of the graph.
+    ///
+    /// Returns a [`NodeBitSet`] where each set bit corresponds to
+    /// a node that is an articulation point.
     fn compute_articulation_points(&self) -> NodeBitSet;
+
+    /// Computes articulation points with some nodes already considered visited.
+    ///
+    /// Useful for higher-order cuts (e.g., 2-cut, 3-cut), where some
+    /// vertices are pre-excluded from the search.
+    ///
+    /// # Arguments
+    /// * `visited` - A [`NodeBitSet`] marking nodes that are already visited.
     fn compute_articulation_points_with_visited(&self, visited: NodeBitSet) -> NodeBitSet;
 }
 
@@ -21,16 +60,28 @@ where
     }
 }
 
+/// Internal DFS-based search for computing articulation points.
+///
+/// Implements the standard lowpoint-based DFS algorithm.
+/// Keeps track of discovery times, lowpoints, and parent relations
+/// for identifying articulation points.
 pub struct ArticulationPointSearch<'a, T>
 where
     T: AdjacencyList + GraphType<Dir = Undirected>,
 {
+    /// The graph being analyzed.
     graph: &'a T,
+    /// Lowpoint values of nodes in DFS tree.
     low_point: Vec<Node>,
+    /// Discovery times of nodes in DFS tree.
     dfs_num: Vec<Node>,
+    /// Tracks visited nodes.
     visited: NodeBitSet,
+    /// Stores articulation points found during the search.
     articulation_points: NodeBitSet,
+    /// Current DFS counter.
     current_dfs_num: Node,
+    /// Parent nodes in DFS tree.
     parent: Vec<Option<Node>>,
 }
 
@@ -38,7 +89,11 @@ impl<'a, T> ArticulationPointSearch<'a, T>
 where
     T: AdjacencyList + GraphType<Dir = Undirected>,
 {
-    /// Assumes the graph is connected, and for each edge (u, v) the edge (v, u) exists
+    /// Creates a new articulation point search for the given graph.
+    ///
+    /// Assumes:
+    /// - The graph is connected.
+    /// - For every edge `(u, v)`, the reverse edge `(v, u)` exists.
     pub fn new(graph: &'a T) -> Self {
         let n = graph.number_of_nodes();
         Self {
@@ -52,12 +107,20 @@ where
         }
     }
 
+    /// Computes all articulation points of the graph.
+    ///
+    /// Returns a [`NodeBitSet`] with articulation points marked.
     pub fn compute(mut self) -> NodeBitSet {
         let start = self.visited.iter_cleared_bits().next().unwrap();
         let _ = self.compute_recursive(start, 0);
         self.articulation_points
     }
 
+    /// Recursive DFS function for computing lowpoints and articulation points.
+    ///
+    /// # Arguments
+    /// * `u` - Current node.
+    /// * `depth` - Current recursion depth (with safety cutoff).
     fn compute_recursive(&mut self, u: Node, depth: Node) -> Result<(), ()> {
         if depth > 10000 {
             return Err(());
@@ -101,29 +164,51 @@ where
     }
 }
 
+/// Builder for computing vertex cuts of size 1, 2, or 3.
+///
+/// Provides a configurable interface to:
+/// - Enable or disable specific cut sizes.
+/// - Apply minimum connected component size filtering.
+/// - Compute all enabled cuts at once.
 pub struct GraphCutBuilder<'a, G>
 where
     G: AdjacencyList + ArticluationPoint + Traversal + GraphType<Dir = Undirected>,
 {
+    /// Reference to the input graph.
     graph: &'a G,
+    /// Which cut types are enabled.
     enabled_cuts: Vec<CutType>,
-    min_cc_size: Option<NumNodes>, // Minimum connected component size to keep
+    /// Minimum connected component size to enforce after cuts.
+    min_cc_size: Option<NumNodes>,
 }
 
-// Enum representing the different types of graph cuts that can be computed.
+/// Types of vertex cuts that can be computed.
+///
+/// - `OneCut`: Exact articulation points.
+/// - `TwoCut`: Heuristic two-node cuts.
+/// - `ThreeCut`: Heuristic three-node cuts.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum CutType {
-    OneCut, // Single-node cut (articulation points)
+    /// Single-node cuts (articulation points, exact).
+    OneCut,
+    /// Two-node cuts (heuristic).
     TwoCut,
+    /// Three-node cuts (heuristic).
     ThreeCut,
 }
 
-/// Builder for computing various graph cuts with configurable parameters.
+/// Builder for computing **heuristic vertex cuts** of size 1, 2, or 3.
 ///
-/// The builder allows enabling/disabling specific cut types and setting
-/// minimum connected component size requirements.
-/// If a cut produces >=2 components where the second largest component does
-/// not contain > threshold nodes, it is filtered out.
+/// Provides a configurable interface to:
+/// - Enable or disable specific cut sizes.
+/// - Apply minimum connected component size filtering.
+/// - Compute all enabled cuts at once.
+///
+/// ## Notes
+/// - 1-cuts (articulation points) are computed exactly.
+/// - 2-cuts and 3-cuts are computed heuristically by excluding nodes
+///   and recomputing articulation points. The results are not guaranteed
+///   to enumerate all possible minimal cuts.
 impl<'a, G> GraphCutBuilder<'a, G>
 where
     G: AdjacencyList + ArticluationPoint + Traversal + GraphType<Dir = Undirected>,
@@ -150,6 +235,7 @@ where
         }
     }
 
+    /// Chainable version of [`Self::set_enable_cut`].
     pub fn enable_cut(mut self, cut_type: CutType) -> Self {
         self.set_enable_cut(cut_type);
         self
@@ -169,6 +255,7 @@ where
         }
     }
 
+    /// Chainable version of [`Self::set_disable_cut`].
     pub fn disable_cut(mut self, cut_type: CutType) -> Self {
         self.set_disable_cut(cut_type);
         self
@@ -188,11 +275,16 @@ where
         self
     }
 
-    /// Computes all enabled cuts and returns them as a single collection.
+    /// Computes all enabled cuts.
     ///
-    /// The result is a vector of cut sets, where each cut set is a vector of nodes.
-    /// only cuts that meet the minimum cc`size (if set)
-    /// are included in the results.
+    /// Returns a vector of cuts, where each cut is represented as a
+    /// vector of nodes. Only cuts that meet the `min_cc_size` requirement
+    /// (if set) are included.
+    ///
+    /// ## Notes
+    /// - 1-cuts are exact.
+    /// - 2-cuts and 3-cuts are **heuristic** and may not include all
+    ///   minimal cuts.
     pub fn compute(self) -> Vec<Vec<Node>> {
         let mut all_cuts: Vec<Vec<Node>> = Vec::new();
 
@@ -207,6 +299,7 @@ where
         all_cuts
     }
 
+    /// Filters candidate cuts by connected component size.
     fn filter_cuts(&self, candidates: Vec<Vec<Node>>) -> Vec<Vec<Node>> {
         let mut good_cuts: Vec<Vec<Node>> = vec![];
         if let Some(min_cc_size) = self.min_cc_size {
@@ -235,6 +328,7 @@ where
         good_cuts
     }
 
+    /// Computes all 1-cuts (articulation points).
     fn compute_one_cut(&self) -> Vec<Vec<Node>> {
         let candidates: Vec<Vec<Node>> = self
             .graph
@@ -245,6 +339,8 @@ where
         self.filter_cuts(candidates)
     }
 
+    /// Computes heuristic 2-cuts by iteratively excluding nodes and
+    /// recomputing articulation points.
     fn compute_two_cut(&self) -> Vec<Vec<Node>> {
         let mut cuts: FxHashSet<(Node, Node)> = Default::default();
         let n = self.graph.number_of_nodes();
@@ -262,6 +358,8 @@ where
         self.filter_cuts(vec_cuts)
     }
 
+    /// Computes heuristic 3-cuts by iteratively excluding pairs of nodes
+    /// and recomputing articulation points.
     fn compute_three_cut(&self) -> Vec<Vec<Node>> {
         let mut cuts: FxHashSet<(Node, Node, Node)> = Default::default();
         let n = self.graph.number_of_nodes();

@@ -1,18 +1,45 @@
+/*!
+# Connectivity Algorithms
+
+This module provides traits and iterators for analyzing the connectivity of graphs.
+
+It includes algorithms for:
+- **Connected components** in undirected graphs
+- **Strongly connected components (SCCs)** in directed graphs (via Tarjan’s algorithm)
+
+The functionality is designed both as **iterators** (to lazily enumerate components) and as
+**partitions** (to group nodes into disjoint sets).
+*/
+
 use std::iter::FusedIterator;
 
 use itertools::Itertools;
 
 use super::*;
 
+/// A trait providing algorithms for analyzing connectivity in graphs.
+///
+/// Supports:
+/// - Connected components in undirected graphs
+/// - Strongly connected components in directed graphs
+///
+/// Many methods return lazy iterators (`ConnectedComponents` or `StronglyConnectedComponents`),
+/// while convenience methods are available to directly produce a `Partition`.
 pub trait Connectivity: AdjacencyList + Traversal + Sized {
+    /// Returns an iterator over all connected components of an undirected graph.
     fn connected_components(&self) -> ConnectedComponents<'_, Self>
     where
         Self: AdjacencyList + GraphType<Dir = Undirected>;
 
+    /// Returns an iterator over connected components, excluding trivial single-node components.
     fn connected_components_no_singletons(&self) -> ConnectedComponents<'_, Self>
     where
         Self: AdjacencyList + GraphType<Dir = Undirected>;
 
+    /// Returns an iterator over connected components, excluding trivial components and/or nodes from a given list.
+    ///
+    /// - `skip_trivial`: if true, omits single-node components
+    /// - `ignore`: an iterable of nodes to exclude from all components
     fn connected_components_exclude_nodes<I>(
         &self,
         skip_trivial: bool,
@@ -22,7 +49,7 @@ pub trait Connectivity: AdjacencyList + Traversal + Sized {
         I: IntoIterator<Item = Node>,
         Self: AdjacencyList + GraphType<Dir = Undirected>;
 
-    /// Partition the (undirected) graph into its connected components
+    /// Returns a `Partition` of the nodes into connected components of an undirected graph.
     fn partition_into_connected_components(&self) -> Partition
     where
         Self: GraphType<Dir = Undirected>,
@@ -31,7 +58,7 @@ pub trait Connectivity: AdjacencyList + Traversal + Sized {
             .into_partition(self.number_of_nodes())
     }
 
-    /// Partition the (undirected) graph into its connected components without including singletons
+    /// Returns a `Partition` of nodes into connected components, omitting single-node components.
     fn partition_into_connected_components_no_singletons(&self) -> Partition
     where
         Self: GraphType<Dir = Undirected>,
@@ -40,7 +67,7 @@ pub trait Connectivity: AdjacencyList + Traversal + Sized {
             .into_partition(self.number_of_nodes())
     }
 
-    /// Partition the (undirected) graph into its connected components ignoring a list of nodes.
+    /// Returns a `Partition` of nodes into connected components, optionally excluding nodes and/or trivial components.
     fn partition_into_connected_components_exclude_nodes<I>(
         &self,
         skip_trivial: bool,
@@ -54,19 +81,19 @@ pub trait Connectivity: AdjacencyList + Traversal + Sized {
             .into_partition(self.number_of_nodes())
     }
 
-    /// Returns the strongly connected components of the graph as a `Vec<Vec<Node>>`
+    /// Returns an iterator over strongly connected components (SCCs) in a directed graph.
+    ///
+    /// Each SCC is returned as a vector of nodes.
     fn strongly_connected_components(&self) -> StronglyConnectedComponents<'_, Self>
     where
         Self: DirectedAdjacencyList;
 
-    /// Returns the strongly connected components of the graph as a `Vec<Vec<Node>>`
-    /// In contrast to [`Connectivity::strongly_connected_components`], this methods includes SCCs of size 1
-    /// if and only if the node has a self-loop
+    /// Returns an iterator over SCCs, excluding trivial single-node SCCs that do not have a self-loop.
     fn strongly_connected_components_no_singletons(&self) -> StronglyConnectedComponents<'_, Self>
     where
         Self: DirectedAdjacencyList;
 
-    /// Returns a partition of nodes into SCCs (analogously to [`Connectivity::strongly_connected_components`])
+    /// Returns a `Partition` of nodes into strongly connected components.
     fn partition_into_strongly_connected_components(&self) -> Partition
     where
         Self: DirectedAdjacencyList,
@@ -75,7 +102,7 @@ pub trait Connectivity: AdjacencyList + Traversal + Sized {
             .into_partition(self.number_of_nodes())
     }
 
-    /// Returns a partition of nodes into non-trivial SCCs (analogously to [`Connectivity::strongly_connected_components_no_singletons`])
+    /// Returns a `Partition` of nodes into non-trivial SCCs (singletons excluded unless they have self-loops).
     fn partition_into_strongly_connected_components_no_singletons(&self) -> Partition
     where
         Self: DirectedAdjacencyList,
@@ -130,6 +157,11 @@ where
     }
 }
 
+/// Iterator over connected components of an undirected graph.
+///
+/// Each iteration yields one connected component as a vector of nodes.
+/// Optionally supports skipping trivial (singleton) components or excluding
+/// a set of nodes entirely.
 pub struct ConnectedComponents<'a, G>
 where
     G: AdjacencyList + GraphType<Dir = Undirected>,
@@ -141,6 +173,9 @@ impl<'a, G> ConnectedComponents<'a, G>
 where
     G: AdjacencyList + GraphType<Dir = Undirected>,
 {
+    /// Constructs a new iterator over connected components for the given graph.
+    ///
+    /// - `skip_trivial`: if true, single-node components are excluded
     pub fn new(graph: &'a G, skip_trivial: bool) -> Self {
         assert!(
             !graph.is_empty(),
@@ -164,6 +199,7 @@ where
         }
     }
 
+    /// Exclude the given nodes from all components (in-place).
     pub fn set_exclude_nodes<I>(&mut self, exclude: I)
     where
         I: IntoIterator<Item = Node>,
@@ -171,6 +207,7 @@ where
         self.bfs.exclude_nodes(exclude);
     }
 
+    /// Exclude the given nodes from all components (returns the updated iterator).
     pub fn exclude_nodes<I>(mut self, exclude: I) -> Self
     where
         I: IntoIterator<Item = Node>,
@@ -200,11 +237,12 @@ where
     }
 }
 
-/// Implementation of Tarjan's Algorithm for Strongly Connected Components.
-/// It is designed as an iterator that emits the nodes of one strongly connected component at a
-/// time. Observe that the order of nodes within a component is non-deterministic; the order of the
-/// components themselves are in the reverse topological order of the SCCs (i.e. if each SCC
-/// were contracted into a single node).
+/// Iterator over strongly connected components (SCCs) of a directed graph.
+///
+/// Implements Tarjan’s algorithm in an iterative (non-recursive) style to avoid stack overflows.
+/// Each iteration yields one SCC as a vector of nodes.
+///
+/// The SCCs are returned in reverse topological order of the component DAG.
 pub struct StronglyConnectedComponents<'a, G>
 where
     G: DirectedAdjacencyList,
@@ -226,7 +264,7 @@ impl<'a, G> StronglyConnectedComponents<'a, G>
 where
     G: DirectedAdjacencyList,
 {
-    /// Construct the iterator for some graph
+    /// Construct a new iterator for strongly connected components of the given graph.
     pub fn new(graph: &'a G) -> Self {
         Self {
             graph,
@@ -241,13 +279,13 @@ where
         }
     }
 
-    /// Each node that is not part of a circle is returned as its own SCC.
-    /// By setting `include = false`, those nodes are not returned (which can lead to a significant
-    /// performance boost)
+    /// Specify whether singletons (isolated nodes without self-loops) should be included.
+    /// Excluding them may improve performance.
     pub fn set_include_singletons(&mut self, include: bool) {
         self.include_singletons = include;
     }
 
+    /// Builder-style version of [`Self::set_include_singletons`].
     pub fn include_singletons(mut self, include: bool) -> Self {
         self.set_include_singletons(include);
         self
@@ -387,6 +425,10 @@ where
 
 impl<'a, G> FusedIterator for StronglyConnectedComponents<'a, G> where G: DirectedAdjacencyList {}
 
+/// Internal helper structure representing a stack frame in the non-recursive
+/// implementation of Tarjan’s algorithm.
+///
+/// Stores per-node state during DFS traversal.
 #[derive(Debug, Clone)]
 struct StackFrame<'a, T>
 where
@@ -400,6 +442,7 @@ where
     neighbors: T::NeighborIter<'a>,
 }
 
+/// Internal helper representing the DFS state of a single node in Tarjan’s algorithm.
 #[derive(Debug, Clone, Copy, Default)]
 struct NodeState {
     visited: bool,
@@ -409,6 +452,7 @@ struct NodeState {
 }
 
 impl NodeState {
+    /// Marks the node as visited and assigns it an index and low-link value.
     fn visit(&mut self, u: Node) {
         debug_assert!(!self.visited);
         self.index = u;
@@ -417,16 +461,19 @@ impl NodeState {
         self.on_stack = true;
     }
 
+    /// Attempt to lower the node’s low-link value based on a neighbor’s index.
     fn try_lower_link(&mut self, l: Node) {
         self.low_link = self.low_link.min(l);
     }
 
+    /// Returns true if the node is the root of its strongly connected component.
     fn is_root(&self) -> bool {
         self.index == self.low_link
     }
 }
 
-/// Sorts the nodes in each component increasingly and then the components themselves lexicographically.
+/// Sorts the nodes within each component in ascending order,
+/// then sorts the components themselves lexicographically by their first element.
 pub fn sort_components(mut components: Vec<Vec<Node>>) -> Vec<Vec<Node>> {
     components.iter_mut().for_each(|comp| comp.sort_unstable());
     components.sort_by(|a, b| a[0].cmp(&b[0]));

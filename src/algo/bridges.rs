@@ -1,6 +1,21 @@
+/*!
+# Bridge-Finding Algorithms
+
+This module provides functionality for detecting **bridges** in undirected graphs.
+
+- A **bridge** (or cut-edge) is an edge whose removal increases the number of connected components.
+- Implements an efficient depth-first search–based algorithm for computing all bridges.
+- Exposes a trait interface for computing bridges on any undirected graph type.
+*/
+
 use super::*;
 
+/// A trait for computing **bridges** in undirected graphs.
+///
+/// A *bridge* is an edge that, if removed, increases the number of connected components
+/// of the graph.
 pub trait Bridges: GraphType<Dir = Undirected> {
+    /// Computes all bridges in the graph and returns them as a vector of edges.
     fn compute_bridges(&self) -> Vec<Edge>;
 }
 
@@ -13,6 +28,14 @@ where
     }
 }
 
+/// Helper struct that implements the depth-first search–based bridge-finding algorithm.
+///
+/// Maintains:
+/// - A reference to the input graph
+/// - A visited set of nodes
+/// - Per-node discovery and low-link information
+/// - The current DFS time counter
+/// - The list of discovered bridges
 struct BridgeSearch<'a, G>
 where
     G: AdjacencyList + GraphType<Dir = Undirected>,
@@ -28,6 +51,7 @@ impl<'a, G> BridgeSearch<'a, G>
 where
     G: AdjacencyList + GraphType<Dir = Undirected>,
 {
+    /// Creates a new `BridgeSearch` instance for the given graph.
     fn new(graph: &'a G) -> Self {
         let n = graph.number_of_nodes();
         Self {
@@ -39,6 +63,7 @@ where
         }
     }
 
+    /// Executes the bridge-finding algorithm and returns the list of bridges.
     fn compute(mut self) -> Vec<Edge> {
         for u in self.graph.vertices_no_singletons() {
             if self.visited.set_bit(u) {
@@ -51,6 +76,10 @@ where
         self.bridges
     }
 
+    /// Recursive DFS routine for processing node `u` with parent `parent`.
+    ///
+    /// - Updates discovery and low values
+    /// - Detects bridges when a child’s low value is higher than the parent’s discovery time
     fn compute_node(&mut self, parent: Node, u: Node) -> NodeInfo {
         self.time += 1;
 
@@ -79,6 +108,10 @@ where
     }
 }
 
+/// Stores DFS metadata for a single node during bridge search:
+/// - `discovery`: the DFS discovery time of the node
+/// - `low`: the lowest reachable discovery time via back edges
+/// - `parent`: the parent of the node in the DFS tree
 #[derive(Clone, Copy, Default)]
 struct NodeInfo {
     low: Node,
@@ -87,6 +120,7 @@ struct NodeInfo {
 }
 
 impl NodeInfo {
+    /// Updates the `low` value with the minimum of the current `low` and the given value.
     fn update_low(&mut self, value: Node) {
         self.low = self.low.min(value);
     }

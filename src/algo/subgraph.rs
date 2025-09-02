@@ -1,15 +1,43 @@
+/*!
+# Subgraph Algorithms
+
+Provides traits and implementations for extracting subgraphs from graphs
+(e.g., vertex-induced subgraphs, subgraphs without singletons) and for
+combining multiple graphs into a single disjoint union.
+*/
+
 use super::*;
 
-/// Trait for creating subgraphs
+/// A trait for creating different kinds of subgraphs from a graph.
+///
+/// Subgraphs may be vertex-induced, restricted to certain nodes, or
+/// variants that filter out special structures like singletons.
 pub trait Subgraph: Sized {
-    /// Create a new vertex-induced subgraph with remapped nodes
+    /// Creates a **vertex-induced subgraph** from the current graph,
+    /// restricted to the nodes in `vertices`.
+    ///
+    /// The result contains:
+    /// - A new graph of type `GO`
+    /// - A mapping of old node IDs to new ones
+    ///
+    /// # Type Parameters
+    /// - `M`: Node map implementation
+    /// - `GO`: Output graph type
+    /// - `S`: Node set type
+    ///
+    /// # Returns
+    /// A tuple `(graph, mapping)` with the induced subgraph and the
+    /// node remapping.
     fn vertex_induced_as<M, GO, S>(&self, vertices: &S) -> (GO, M)
     where
         M: NodeMapGetter + NodeMapSetter,
         GO: GraphFromScratch + GraphType,
         S: Set<Node>;
 
-    /// Like `vertex_induced_as` but the output graph has the same type as `Self`
+    /// Creates a vertex-induced subgraph of the same type as `Self`.
+    ///
+    /// This is shorthand for [`Subgraph::vertex_induced_as`] where
+    /// the output graph type matches the input.
     fn vertex_induced<M, S>(&self, vertices: &S) -> (Self, M)
     where
         Self: GraphFromScratch + GraphType,
@@ -19,7 +47,11 @@ pub trait Subgraph: Sized {
         self.vertex_induced_as(vertices)
     }
 
-    /// Remaps the graph to only include nodes with degree greater than 0
+    /// Creates a subgraph of the current graph that excludes all **singleton
+    /// nodes** (nodes of degree 0).
+    ///
+    /// This method keeps only vertices with at least one incident edge
+    /// and returns both the new graph and a node mapping.
     fn subgraph_without_singletons<M>(&self) -> (Self, M)
     where
         Self: GraphFromScratch + GraphType + Singletons,
@@ -31,8 +63,11 @@ pub trait Subgraph: Sized {
         ))
     }
 
-    /// Creates a subgraph of `Self` that only contains edges between specified nodes without
-    /// deleting other nodes from the graph.
+    /// Creates a subgraph that only contains edges where **both endpoints**
+    /// are included in the provided set `vertices`.
+    ///
+    /// Unlike [`Subgraph::vertex_induced_as`], this does not remove nodes
+    /// outside the set — it only filters edges.
     fn subgraph_of<GO, S>(&self, vertices: &S) -> GO
     where
         GO: GraphFromScratch + GraphType,
@@ -96,11 +131,27 @@ where
     }
 }
 
-/// Trait for combining multiple graphs into one
+/// A trait for combining multiple graphs into a **single disjoint graph**.
+///
+/// Each input graph is copied into the new graph, with all node IDs
+/// shifted to avoid collisions. This allows concatenating graphs into
+/// a single larger graph where their node sets are disjoint.
 pub trait Concat {
-    /// Takes a list of graphs and outputs a single graph containing disjoint copies of them all
-    /// Let n_1, ..., n_k be the number of nodes in the input graph. Then node i of graph G_j becomes
-    /// sum(n_1 + .. + n_{j-1}) + i
+    /// Concatenates a collection of graphs into one disjoint union graph.
+    ///
+    /// Node relabeling rule:  
+    /// If the input graphs have sizes `n_1, ..., n_k`, then node `i` of
+    /// graph `G_j` is mapped to
+    /// ```text
+    /// i + (n_1+ n_2 + ... + n_(j - 1))
+    /// ```
+    ///
+    /// # Arguments
+    /// - `graphs`: An iterable of references to graphs
+    ///
+    /// # Returns
+    /// A single graph of the same type as `Self` containing all edges
+    /// and nodes from the inputs, shifted to be disjoint.
     fn concat<'a, IG, T>(graphs: T) -> Self
     where
         IG: 'a + AdjacencyList + GraphType,

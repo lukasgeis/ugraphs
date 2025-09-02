@@ -1,17 +1,38 @@
+/*!
+# Path Iterator
+
+This module provides functionality to iterate over *induced subpaths* in an undirected graph.
+
+An induced subpath is defined as a maximal sequence of consecutive nodes of degree 2
+(with length ≥ 1). The returned path is represented as a vector of nodes, starting and
+ending with endpoints (nodes of degree ≠ 2) or identical nodes in the case of cycles.
+
+## Key features
+- Iteration over all induced paths in a graph.
+- Support for filtering paths by minimum number of path-internal nodes.
+- Handles both open paths and induced cycles correctly.
+*/
+
 use super::*;
 use itertools::Itertools;
 
+/// Provides iterators over induced paths in an undirected graph.
+///
+/// A path is represented as a vector of nodes where the endpoints are the first and
+/// last entries. Endpoints have degree ≠ 2 unless the path is part of an induced cycle.
 pub trait PathIterator: AdjacencyList + GraphType<Dir = Undirected> {
-    /// Returns an iterator to induced subpath in a graph.
-    /// An induced subpath consists of an adjacent chain of k degree 2 node(s) with k > 0.
-    /// A path is returned as a Vec where the first and last elements are the endpoints,
-    /// which are of degree 2 iff the path is an induced cycle.
+    /// Returns an iterator over all induced paths in the graph.
+    ///
+    /// Each path is represented as a `Vec<Node>` where:
+    /// - The first and last elements are endpoints (degree ≠ 2), except in the case of induced cycles,
+    ///   where they are equal.
+    /// - Internal nodes always have degree 2.
     fn path_iter(&self) -> Paths<'_, Self>;
 
-    /// Same as `path_iter`, but does not return paths with less than
-    /// `min_length` path nodes; i.e. excluding the end pointer.
-    /// In other words: if a path is returned, the vector has length
-    /// at leasat `min_length + 2`
+    /// Returns an iterator over induced paths with at least `min_length` path nodes.
+    ///
+    /// A *path node* is an internal node of degree 2, not counting the endpoints.
+    /// Therefore, the returned vector for each path has length at least `min_length + 2`.
     fn path_iter_with_atleast_path_nodes(&self, min_path_nodes: NumNodes) -> Paths<'_, Self>;
 }
 
@@ -34,6 +55,10 @@ where
     }
 }
 
+/// Iterator structure for enumerating induced paths in an undirected graph.
+///
+/// Holds state during traversal including visited nodes, current position, and
+/// minimum path length constraints.
 pub struct Paths<'a, G>
 where
     G: AdjacencyList + GraphType<Dir = Undirected>,
@@ -57,13 +82,14 @@ where
         }
     }
 
-    /// Does not return paths with less than `min_length` path nodes;
-    /// i.e. excluding the end pointer. In other words: if a path is
-    /// returned, the vector has length at least `min_length + 2`
+    /// Sets the minimum number of internal path nodes required for yielded paths.
+    ///
+    /// Paths shorter than this will be skipped.
     pub fn set_min_path_nodes(&mut self, min_length: NumNodes) {
         self.min_length = min_length;
     }
 
+    /// Builder-style variant of [`Self::set_min_path_nodes`].
     pub fn min_path_nodes(mut self, min_length: NumNodes) -> Self {
         self.set_min_path_nodes(min_length);
         self

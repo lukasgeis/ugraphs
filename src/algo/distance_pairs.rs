@@ -1,5 +1,27 @@
+/*!
+# Distance-Pairs Iterator
+
+This module provides an iterator over **all pairs of nodes (a, b)**
+in a graph such that there exists a path of a fixed length `d`
+between `a` and `b`.
+
+- Works for both directed and undirected graphs.
+- Supports arbitrary path lengths `d ≥ 2`.
+- In undirected graphs, duplicate symmetric pairs are avoided
+  by normalizing output order.
+*/
+
 use super::*;
 
+/// Iterator over all pairs of nodes `(u, v)` with a path of fixed length `distance`
+/// between them.
+///
+/// Internally, the iterator:
+/// - Traverses nodes one by one
+/// - Computes their `distance`-neighborhood
+/// - Yields all valid pairs `(u, v)` with `dist(u, v) = distance`
+///
+/// For undirected graphs, it only yields pairs with `u < v` to avoid duplicates.
 pub struct DistancePairsIterator<'a, G>
 where
     G: AdjacencyList + GraphType,
@@ -12,7 +34,16 @@ where
     neighbor_lb: Node,
 }
 
+/// A trait for constructing iterators over all pairs of nodes
+/// that are at a given fixed distance.
+///
+/// Provides a high-level interface for enumerating such pairs
+/// without computing all-pairs shortest paths.
 pub trait DistancePairs: AdjacencyList + GraphType {
+    /// Returns an iterator over all pairs `(u, v)` such that `dist(u, v) = distance`.
+    ///
+    /// # Panics
+    /// Panics if `distance <= 1` (pairs must be at least two steps apart).
     fn distance_pairs(&self, distance: usize) -> DistancePairsIterator<'_, Self>;
 }
 
@@ -30,6 +61,7 @@ impl<'a, G> DistancePairsIterator<'a, G>
 where
     G: AdjacencyList + GraphType,
 {
+    /// Creates a new distance-pairs iterator for the given graph and distance.
     pub fn new(graph: &'a G, distance: usize) -> Self {
         let n = graph.number_of_nodes();
 
@@ -46,6 +78,10 @@ where
         inst
     }
 
+    /// Prepares the iterator for the current node by computing its
+    /// `distance`-neighborhood:
+    /// - Expands neighbors step by step until reaching the target distance
+    /// - Updates the neighbor set used for iteration
     fn setup_node(&mut self) {
         self.neighbors.clear_all();
 

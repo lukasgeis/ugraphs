@@ -1,28 +1,53 @@
+/*!
+# Matching Algorithms
+
+This module provides algorithms for computing **matchings** in graphs.
+
+- Supports **maximal matchings** in undirected graphs (greedy, not necessarily optimal).
+- Supports **maximum bipartite matchings** using a flow-based approach.
+
+A *matching* is a set of edges without shared endpoints.
+- A **maximal matching** cannot be extended by adding another edge, but may not be optimal in size.
+- A **maximum matching** is the largest possible matching.
+*/
+
 use super::*;
 use itertools::Itertools;
 
+/// A trait providing matching algorithms on undirected graphs.
+///
+/// Implementations provide:
+/// - Greedy maximal matching
+/// - Maximal matching restricted to an induced subgraph
+/// - Maximum bipartite matching via flow reduction
 pub trait Matching: GraphType<Dir = Undirected> {
-    /// Computes a maximal matching on a graph where all edges are undirected. Each edge {u, v} in
-    /// the matching is returned only once as (u, v) where u <= v. The output is sorted lexicographically.
+    /// Computes a **maximal matching** in an undirected graph.
+    ///
+    /// Each edge `{u, v}` in the matching is returned only once as `(u, v)` with `u <= v`.  
+    /// The resulting vector is sorted lexicographically.
     fn maximal_undirected_matching(&self) -> Vec<(Node, Node)> {
         self.maximal_undirected_matching_excluding(std::iter::empty())
     }
 
-    /// Computes a maximal matching on an induced sub graph where all edges are undirected. The induced
-    /// subgraph contains all vertices *BUT* the ones provided via the iterator `excl`. Each edge `{u, v}` in
-    /// the matching is returned only once as `(u, v)` where `u <= v`. The output is sorted lexicographically.
-    /// Observe that the original graph may contain directed edges, only the subgraph must not contain any
-    /// edge `(u, v)` without a matching (v, u).
+    /// Computes a **maximal matching** on an induced subgraph of an undirected graph.  
+    ///
+    /// - The subgraph excludes all vertices provided by the iterator `excl`.  
+    /// - Each edge `{u, v}` in the matching is returned only once as `(u, v)` with `u <= v`.  
+    /// - The output is sorted lexicographically.  
+    ///
+    /// Note: The original graph may contain directed edges, but the induced subgraph
+    /// must not contain asymmetric edges `(u, v)` without `(v, u)`.
     fn maximal_undirected_matching_excluding<I>(&self, excl: I) -> Vec<(Node, Node)>
     where
         I: IntoIterator<Item = Node>;
 
-    /// Computes a maximum matching on a bipartite (sub)graph. The subgraph consists of two classes
-    /// A and B and contains all edges of the original graph pointing from A to B; edges of the original
-    /// graph that connect two nodes within the same class are ignored (this includes loops); also edges
-    /// pointing from B to A are ignored.
+    /// Computes a **maximum matching** on a bipartite (sub)graph.  
     ///
-    /// The maximum matching is returned as tuples of form (node of A, node of B) in no deterministic order.
+    /// - The bipartition is given by two disjoint sets of nodes: `class_a` and `class_b`.  
+    /// - Edges within a class and self-loops are ignored.  
+    ///
+    /// Returns pairs `(a, b)` where `a` in `A` and `b` in `B`.  
+    /// The order of the pairs is unspecified.
     fn maximum_bipartite_matching<A, B>(&self, class_a: &A, class_b: &B) -> Vec<(Node, Node)>
     where
         A: Set<Node>,
@@ -33,6 +58,10 @@ impl<G> Matching for G
 where
     G: AdjacencyList + GraphType<Dir = Undirected>,
 {
+    /// Greedy maximal matching implementation:
+    /// - Iterates through vertices
+    /// - Picks the first available unmatched neighbor
+    /// - Marks both endpoints as matched
     fn maximal_undirected_matching_excluding<I>(&self, excl: I) -> Vec<(Node, Node)>
     where
         I: IntoIterator<Item = Node>,
@@ -55,6 +84,10 @@ where
         matching
     }
 
+    /// Maximum bipartite matching via flow reduction:
+    /// - Constructs a bipartite flow network with source `s` and sink `t`  
+    /// - Runs Edmonds–Karp style flow algorithm  
+    /// - Extracts matching edges from residual network
     fn maximum_bipartite_matching<A, B>(&self, class_a: &A, class_b: &B) -> Vec<(Node, Node)>
     where
         A: Set<Node>,
