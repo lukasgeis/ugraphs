@@ -150,7 +150,7 @@ where
         let edges_reader =
             MetisEdgesReader::try_new(reader, &self.header, &self.comment_identifier)?;
         let n = edges_reader.number_of_nodes();
-        Ok(G::from_edges(n, edges_reader))
+        Ok(G::from_try_edges(n, edges_reader))
     }
 }
 
