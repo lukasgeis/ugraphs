@@ -2,8 +2,8 @@
 # Subgraph Algorithms
 
 Provides traits and implementations for extracting subgraphs from graphs
-(e.g., vertex-induced subgraphs, subgraphs without singletons) and for
-combining multiple graphs into a single disjoint union.
+(e.g., vertex-induced subgraphs, subgraphs without singletons) ([`Subgraph`]) and for
+combining multiple graphs into a single disjoint union ([`GraphConcat`]).
 */
 
 use super::*;
@@ -28,6 +28,22 @@ pub trait Subgraph: Sized {
     /// # Returns
     /// A tuple `(graph, mapping)` with the induced subgraph and the
     /// node remapping.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*, gens::*, utils::*};
+    ///
+    /// let mut g = AdjArrayUndir::new(10);
+    /// g.connect_path(0..10 as Node);
+    ///
+    /// let (h, m): (AdjMatrixUndir, NodeMapper) = g.vertex_induced_as(
+    ///     &NodeBitSet::new_with_bits_set(10, 3..7 as Node)
+    /// );
+    ///
+    /// assert_eq!(h.number_of_nodes(), 4);
+    /// assert_eq!(h.number_of_edges(), 3);
+    /// assert_eq!(m.len(), 4);
+    /// ```
     fn vertex_induced_as<M, GO, S>(&self, vertices: &S) -> (GO, M)
     where
         M: NodeMapGetter + NodeMapSetter,
@@ -38,6 +54,20 @@ pub trait Subgraph: Sized {
     ///
     /// This is shorthand for [`Subgraph::vertex_induced_as`] where
     /// the output graph type matches the input.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*, utils::*};
+    ///
+    /// let g = AdjArrayUndir::new(10);
+    ///
+    /// let (h, m): (_, NodeMapper) = g.vertex_induced(
+    ///     &NodeBitSet::new_with_bits_set(10, 3..7 as Node)
+    /// );
+    ///
+    /// assert_eq!(h.number_of_nodes(), 4);
+    /// assert_eq!(m.len(), 4);
+    /// ```
     fn vertex_induced<M, S>(&self, vertices: &S) -> (Self, M)
     where
         Self: GraphFromScratch + GraphType,
@@ -52,12 +82,27 @@ pub trait Subgraph: Sized {
     ///
     /// This method keeps only vertices with at least one incident edge
     /// and returns both the new graph and a node mapping.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*, gens::*, utils::*};
+    ///
+    /// let mut g = AdjArrayUndir::new(10);
+    /// g.connect_path(0..5 as Node);
+    ///
+    /// let (h, m): (_, NodeMapper) = g.subgraph_without_singletons();
+    ///
+    /// assert_eq!(h.number_of_nodes(), 5);
+    /// assert_eq!(h.number_of_edges(), 4);
+    ///
+    /// assert_eq!(m.len(), 5);
+    /// ```
     fn subgraph_without_singletons<M>(&self) -> (Self, M)
     where
         Self: GraphFromScratch + GraphType + Singletons,
         M: NodeMapGetter + NodeMapSetter,
     {
-        self.vertex_induced(&NodeBitSet::new_with_bits_cleared(
+        self.vertex_induced(&NodeBitSet::new_with_bits_set(
             self.number_of_nodes(),
             self.vertices_no_singletons(),
         ))
@@ -68,6 +113,21 @@ pub trait Subgraph: Sized {
     ///
     /// Unlike [`Subgraph::vertex_induced_as`], this does not remove nodes
     /// outside the set — it only filters edges.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*, gens::*, utils::*};
+    ///
+    /// let mut g = AdjArrayUndir::new(10);
+    /// g.connect_path(0..10 as Node);
+    ///
+    /// let h: AdjMatrixUndir = g.subgraph_of(
+    ///     &NodeBitSet::new_with_bits_set(10, 3..7 as Node)
+    /// );
+    ///
+    /// assert_eq!(h.number_of_nodes(), 10);
+    /// assert_eq!(h.number_of_edges(), 3);
+    /// ```
     fn subgraph_of<GO, S>(&self, vertices: &S) -> GO
     where
         GO: GraphFromScratch + GraphType,
@@ -152,6 +212,24 @@ pub trait GraphConcat {
     /// # Returns
     /// A single graph of the same type as `Self` containing all edges
     /// and nodes from the inputs, shifted to be disjoint.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*, gens::*};
+    ///
+    /// let mut g1 = AdjArrayUndir::new(3);
+    /// g1.connect_path(0..3 as Node);
+    ///
+    /// let g2 = g1.clone();
+    ///
+    /// let h = AdjMatrixUndir::concat(&[g1, g2]);
+    ///
+    /// assert_eq!(h.number_of_nodes(), 6);
+    /// assert_eq!(
+    ///     h.ordered_edges(true).collect::<Vec<Edge>>(),
+    ///     vec![Edge(0, 1), Edge(1, 2), Edge(3, 4), Edge(4, 5)]
+    /// );
+    /// ```
     fn concat<'a, IG, T>(graphs: T) -> Self
     where
         IG: 'a + AdjacencyList + GraphType,

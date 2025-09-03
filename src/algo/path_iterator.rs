@@ -27,12 +27,40 @@ pub trait PathIterator: AdjacencyList + GraphType<Dir = Undirected> {
     /// - The first and last elements are endpoints (degree ≠ 2), except in the case of induced cycles,
     ///   where they are equal.
     /// - Internal nodes always have degree 2.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*};
+    ///
+    /// let g= AdjArrayUndir::from_edges(4, [(0, 3), (3, 2), (2, 1)]);
+    /// let paths: Vec<Vec<Node>> = g.path_iter().collect();
+    /// assert_eq!(paths.len(), 1);
+    /// assert!(
+    ///     paths[0] == vec![0, 3, 2, 1] || paths[0] == vec![1, 2, 3, 0]
+    /// );
+    /// ```
     fn path_iter(&self) -> Paths<'_, Self>;
 
     /// Returns an iterator over induced paths with at least `min_length` path nodes.
     ///
     /// A *path node* is an internal node of degree 2, not counting the endpoints.
     /// Therefore, the returned vector for each path has length at least `min_length + 2`.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*, gens::*};
+    ///
+    /// let mut g = AdjArrayUndir::new(10);
+    /// g.connect_path(1..3 as Node);  // 2-Path
+    /// g.connect_path(3..6 as Node);  // 3-Path
+    /// g.connect_path(6..10 as Node); // 4-Path
+    ///
+    /// let paths: Vec<Vec<Node>> = g.path_iter_with_atleast_path_nodes(2).collect();
+    /// assert_eq!(paths.len(), 1);
+    /// assert!(
+    ///     paths[0] == vec![6, 7, 8, 9] || paths[0] == vec![9, 8, 7, 6]
+    /// );
+    /// ```
     fn path_iter_with_atleast_path_nodes(&self, min_path_nodes: NumNodes) -> Paths<'_, Self>;
 }
 
@@ -73,6 +101,7 @@ impl<'a, G> Paths<'a, G>
 where
     G: AdjacencyList + GraphType<Dir = Undirected>,
 {
+    /// Creates a new Paths-Iterator
     fn new(graph: &'a G) -> Self {
         Self {
             graph,
@@ -95,6 +124,7 @@ where
         self
     }
 
+    /// Completes the given path
     fn complete_path(&mut self, u: Node, parent: Node, path: &mut Vec<Node>) {
         if self.graph.degree_of(u) != 2 || self.visited.set_bit(u) {
             path.push(u);

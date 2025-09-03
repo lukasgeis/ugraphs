@@ -2,7 +2,7 @@
 # Vertex Cuts (Minimum and Balanced)
 
 This module provides algorithms to compute **minimum vertex cuts** and **approximate balanced cuts**
-in directed graphs. Unlike the heuristic cuts in [`GraphCutBuilder`](super::GraphCutBuilder),
+in directed graphs. Unlike the heuristic cuts in [`GraphCutBuilder`](super::vertex_cuts::GraphCutBuilder),
 the algorithms in this module are based on **flow-based methods** (Edmonds–Karp style).
 
 ## Core concepts
@@ -543,6 +543,16 @@ pub trait MinVertexCut: DirectedAdjacencyList {
     ///
     /// A maximal acceptable cut size (`max_size`) may be supplied as a performance bound.
     /// Returns `None` iff the minimum cut exceeds `max_size`.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*};
+    ///
+    /// let g = AdjArray::from_edges(4, [(0, 1), (1, 2), (2, 3)]);
+    ///
+    /// let cut = g.min_st_vertex_cut(0, 3, None);
+    /// assert_eq!(cut, Some((vec![1], 1)));
+    /// ```
     fn min_st_vertex_cut(
         &self,
         s: Node,
@@ -563,6 +573,16 @@ pub trait MinVertexCut: DirectedAdjacencyList {
     ///
     /// # Warning
     /// If `imbalance > 0.5`, no legal solution can exist.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*};
+    ///
+    /// let g = AdjArray::from_edges(5, [(0, 1), (1, 2), (2, 3), (3, 4)]);
+    ///
+    /// let mut rng = rand::rng();
+    /// let cut = g.approx_min_balanced_cut(&mut rng, 10, 0.4, None, true);
+    /// ```
     fn approx_min_balanced_cut<R>(
         &self,
         rng: &mut R,
@@ -699,6 +719,7 @@ where
 
 /// Enum representing structural modifications applied during flow computations
 /// when path augmentations are carried out.
+#[derive(Debug, Copy, Clone)]
 enum Change {
     /// Indicates an edge `(u, v)` was added during augmentation.
     Add(Node, Node),
@@ -729,6 +750,18 @@ where
 pub trait STFlow: DirectedAdjacencyList + GraphEdgeEditing {
     /// Runs an Edmonds–Karp style (s, t)-flow computation while remembering changes
     /// to the graph, which will be automatically undone when the flow object is dropped.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*};
+    ///
+    /// let mut g = AdjArray::from_edges(3, [(0, 1), (1, 2)]);
+    ///
+    /// let paths: Vec<_> = g.st_flow_undo_changes(|u| u, 0, 2).collect();
+    ///
+    /// assert_eq!(paths, vec![vec![0, 1, 2]]);
+    /// assert_eq!(g.ordered_edges(false).collect::<Vec<Edge>>(), vec![Edge(0, 1), Edge(1, 2)]);
+    /// ```
     fn st_flow_undo_changes<T, L>(
         &mut self,
         labels: T,
@@ -741,6 +774,18 @@ pub trait STFlow: DirectedAdjacencyList + GraphEdgeEditing {
 
     /// Runs an Edmonds–Karp style (s, t)-flow computation, keeping changes to the graph
     /// permanently applied (i.e., without rollback).
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*};
+    ///
+    /// let mut g = AdjArray::from_edges(3, [(0, 1), (1, 2)]);
+    ///
+    /// let paths: Vec<_> = g.st_flow_keep_changes(|u| u, 0, 2).collect();
+    ///
+    /// assert_eq!(paths, vec![vec![0, 1, 2]]);
+    /// assert_eq!(g.ordered_edges(false).collect::<Vec<Edge>>(), vec![Edge(1, 0), Edge(2, 1)]);
+    /// ```
     fn st_flow_keep_changes<T, L>(
         &mut self,
         labels: T,
@@ -766,9 +811,7 @@ where
         T: Fn(Node) -> L,
         L: Eq + Copy,
     {
-        let mut res = self.st_flow_keep_changes(labels, s, t);
-        res.set_remember_changes(true);
-        res
+        EdmondsKarpGeneric::new(self, labels, s, t).remember_changes(true)
     }
 
     fn st_flow_keep_changes<T, L>(
@@ -899,7 +942,7 @@ where
             }
 
             self.graph.remove_edge(u, v);
-            let added = self.graph.try_add_edge(v, u);
+            let added = !self.graph.try_add_edge(v, u);
 
             if let Some(changes) = self.changes.as_mut() {
                 if added {

@@ -16,6 +16,18 @@ use super::*;
 /// of the graph.
 pub trait Bridges: GraphType<Dir = Undirected> {
     /// Computes all bridges in the graph and returns them as a vector of edges.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*, gens::*};
+    ///
+    /// let mut g = AdjArrayUndir::new(10);
+    /// g.connect_path(0..10 as Node);
+    ///
+    /// let mut bridges = g.compute_bridges();
+    /// bridges.sort_unstable();
+    /// assert_eq!(bridges, g.ordered_edges(true).collect::<Vec<Edge>>());
+    /// ```
     fn compute_bridges(&self) -> Vec<Edge>;
 }
 

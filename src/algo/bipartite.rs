@@ -49,12 +49,33 @@ where
 /// - Test whether the graph is bipartite
 pub trait BipartiteTest {
     /// Tests whether the given candidate partition is a valid bipartition.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*, gens::*};
+    ///
+    /// let mut g = AdjArrayUndir::new(10);
+    /// g.connect_path(0..10 as Node);
+    ///
+    /// assert!(g.is_bipartition(&NodeBitSet::new_with_bits_set(10,  vec![0 as Node, 2, 4, 6, 8])));
+    /// ```
     fn is_bipartition<B>(&self, bipartition: &B) -> bool
     where
         B: Bipartition;
 
     /// Computes a valid bipartition of the graph, if one exists.
     /// Returns `None` if the graph is not bipartite.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*, gens::*};
+    ///
+    /// let mut g = AdjArrayUndir::new(10);
+    /// g.connect_path(0..10 as Node);
+    ///
+    /// let bip: NodeBitSet = g.compute_bipartition().unwrap();
+    /// assert_eq!(bip.cardinality(), 5);
+    /// ```
     fn compute_bipartition<B>(&self) -> Option<B>
     where
         B: Bipartition + FromCapacity;
@@ -63,6 +84,16 @@ pub trait BipartiteTest {
     ///
     /// This is equivalent to checking whether `compute_bipartition` succeeds
     /// when using `NodeBitSet` as the underlying bipartition representation.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*, gens::*};
+    ///
+    /// let mut g = AdjArrayUndir::new(10);
+    /// g.connect_path(0..10 as Node);
+    ///
+    /// assert!(g.is_bipartite());
+    /// ```
     fn is_bipartite(&self) -> bool {
         self.compute_bipartition::<NodeBitSet>().is_some()
     }
@@ -95,6 +126,22 @@ where
 /// within the same side of a bipartition.
 pub trait BipartiteEdit {
     /// Removes all edges that connect nodes within the same bipartition class.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*, gens::*};
+    ///
+    /// let mut g = AdjArrayUndir::new(10);
+    /// g.connect_path(0..10 as Node);
+    ///
+    /// let bip = NodeBitSet::new_with_bits_set(10, vec![0 as Node, 2, 4, 6, 8]);
+    /// g.connect_clique(&bip, false);
+    ///
+    /// assert!(!g.is_bipartite());
+    ///
+    /// g.remove_edges_within_bipartition_class(&bip);
+    /// assert!(g.is_bipartition(&bip));
+    /// ```
     fn remove_edges_within_bipartition_class<B>(&mut self, bipartition: &B)
     where
         B: Bipartition;

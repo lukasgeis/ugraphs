@@ -27,11 +27,33 @@ use super::{traversal::*, *};
 /// while convenience methods are available to directly produce a `Partition`.
 pub trait Connectivity: AdjacencyList + Traversal + Sized {
     /// Returns an iterator over all connected components of an undirected graph.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*};
+    ///
+    /// let g = AdjArrayUndir::from_edges(4, [(0 as Node, 1), (2, 3)]);
+    ///
+    /// let mut cc = g.connected_components().collect::<Vec<Vec<Node>>>();
+    /// cc.sort_unstable();
+    /// assert_eq!(cc, vec![vec![0, 1], vec![2, 3]]);
+    /// ```
     fn connected_components(&self) -> ConnectedComponents<'_, Self>
     where
         Self: AdjacencyList + GraphType<Dir = Undirected>;
 
     /// Returns an iterator over connected components, excluding trivial single-node components.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*};
+    ///
+    /// let g = AdjArrayUndir::from_edges(5, [(0 as Node, 1), (2, 3)]);
+    ///
+    /// let mut cc = g.connected_components_no_singletons().collect::<Vec<Vec<Node>>>();
+    /// cc.sort_unstable();
+    /// assert_eq!(cc, vec![vec![0, 1], vec![2, 3]]);
+    /// ```
     fn connected_components_no_singletons(&self) -> ConnectedComponents<'_, Self>
     where
         Self: AdjacencyList + GraphType<Dir = Undirected>;
@@ -40,6 +62,17 @@ pub trait Connectivity: AdjacencyList + Traversal + Sized {
     ///
     /// - `skip_trivial`: if true, omits single-node components
     /// - `ignore`: an iterable of nodes to exclude from all components
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*};
+    ///
+    /// let g = AdjArrayUndir::from_edges(7, [(0 as Node, 1), (2, 3), (5, 6)]);
+    ///
+    /// let mut cc = g.connected_components_exclude_nodes(true, [5, 6]).collect::<Vec<Vec<Node>>>();
+    /// cc.sort_unstable();
+    /// assert_eq!(cc, vec![vec![0, 1], vec![2, 3]]);
+    /// ```
     fn connected_components_exclude_nodes<I>(
         &self,
         skip_trivial: bool,
@@ -50,6 +83,16 @@ pub trait Connectivity: AdjacencyList + Traversal + Sized {
         Self: AdjacencyList + GraphType<Dir = Undirected>;
 
     /// Returns a `Partition` of the nodes into connected components of an undirected graph.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*};
+    ///
+    /// let g = AdjArrayUndir::from_edges(4, [(0 as Node, 1), (2, 3)]);
+    ///
+    /// let p = g.partition_into_connected_components();
+    /// assert!(p.class_of_edge(0, 1).is_some() && p.class_of_edge(2, 3).is_some());
+    /// ```
     fn partition_into_connected_components(&self) -> Partition
     where
         Self: GraphType<Dir = Undirected>,
@@ -59,6 +102,16 @@ pub trait Connectivity: AdjacencyList + Traversal + Sized {
     }
 
     /// Returns a `Partition` of nodes into connected components, omitting single-node components.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*};
+    ///
+    /// let g = AdjArrayUndir::from_edges(5, [(0 as Node, 1), (2, 3)]);
+    ///
+    /// let p = g.partition_into_connected_components_no_singletons();
+    /// assert!(p.class_of_node(4).is_none());
+    /// ```
     fn partition_into_connected_components_no_singletons(&self) -> Partition
     where
         Self: GraphType<Dir = Undirected>,
@@ -68,6 +121,20 @@ pub trait Connectivity: AdjacencyList + Traversal + Sized {
     }
 
     /// Returns a `Partition` of nodes into connected components, optionally excluding nodes and/or trivial components.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*};
+    ///
+    /// let g = AdjArrayUndir::from_edges(7, [(0 as Node, 1), (2, 3), (5, 6)]);
+    ///
+    /// let p = g.partition_into_connected_components_exclude_nodes(true, [5, 6]);
+    /// assert!(
+    ///     p.class_of_edge(0, 1).is_some()
+    ///     && p.class_of_edge(2, 3).is_some()
+    ///     && p.number_of_classes() == 2
+    /// );
+    /// ```
     fn partition_into_connected_components_exclude_nodes<I>(
         &self,
         skip_trivial: bool,
@@ -84,16 +151,48 @@ pub trait Connectivity: AdjacencyList + Traversal + Sized {
     /// Returns an iterator over strongly connected components (SCCs) in a directed graph.
     ///
     /// Each SCC is returned as a vector of nodes.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*};
+    ///
+    /// let g = AdjArray::from_edges(4, [(0 as Node, 1), (1, 0), (2, 3), (3, 2)]);
+    ///
+    /// let mut scc = g.strongly_connected_components().collect::<Vec<Vec<Node>>>();
+    /// scc.sort_unstable();
+    /// assert_eq!(scc, vec![vec![0, 1], vec![2, 3]]);
+    /// ```
     fn strongly_connected_components(&self) -> StronglyConnectedComponents<'_, Self>
     where
         Self: DirectedAdjacencyList;
 
     /// Returns an iterator over SCCs, excluding trivial single-node SCCs that do not have a self-loop.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*};
+    ///
+    /// let g = AdjArray::from_edges(6, [(0 as Node, 1), (1, 0), (2, 3), (3, 2), (5, 5)]);
+    ///
+    /// let mut scc = g.strongly_connected_components_no_singletons().collect::<Vec<Vec<Node>>>();
+    /// scc.sort_unstable();
+    /// assert_eq!(scc, vec![vec![0, 1], vec![2, 3], vec![5]]);
+    /// ```
     fn strongly_connected_components_no_singletons(&self) -> StronglyConnectedComponents<'_, Self>
     where
         Self: DirectedAdjacencyList;
 
     /// Returns a `Partition` of nodes into strongly connected components.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*};
+    ///
+    /// let g = AdjArray::from_edges(4, [(0 as Node, 1), (1, 0), (2, 3), (3, 2)]);
+    ///
+    /// let p = g.partition_into_strongly_connected_components();
+    /// assert!(p.class_of_edge(0, 1).is_some() && p.class_of_edge(2, 3).is_some());
+    /// ```
     fn partition_into_strongly_connected_components(&self) -> Partition
     where
         Self: DirectedAdjacencyList,
@@ -103,6 +202,21 @@ pub trait Connectivity: AdjacencyList + Traversal + Sized {
     }
 
     /// Returns a `Partition` of nodes into non-trivial SCCs (singletons excluded unless they have self-loops).
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*};
+    ///
+    /// let g = AdjArray::from_edges(6, [(0 as Node, 1), (1, 0), (2, 3), (3, 2), (5, 5)]);
+    ///
+    /// let p = g.partition_into_strongly_connected_components_no_singletons();
+    /// assert!(
+    ///     p.class_of_edge(0, 1).is_some()
+    ///     && p.class_of_edge(2, 3).is_some()
+    ///     && p.class_of_node(5).is_some()
+    ///     && p.class_of_node(4).is_none()
+    /// );
+    /// ```
     fn partition_into_strongly_connected_components_no_singletons(&self) -> Partition
     where
         Self: DirectedAdjacencyList,

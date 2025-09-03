@@ -31,6 +31,29 @@ pub trait CuthillMcKee: GraphType<Dir = Undirected> {
     /// # Returns
     /// A node mapping `M` where each original node is mapped to its new ID.
     /// Singleton nodes (degree 0) are not included in the mapping.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*, gens::*, utils::*};
+    ///
+    /// // Graph with 10 nodes and 4 connected components:
+    /// // - 1 3-Path
+    /// // - 2 3-Cliques
+    /// // - 1 Singleton
+    /// let mut g = AdjArrayUndir::new(10);
+    /// g.connect_path([0, 2, 3]);
+    /// g.connect_clique(&NodeBitSet::new_with_bits_set(10, [1 as Node, 4, 5]), false);
+    /// g.connect_clique(&NodeBitSet::new_with_bits_set(10, [6 as Node, 8, 9]), false);
+    ///
+    /// let m: NodeMapper = g.cuthill_mckee();
+    ///
+    /// assert!(m.new_id_of(7).is_none());
+    /// assert_eq!(m.len(), 9);
+    ///
+    /// // 0 should be the first pivot -> relabel nodes 2 and 3
+    /// assert_eq!(m.new_id_of(2), Some(1));
+    /// assert_eq!(m.new_id_of(3), Some(2));
+    /// ```
     fn cuthill_mckee<M>(&self) -> M
     where
         M: NodeMapGetter + NodeMapSetter,
@@ -50,6 +73,23 @@ pub trait CuthillMcKee: GraphType<Dir = Undirected> {
     /// A pair `(mapping, components)`:
     /// - `mapping`: Node mapping produced by the algorithm
     /// - `components`: Vector of node ID ranges, one per connected component
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*, gens::*, utils::*};
+    /// use std::ops::Range;
+    /// // Graph with 10 nodes and 4 connected components:
+    /// // - 1 3-Path
+    /// // - 2 3-Cliques
+    /// // - 1 Singleton
+    /// let mut g = AdjArrayUndir::new(10);
+    /// g.connect_path([0, 2, 3]);
+    /// g.connect_clique(&NodeBitSet::new_with_bits_set(10, [1 as Node, 4, 5]), false);
+    /// g.connect_clique(&NodeBitSet::new_with_bits_set(10, [6 as Node, 8, 9]), false);
+    ///
+    /// let (_, cc): (NodeMapper, Vec<Range<Node>>) = g.cuthill_mckee_cc(true);
+    /// assert_eq!(cc, vec![0..3 as Node, 3..6 as Node, 6..9 as Node]);
+    /// ```
     fn cuthill_mckee_cc<M>(&self, return_ccs: bool) -> (M, Vec<Range<Node>>)
     where
         M: NodeMapGetter + NodeMapSetter;

@@ -18,22 +18,52 @@ efficient and lazy.
 use super::*;
 use std::{collections::VecDeque, marker::PhantomData};
 
+/// Common interface for maintaining and querying visited-states
+/// during a traversal.
+///
+/// Implementations wrap a [`Set<Node>`] that tracks which nodes
+/// have already been discovered.
+///
+/// This allows traversal algorithms to be parameterized by different
+/// set implementations (e.g., `BitSet`, `HashSet`) without changing
+/// the traversal logic.
 pub trait TraversalState<S>
 where
     S: Set<Node>,
 {
+    /// Returns a reference to the set of visited nodes.
     fn visited(&self) -> &S;
 
+    /// Checks if a given node `u` has already been visited.
     fn did_visit_node(&self, u: Node) -> bool {
         self.visited().contains(&u)
     }
 }
 
+/// Abstraction for items yielded by a traversal iterator.
+///
+/// A `SequencedItem` encodes both the **node currently visited**
+/// and an **optional predecessor** that represents its parent
+/// in the traversal tree.
+///
+/// Two implementations are provided:
+/// - [`Node`] — stores only the node (no predecessor information).
+/// - [`PredecessorOfNode`] — stores `(predecessor, node)` pairs.
 pub trait SequencedItem: Clone + Copy {
+    /// Constructs a new item with a predecessor.
     fn new_with_predecessor(predecessor: Node, item: Node) -> Self;
+
+    /// Constructs a new item without predecessor information.
     fn new_without_predecessor(item: Node) -> Self;
+
+    /// Returns the node represented by this item.
     fn item(&self) -> Node;
+
+    /// Returns the predecessor of this node, if any.
     fn predecessor(&self) -> Option<Node>;
+
+    /// Returns a pair `(predecessor, item)` where the predecessor
+    /// may be `None` if not tracked.
     fn predecessor_with_item(&self) -> (Option<Node>, Node) {
         (self.predecessor(), self.item())
     }
@@ -54,10 +84,12 @@ impl SequencedItem for Node {
     }
 }
 
-// We use an ordinary Edge to encode the item and the optional predecessor to safe some
-// memory. We can easily accomplish this by exploiting that the traversal algorithms do
-// not take self-loops. So "None" is encoded by setting the predecessor as the node itself.
-type PredecessorOfNode = (Node, Node);
+/// Compact representation of `(predecessor, node)` used for
+/// traversals with parent tracking.
+///
+/// Internally, the absence of a predecessor is encoded by
+/// setting both tuple entries to the same node value.
+pub type PredecessorOfNode = (Node, Node);
 impl SequencedItem for PredecessorOfNode {
     fn new_with_predecessor(predecessor: Node, item: Node) -> Self {
         (predecessor, item)
@@ -77,12 +109,28 @@ impl SequencedItem for PredecessorOfNode {
     }
 }
 
+/// Abstraction for the traversal frontier data structure.
+///
+/// A `NodeSequencer` is responsible for storing the "to be visited"
+/// nodes during a traversal. Different implementations determine
+/// the traversal order:
+///
+/// - [`VecDeque`] -> queue semantics -> **BFS**
+/// - [`Vec`] -> stack semantics -> **DFS**
 pub trait NodeSequencer<T> {
-    // would prefer this to be private
+    /// Creates a new sequencer initialized with a single node.
     fn init(u: T) -> Self;
+
+    /// Pushes a node into the frontier.
     fn push(&mut self, item: T);
+
+    /// Removes and returns the next node from the frontier.
     fn pop(&mut self) -> Option<T>;
+
+    /// Returns a clone of the next node without removing it.
     fn peek(&self) -> Option<T>;
+
+    /// Returns the number of items currently in the frontier.
     fn cardinality(&self) -> usize;
 }
 
@@ -148,7 +196,10 @@ where
     _item: PhantomData<I>,
 }
 
+/// Type alias for a **breadth-first search** iterator using a queue (`VecDeque`).
 pub type BFSWithSet<'a, G, V> = TraversalSearch<'a, G, VecDeque<Node>, Node, V>;
+
+/// Type alias for a **depth-first search** iterator using a stack (`Vec`).
 pub type DFSWithSet<'a, G, V> = TraversalSearch<'a, G, Vec<Node>, Node, V>;
 
 /// A BFS traversal iterator over the graph, visiting nodes in
@@ -299,6 +350,13 @@ where
         self.visited.insert(u);
     }
 
+    /// Excludes a node from the search. It will be treated as if it was already visited,
+    /// i.e. no edges to or from that node will be taken. If the node was already visited,
+    /// this is a non-op.
+    ///
+    /// # Warning
+    /// Calling this method has no effect if the node is already on the stack. It is therefore highly
+    /// recommended to call this method directly after the constructor.
     pub fn with_node_excluded(mut self, u: Node) -> Self {
         self.exclude_node(u);
         self
@@ -319,6 +377,12 @@ where
         }
     }
 
+    /// Exclude multiple nodes from traversal. It is functionally equivalent to repeatedly
+    /// calling [`TraversalSearch::with_node_excluded`].
+    ///
+    /// # Warning
+    /// Calling this method has no effect for nodes that are already on the stack. It is
+    /// therefore highly recommended to call this method directly after the constructor.
     pub fn with_nodes_excluded<N>(mut self, us: N) -> Self
     where
         N: IntoIterator<Item = Node>,
@@ -355,6 +419,16 @@ where
     ///
     /// # Panics
     /// Panics if the iterator yields the same node more than once.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*};
+    ///
+    /// let g = AdjArrayUndir::from_edges(3, [(0, 1), (1, 2)]);
+    ///
+    /// let ranking = g.bfs(0).ranking().unwrap();
+    /// assert_eq!(ranking, vec![0, 1, 2]);
+    /// ```
     fn ranking(mut self) -> Option<Vec<Node>> {
         let mut ranking = vec![INVALID_NODE; self.graph_ref().len()];
         let mut rank: Node = 0;
@@ -396,6 +470,17 @@ where
     ///
     /// # Requirements
     /// - `tree.len()` must be at least `graph.len()`.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*};
+    ///
+    /// let g = AdjArrayUndir::from_edges(3, [(0, 1), (1, 2)]);
+    ///
+    /// let mut parents: Vec<Node> = g.vertices_range().collect();
+    /// g.bfs_with_predecessor(0).parent_array_into(&mut parents);
+    /// assert_eq!(parents, vec![0, 0, 1]);
+    /// ```
     fn parent_array_into(&mut self, tree: &mut [Node]) {
         for pred_with_item in self.by_ref() {
             if let Some(p) = pred_with_item.predecessor() {
@@ -407,6 +492,16 @@ where
     /// Constructs a fresh parent array of size `graph.len()` where
     /// each node is initially set to be its own parent.
     /// Then fills in the traversal tree structure using `parent_array_into`.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*};
+    ///
+    /// let g = AdjArrayUndir::from_edges(2, [(0, 1)]);
+    ///
+    /// let parents = g.bfs_with_predecessor(0).parent_array();
+    /// assert_eq!(parents, vec![0, 0]);
+    /// ```
     fn parent_array(&mut self) -> Vec<Node> {
         let mut tree: Vec<_> = self.graph_ref().vertices_range().collect();
         self.parent_array_into(&mut tree);
@@ -421,6 +516,17 @@ where
     ///
     /// # Requirements
     /// - `depths.len()` must be at least `graph.len()`.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*};
+    ///
+    /// let g = AdjArrayUndir::from_edges(3, [(0, 1), (1, 2)]);
+    ///
+    /// let mut depths = vec![0; g.number_of_nodes() as usize];
+    /// g.bfs_with_predecessor(0).depths_into(&mut depths);
+    /// assert_eq!(depths, vec![0, 1, 2]);
+    /// ```
     fn depths_into(&mut self, depths: &mut [Node]) {
         for pred_with_item in self.by_ref() {
             depths[pred_with_item.item() as usize] = pred_with_item
@@ -431,6 +537,16 @@ where
 
     /// Constructs a fresh depth array of size `graph.len()` initialized with 0.
     /// Then fills in the traversal tree depths using `depths_into`.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*};
+    ///
+    /// let g = AdjArrayUndir::from_edges(3, [(0, 1), (1, 2)]);
+    ///
+    /// let depths = g.bfs_with_predecessor(0).depths();
+    /// assert_eq!(depths, vec![0, 1, 2]);
+    /// ```
     fn depths(&mut self) -> Vec<Node> {
         let mut depths: Vec<_> = vec![0; self.graph_ref().number_of_nodes() as usize];
         self.depths_into(&mut depths);
@@ -534,24 +650,66 @@ impl<'a, G> RankFromOrder<'a, G> for TopoSearch<'a, G> where G: DirectedAdjacenc
 pub trait Traversal: AdjacencyList + Sized {
     /// Returns an iterator that traverses nodes reachable from `start`
     /// in **breadth-first search (BFS) order**.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*};
+    ///
+    /// let g = AdjArrayUndir::from_edges(2, [(0, 1)]);
+    ///
+    /// let order: Vec<_> = g.bfs(0).collect();
+    /// assert_eq!(order, vec![0, 1]);
+    /// ```
     fn bfs(&self, start: Node) -> BFS<'_, Self> {
         BFS::new(self, start)
     }
 
     /// Returns an iterator that traverses nodes reachable from `start`
     /// in **breadth-first search (BFS) order**.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*};
+    ///
+    /// let g = AdjArrayUndir::from_edges(2, [(0, 1)]);
+    ///
+    /// let order: Vec<_> = g.dfs(0).collect();
+    /// assert_eq!(order, vec![0, 1]);
+    /// ```
     fn dfs(&self, start: Node) -> DFS<'_, Self> {
         DFS::new(self, start)
     }
 
     /// Returns a BFS iterator starting from `start` that additionally
     /// yields the predecessor relation (edges traversed).
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::{*, traversal::SequencedItem}};
+    ///
+    /// let g = AdjArrayUndir::from_edges(2, [(0, 1)]);
+    ///
+    /// let mut it = g.bfs_with_predecessor(0);
+    /// assert_eq!(it.next().unwrap().item(), 0);
+    /// assert_eq!(it.next().unwrap().predecessor(), Some(0));
+    /// ```
     fn bfs_with_predecessor(&self, start: Node) -> BFSWithPredecessor<'_, Self> {
         BFSWithPredecessor::new(self, start)
     }
 
     /// Returns a DFS iterator starting from `start` that additionally
     /// yields the predecessor relation (edges traversed).
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::{*, traversal::SequencedItem}};
+    ///
+    /// let g = AdjArrayUndir::from_edges(2, [(0, 1)]);
+    ///
+    /// let mut it = g.dfs_with_predecessor(0);
+    /// assert_eq!(it.next().unwrap().item(), 0);
+    /// assert_eq!(it.next().unwrap().predecessor(), Some(0));
+    /// ```
     fn dfs_with_predecessor(&self, start: Node) -> DFSWithPredecessor<'_, Self> {
         DFSWithPredecessor::new(self, start)
     }
@@ -560,6 +718,15 @@ pub trait Traversal: AdjacencyList + Sized {
     ///
     /// - Only available for directed graphs.
     /// - Terminates early if the graph contains a cycle.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*};
+    ///
+    /// let g = AdjArray::from_edges(3, [(0, 1), (1, 2)]);
+    /// let order: Vec<_> = g.topo_search().collect();
+    /// assert_eq!(order, vec![0, 1, 2]);
+    /// ```
     fn topo_search(&self) -> TopoSearch<'_, Self>
     where
         Self: DirectedAdjacencyList,
@@ -571,6 +738,14 @@ pub trait Traversal: AdjacencyList + Sized {
     ///
     /// Implementation: runs a topological search and checks whether
     /// all nodes were output.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*};
+    ///
+    /// let g = AdjArray::from_edges(3, [(0, 1), (1, 2)]);
+    /// assert!(g.is_acyclic());
+    /// ```
     fn is_acyclic(&self) -> bool
     where
         Self: DirectedAdjacencyList,
@@ -583,6 +758,15 @@ pub trait Traversal: AdjacencyList + Sized {
     /// containing `u`).
     ///
     /// Only available for directed graphs.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*};
+    ///
+    /// let g = AdjArray::from_edges(3, [(0, 1), (1, 2), (2, 1)]);
+    /// assert!(!g.is_node_on_cycle(0));
+    /// assert!(g.is_node_on_cycle(1));
+    /// ```
     fn is_node_on_cycle(&self, u: Node) -> bool
     where
         Self: GraphType<Dir = Directed>,
@@ -597,6 +781,15 @@ pub trait Traversal: AdjacencyList + Sized {
     /// - If `u` itself is in `deleted`, it is treated as if it were not.
     ///
     /// Only available for directed graphs.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*};
+    ///
+    /// let g = AdjArray::from_edges(3, [(0, 1), (1, 2), (2, 1)]);
+    /// assert!(g.is_node_on_cycle_after_deleting(1, [0]));
+    /// assert!(!g.is_node_on_cycle_after_deleting(1, [2]));
+    /// ```
     fn is_node_on_cycle_after_deleting<I>(&self, u: Node, deleted: I) -> bool
     where
         I: IntoIterator<Item = Node>,
@@ -616,6 +809,17 @@ pub trait Traversal: AdjacencyList + Sized {
     /// # Note
     /// This method uses BFS with explicit predecessor tracking to reconstruct
     /// the path.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*};
+    /// use fxhash::FxHashMap;
+    ///
+    /// let g = AdjArrayUndir::from_edges(3, [(0, 1), (1, 2)]);
+    ///
+    /// let path = g.shortest_path::<NodeBitSet, FxHashMap<Node, Node>>(0, 2);
+    /// assert_eq!(path, Some(vec![1]));
+    /// ```
     fn shortest_path<S, M>(&self, start: Node, end: Node) -> Option<Vec<Node>>
     where
         S: Set<Node> + FromCapacity,
@@ -632,8 +836,11 @@ pub trait Traversal: AdjacencyList + Sized {
 
         if start == end {
             bfs.visited.remove(&start);
-            bfs.next();
         }
+
+        // `bfs` first returns `start` which we can skip here
+        // (and MUST as this item in `bfs` has no predecessor)
+        bfs.next();
 
         for item in bfs {
             parent.insert(item.item(), item.predecessor().unwrap());

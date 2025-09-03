@@ -44,6 +44,22 @@ pub trait DistancePairs: AdjacencyList + GraphType {
     ///
     /// # Panics
     /// Panics if `distance <= 1` (pairs must be at least two steps apart).
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*, gens::*};
+    ///
+    /// let mut g = AdjArray::new(10);
+    /// g.connect_path(0..10 as Node);
+    ///
+    /// let mut pairs: Vec<(Node, Node)> = g.distance_pairs(4).collect();
+    /// pairs.sort_unstable();
+    ///
+    /// assert_eq!(
+    ///     pairs,
+    ///     vec![(0, 4), (1, 5), (2, 6), (3, 7), (4, 8), (5, 9)]
+    /// );
+    /// ```
     fn distance_pairs(&self, distance: usize) -> DistancePairsIterator<'_, Self>;
 }
 

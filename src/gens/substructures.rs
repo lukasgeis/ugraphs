@@ -145,6 +145,87 @@ where
     }
 }
 
+/// Trait for constructing new graphs that are initialized with
+/// common **substructures**: paths, cycles, and cliques.
+///
+/// Implemented for all graph types that support creation and edge editing.
+///
+/// This is complementary to [`GeneratorSubstructures`], which modifies
+/// an *existing* graph by adding substructures, whereas
+/// `NewStructuredGraph` creates a fresh graph directly.
+pub trait NewStructuredGraph {
+    /// Creates a new graph with `n` nodes arranged in a **path**.
+    ///
+    /// - Nodes are numbered `0..n`.
+    /// - Each consecutive pair `(i, i+1)` is connected by an edge.
+    ///
+    /// # Example
+    /// ```
+    /// use ugraphs::{prelude::*, gens::*};
+    ///
+    /// let g = AdjArray::path(3);
+    /// assert!(g.has_edge(0, 1));
+    /// assert!(g.has_edge(1, 2));
+    /// ```
+    fn path(n: NumNodes) -> Self;
+
+    /// Creates a new graph with `n` nodes arranged in a **cycle**.
+    ///
+    /// - Nodes are numbered `0..n`.
+    /// - Each consecutive pair `(i, i+1)` is connected by an edge.
+    /// - Additionally, the last node `(n-1)` is connected back to `0`.
+    ///
+    /// # Example
+    /// ```
+    /// use ugraphs::{prelude::*, gens::*};
+    ///
+    /// let g = AdjArray::cycle(3);
+    /// assert!(g.has_edge(0, 1));
+    /// assert!(g.has_edge(1, 2));
+    /// assert!(g.has_edge(2, 0));
+    /// ```
+    fn cycle(n: NumNodes) -> Self;
+
+    /// Creates a new graph with `n` nodes arranged as a **clique** (complete graph).
+    ///
+    /// - Every pair of nodes is connected by an edge.
+    /// - If `self_loops` is `true`, each node additionally has a loop `(u, u)`.
+    ///
+    /// # Example
+    /// ```
+    /// use ugraphs::{prelude::*, gens::*};
+    ///
+    /// let g = AdjArrayUndir::clique(3, false);
+    /// assert!(g.has_edge(0, 1));
+    /// assert!(g.has_edge(1, 2));
+    /// assert!(g.has_edge(0, 2));
+    /// ```
+    fn clique(n: NumNodes, self_loops: bool) -> Self;
+}
+
+impl<G> NewStructuredGraph for G
+where
+    G: GraphNew + GraphEdgeEditing + GraphType,
+{
+    fn path(n: NumNodes) -> Self {
+        let mut g = Self::new(n);
+        g.connect_path(0..n as Node);
+        g
+    }
+
+    fn cycle(n: NumNodes) -> Self {
+        let mut g = Self::new(n);
+        g.connect_cycle(0..n as Node);
+        g
+    }
+
+    fn clique(n: NumNodes, self_loops: bool) -> Self {
+        let mut g = Self::new(n);
+        g.connect_clique(&NodeBitSet::new_all_set(n), self_loops);
+        g
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{ops::*, repr::AdjArrayMatrix};

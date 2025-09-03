@@ -6,7 +6,7 @@ This module provides algorithms for computing **matchings** in graphs.
 - Supports **maximal matchings** in undirected graphs (greedy, not necessarily optimal).
 - Supports **maximum bipartite matchings** using a flow-based approach.
 
-A *matching* is a set of edges without shared endpoints.
+A *matching* is a collection of edges without shared endpoints.
 - A **maximal matching** cannot be extended by adding another edge, but may not be optimal in size.
 - A **maximum matching** is the largest possible matching.
 */
@@ -25,6 +25,15 @@ pub trait Matching: GraphType<Dir = Undirected> {
     ///
     /// Each edge `{u, v}` in the matching is returned only once as `(u, v)` with `u <= v`.  
     /// The resulting vector is sorted lexicographically.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*, gens::*};
+    ///
+    /// let g = AdjArrayUndir::from_edges(6, [(0, 1), (2, 3), (4, 5)]);
+    ///
+    /// assert_eq!(g.maximal_undirected_matching(), vec![(0, 1), (2, 3), (4, 5)]);
+    /// ```
     fn maximal_undirected_matching(&self) -> Vec<(Node, Node)> {
         self.maximal_undirected_matching_excluding(std::iter::empty())
     }
@@ -37,6 +46,20 @@ pub trait Matching: GraphType<Dir = Undirected> {
     ///
     /// Note: The original graph may contain directed edges, but the induced subgraph
     /// must not contain asymmetric edges `(u, v)` without `(v, u)`.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*, gens::*};
+    ///
+    /// let mut g = AdjArrayUndir::new(10);
+    /// g.connect_path(0..5 as Node);
+    /// g.connect_path(5..10 as Node);
+    ///
+    /// assert_eq!(
+    ///     g.maximal_undirected_matching_excluding([2 as Node, 7 as Node]),
+    ///     vec![(0, 1), (3, 4), (5, 6), (8, 9)]
+    /// );
+    /// ```
     fn maximal_undirected_matching_excluding<I>(&self, excl: I) -> Vec<(Node, Node)>
     where
         I: IntoIterator<Item = Node>;
@@ -48,6 +71,26 @@ pub trait Matching: GraphType<Dir = Undirected> {
     ///
     /// Returns pairs `(a, b)` where `a` in `A` and `b` in `B`.  
     /// The order of the pairs is unspecified.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*, gens::*};
+    /// use std::collections::HashSet;
+    ///
+    /// let mut g = AdjArrayUndir::new(10);
+    /// g.connect_path(0..10 as Node);
+    ///
+    /// let mut m = g.maximum_bipartite_matching(
+    ///     &HashSet::from([0 as Node, 4, 8]),
+    ///     &HashSet::from([1 as Node, 5, 9])
+    /// );
+    /// m.sort_unstable();
+    ///
+    /// assert_eq!(
+    ///     m,
+    ///     vec![(0, 1), (4, 5), (8, 9)]
+    /// );
+    /// ```
     fn maximum_bipartite_matching<A, B>(&self, class_a: &A, class_b: &B) -> Vec<(Node, Node)>
     where
         A: Set<Node>,

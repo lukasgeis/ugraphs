@@ -29,24 +29,37 @@ use super::*;
 ///
 /// An articulation point is a vertex whose removal increases the number
 /// of connected components in the graph.
-pub trait ArticluationPoint: GraphType<Dir = Undirected> {
+pub trait ArticulationPoint: GraphType<Dir = Undirected> {
     /// Computes the articulation points of the graph.
     ///
     /// Returns a [`NodeBitSet`] where each set bit corresponds to
     /// a node that is an articulation point.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*, gens::*};
+    ///
+    /// let mut g = AdjArrayUndir::new(10);
+    /// g.connect_path(0..10 as Node);
+    ///
+    /// let mut aps = g.vertex_bitset_set();
+    /// aps.clear_bit(0);
+    /// aps.clear_bit(9);
+    ///
+    /// assert_eq!(g.compute_articulation_points(), aps);
+    /// ```
     fn compute_articulation_points(&self) -> NodeBitSet;
 
-    /// Computes articulation points with some nodes already considered visited.
+    /// Computes articulation points with some nodes already considered visited
+    /// in the underlying DFS used.
     ///
-    /// Useful for higher-order cuts (e.g., 2-cut, 3-cut), where some
+    /// You will probably do not need to interact with this method directly as it
+    /// it is mostly useful for higher-order cuts (e.g., 2-cut, 3-cut), where some
     /// vertices are pre-excluded from the search.
-    ///
-    /// # Arguments
-    /// * `visited` - A [`NodeBitSet`] marking nodes that are already visited.
     fn compute_articulation_points_with_visited(&self, visited: NodeBitSet) -> NodeBitSet;
 }
 
-impl<G> ArticluationPoint for G
+impl<G> ArticulationPoint for G
 where
     G: AdjacencyList + GraphType<Dir = Undirected>,
 {
@@ -172,7 +185,7 @@ where
 /// - Compute all enabled cuts at once.
 pub struct GraphCutBuilder<'a, G>
 where
-    G: AdjacencyList + ArticluationPoint + Traversal + GraphType<Dir = Undirected>,
+    G: AdjacencyList + ArticulationPoint + Traversal + GraphType<Dir = Undirected>,
 {
     /// Reference to the input graph.
     graph: &'a G,
@@ -211,7 +224,7 @@ pub enum CutType {
 ///   to enumerate all possible minimal cuts.
 impl<'a, G> GraphCutBuilder<'a, G>
 where
-    G: AdjacencyList + ArticluationPoint + Traversal + GraphType<Dir = Undirected>,
+    G: AdjacencyList + ArticulationPoint + Traversal + GraphType<Dir = Undirected>,
 {
     /// Creates a new GraphCutBuilder with all cut types enabled by default.
     ///

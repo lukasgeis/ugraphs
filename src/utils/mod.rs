@@ -3,7 +3,7 @@
 
 Provides a variety of utility traits/structs such as
 - [`SlicedBuffer`](self::sliced_buffer::SlicedBuffer): the internal representation for [`CsrGraph`],
-- [`GeometricJumper`](self::geometric::GeometricJumper): the generator for [`G(n,p)`](crate::gens::Gnp) graphs,
+- [`GeometricJumper`](self::geometric::GeometricJumper): the generator for [`G(n,p)`](crate::gens::gnp::Gnp) graphs,
 - abstractions over [`Set`] and [`Map`] for more flexibility in certain algorithms,
 - the `NodeMapper`-framework for mapping one graph to another (see [`NodeMapSetter`] / [`NodeMapGetter`]),
 - utility traits for combining multiple objects with less overhead.

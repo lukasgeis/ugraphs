@@ -33,8 +33,8 @@ pub use matching::Matching;
 pub use network_flow::{MinVertexCut, STFlow};
 pub use path_iterator::PathIterator;
 pub use subgraph::{GraphConcat, Subgraph};
-pub use traversal::{RankFromOrder, Traversal};
-pub use vertex_cuts::ArticluationPoint;
+pub use traversal::{RankFromOrder, Traversal, TraversalTree};
+pub use vertex_cuts::ArticulationPoint;
 
 /// Most graph algorithms take an immutable reference to a graph while executing.
 /// This helper trait allows getting that reference.
