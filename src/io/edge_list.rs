@@ -14,10 +14,10 @@ Example usage:
 use ugraphs::prelude::*;
 use ugraphs::io::*;
 
-let g: MyGraph = EdgeListReader::default()
-    .try_read_graph_file("graph.el")?;
+let g: AdjArray = EdgeListReader::default()
+    .try_read_graph_file("graph.gr")?;
 
-g.try_write_edge_list_file("out.el")?;
+g.try_write_edge_list_file("out.gr")?;
 ```
 */
 

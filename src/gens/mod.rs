@@ -1,14 +1,14 @@
 /*!
 # Graph Generators
 
-This module provides traits and builder-style interfaces for constructing random graph generators.
+This module provides traits for constructing random graph generators.
 
 Generators encapsulate common random graph models (e.g., Erdős–Rényi G(n, p), G(n, m), Random Hyperbolic Graphs, Minimum Spanning Tree, etc.) and provide both:
 
-- **Builder-style configuration**: e.g., `.nodes(n)`, `.edges(m)`, `.avg_deg(d)`.
+- **Model configuration**: e.g., `.set_nodes(n) / .nodes(n)`, `.set_edges(m) / .edges(m)`, `.set_avg_deg(d) / .avg_deg(d)`.
 - **Edge production**: either as a collected list (`generate`) or a lazy stream (`stream`).
 
-Typical usage:
+Instead of manually configuring a model step by step, you can also create a graph directly using the [`RandomGraph`] trait:
 ```
 use ugraphs::{prelude::*, gens::*};
 use rand::SeedableRng;
@@ -20,13 +20,10 @@ assert_eq!(g.number_of_nodes(), 50);
 ```
 
 Supported models include:
-- G(n,m): Uniform random graphs with a fixed number of nodes and edges
+- G(n,m): Uniform random graphs with a fixed number of nodes and edges.
 - G(n,p): Erdős–Rényi model with independent edge probability
 - G(n): Uniform random graphs with a fixed number of nodes
 - Rhg: Random hyperbolic graphs in the threshold case (T = 0)
-
-All graph types implementing `GraphFromScratch` and `GraphType` can leverage the `RandomGraph` trait
-for convenient random graph construction.
 */
 
 use fxhash::FxHashMap;
@@ -173,9 +170,9 @@ pub trait GraphGenerator {
 ///
 /// Implemented for any type that supports [`GraphFromScratch`] + [`GraphType`].
 /// Provides standard models like:
-/// - G(n), G(n, p), G(n, m)
-/// - Random Hyperbolic Graphs (Rhg)
-/// - Minimum Spanning Tree (Mst)
+/// - `G(n), G(n,p), G(n,m)`
+/// - Random Hyperbolic Graphs (`Rhg`)
+/// - Minimum Spanning Tree (`Mst`)
 ///
 /// # Example
 /// ```
@@ -202,7 +199,8 @@ pub trait RandomGraph: Sized {
     /// Creates a `G(n,p)` graph with no self-loops.
     fn gnp_no_loops<R>(rng: &mut R, n: NumNodes, p: f64) -> Self
     where
-        R: Rng;
+        R: Rng,
+        Self: GraphType<Dir = Directed>;
 
     /// Creates a random `G(n,m)` graph with exactly `m` edges.
     ///
@@ -246,8 +244,8 @@ where
             n,
             Gn::new()
                 .nodes(n)
-                .stream(rng)
-                .filter(|e| Self::is_directed() || e.is_normalized()),
+                .undirected(Self::is_undirected())
+                .stream(rng),
         )
     }
 
@@ -260,22 +258,24 @@ where
             Gnp::new()
                 .nodes(n)
                 .prob(p)
-                .stream(rng)
-                .filter(|e| Self::is_directed() || e.is_normalized()),
+                .undirected(Self::is_undirected())
+                .stream(rng),
         )
     }
 
     fn gnp_no_loops<R>(rng: &mut R, n: NumNodes, p: f64) -> Self
     where
         R: Rng,
+        Self: GraphType<Dir = Directed>,
     {
         Self::from_edges(
             n,
             Gnp::new()
                 .nodes(n)
                 .prob(p)
+                .directed(true)
                 .stream(rng)
-                .filter(|e| !e.is_loop() && (Self::is_directed() || e.is_normalized())),
+                .filter(|e| !e.is_loop()),
         )
     }
 

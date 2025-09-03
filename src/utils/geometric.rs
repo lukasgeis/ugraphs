@@ -323,6 +323,9 @@ where
             };
 
             self.cur += 1;
+            if self.cur > stop {
+                return None;
+            }
             return Some(self.cur - 1);
         }
 

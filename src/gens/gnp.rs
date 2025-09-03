@@ -8,7 +8,7 @@ This module provides random graph generators for the classical Erdős–Rényi m
 
 Generation is implemented lazily using the [`GeometricJumper`] inversion method, which skips absent edges efficiently instead of flipping a coin for every possible edge.
 
-Both directed and undirected graphs are supported, depending on which graph type consumes the generated edges.
+Both directed and undirected graphs are supported and must be specified beforehand.
 
 # Examples
 ```
@@ -63,10 +63,7 @@ enum GnpType {
 /// - specifying an average degree `d`, which is converted to `p = d / n`.
 ///
 /// Generation is efficient thanks to the [`GeometricJumper`], which skips
-/// non-edges instead of flipping `n^2` coins.
-///
-/// > **Note:** No filtering is done automatically.
-/// > Callers are responsible for filtering if needed.
+/// non-edges instead of flipping all possible coins.
 ///
 /// # Examples
 /// ```
@@ -82,6 +79,7 @@ enum GnpType {
 pub struct Gnp {
     n: u64,
     p: GnpType,
+    undirected: bool,
 }
 
 impl Gnp {
@@ -107,6 +105,28 @@ impl Gnp {
     /// Panics if `p` is not in the valid range `[0.0, 1.0]`.
     pub fn prob(mut self, prob: f64) -> Self {
         self.set_prob(prob);
+        self
+    }
+
+    /// Marks the graph as directed or not.
+    pub fn set_directed(&mut self, directed: bool) {
+        self.undirected = !directed;
+    }
+
+    /// Marks the graph as directed or not (builder-style).
+    pub fn directed(mut self, directed: bool) -> Self {
+        self.set_directed(directed);
+        self
+    }
+
+    /// Marks the graph as undirected or not.
+    pub fn set_undirected(&mut self, undirected: bool) {
+        self.undirected = undirected;
+    }
+
+    /// Marks the graph as undirected or not (builder-style).
+    pub fn undirected(mut self, undirected: bool) -> Self {
+        self.set_undirected(undirected);
         self
     }
 }
@@ -175,7 +195,13 @@ impl GraphGenerator for Gnp {
             GnpType::NotSet => panic!("Probility of Gnp was not set!"),
             GnpType::Prob(p) => p,
             GnpType::AvgDeg(d) => {
-                let p = d / self.n as f64;
+                assert!(d >= 0.0);
+                assert!(d <= (self.n - self.undirected as u64) as f64);
+                let p = if d == 0.0 {
+                    0.0
+                } else {
+                    d / (self.n - self.undirected as u64) as f64
+                };
                 assert!(
                     p.is_valid_probility(),
                     "The average degree is invalid for the given n!"
@@ -185,7 +211,11 @@ impl GraphGenerator for Gnp {
         };
 
         // The maximum possible value an edge can be mapped to
-        let max_value = self.n * self.n;
+        let max_value = if self.undirected {
+            self.n * (self.n - 1) / 2
+        } else {
+            self.n * self.n
+        };
 
         // Different between easy and hard cases with little overhead to ensure maximum efficiency
         match p {
@@ -193,11 +223,13 @@ impl GraphGenerator for Gnp {
             1.0 => TripleIter::IterB(MapToEdgeIter {
                 iter: 0..max_value,
                 n: self.n,
+                undirected: self.undirected,
             }),
             // We verified that `p` is a valid probability at this point
             _ => TripleIter::IterC(MapToEdgeIter {
                 iter: GeometricJumper::new(p).stop_at(max_value).iter(rng),
                 n: self.n,
+                undirected: self.undirected,
             }),
         }
     }
@@ -212,6 +244,7 @@ where
 {
     iter: I,
     n: u64,
+    undirected: bool,
 }
 
 impl<I> Iterator for MapToEdgeIter<I>
@@ -221,7 +254,10 @@ where
     type Item = Edge;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next().map(|x| Edge::from_u64(x, self.n))
+        self.iter.next().map(|x| match self.undirected {
+            true => Edge::from_u64_undir(x, self.n),
+            false => Edge::from_u64(x, self.n),
+        })
     }
 }
 
@@ -233,12 +269,35 @@ where
 #[derive(Debug, Copy, Clone, Default)]
 pub struct Gn {
     n: u64,
+    undirected: bool,
 }
 
 impl Gn {
     /// Creates a new `Gn` generator with default parameters.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Marks the graph as directed or not.
+    pub fn set_directed(&mut self, directed: bool) {
+        self.undirected = !directed;
+    }
+
+    /// Marks the graph as directed or not (builder-style).
+    pub fn directed(mut self, directed: bool) -> Self {
+        self.set_directed(directed);
+        self
+    }
+
+    /// Marks the graph as undirected or not.
+    pub fn set_undirected(&mut self, undirected: bool) {
+        self.undirected = undirected;
+    }
+
+    /// Marks the graph as undirected or not (builder-style).
+    pub fn undirected(mut self, undirected: bool) -> Self {
+        self.set_undirected(undirected);
+        self
     }
 }
 
@@ -260,9 +319,17 @@ impl GraphGenerator for Gn {
         R: Rng,
     {
         assert!(self.n > 0, "At least one node must be generated!");
+
+        let max_value = if self.undirected {
+            self.n * (self.n - 1) / 2
+        } else {
+            self.n * self.n
+        };
+
         MapToEdgeIter {
-            iter: GeometricJumper::new(0.5).stop_at(self.n * self.n).iter(rng),
+            iter: GeometricJumper::new(0.5).stop_at(max_value).iter(rng),
             n: self.n,
+            undirected: self.undirected,
         }
     }
 }

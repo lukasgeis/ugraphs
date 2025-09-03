@@ -1,3 +1,30 @@
+/*!
+# Neighborhood Abstractions
+
+This module defines the abstraction of a **neighborhood** of a vertex.
+Neighborhoods are the fundamental building blocks for adjacency representations.
+
+By implementing the [`Neighborhood`] trait, one can define how adjacency is stored
+(e.g., vectors, bitsets, or small inline arrays). This makes graph representations
+interchangeable without changing higher-level algorithms.
+
+## Provided Representations
+
+- [`ArrNeighborhood`] — adjacency stored as `Vec<Node>`.
+- [`SparseNeighborhood`] — adjacency stored as `SmallVec<[Node; N]>`, good for sparse graphs.
+- [`BitNeighborhood`] — adjacency stored as a [`NodeBitSet`], efficient for membership queries.
+
+## Key Traits
+
+- [`Neighborhood`] — core trait: iteration, add/remove/clear neighbors.
+- [`IndexedNeighborhood`] — random access to the *i*-th neighbor.
+- [`NeighborhoodSlice`] — borrow adjacency as a slice.
+- [`NeighborhoodSliceMut`] — borrow adjacency mutably as a slice.
+
+These abstractions enable flexible graph backends, allowing algorithms
+to remain agnostic of the underlying adjacency representation.
+*/
+
 use std::{iter::Copied, slice::Iter};
 
 use itertools::Itertools;
@@ -9,35 +36,52 @@ use stream_bitset::prelude::{
 
 use super::*;
 
-/// Trait for methods on the Neighborhood of a specified Node
+/// Core trait for representing the **neighborhood of a single vertex**.
+///
+/// Provides basic operations for creating, querying, and mutating adjacency lists.
+///
+/// # Safety notes
+/// - Some methods may panic if the given node index is out of bounds.
+/// - Some implementations allow multi-edges if `add_neighbor` is used blindly.
+///
+/// # Associated types
+/// - [`Neighborhood::NeighborhoodIter`] — iterator over neighbors.
+/// - [`Neighborhood::NeighborhoodStream`] — bitmask stream for fast set operations.
 pub trait Neighborhood: Clone {
+    /// Constructs a new, empty neighborhood for a graph with `n` nodes.
     fn new(n: NumNodes) -> Self;
 
-    /// Returns the number of neighbors in the Neighborhood
+    /// Returns the number of neighbors.    
     fn num_of_neighbors(&self) -> NumNodes;
 
+    /// Iterator over neighbors.
     type NeighborhoodIter<'a>: Iterator<Item = Node> + 'a
     where
         Self: 'a;
 
-    /// Returns an iterator over all neighbors in the Neighborhood
+    /// Returns an iterator over all neighbors.
     fn neighbors(&self) -> Self::NeighborhoodIter<'_>;
 
+    /// Bitmask stream over neighbors..
     type NeighborhoodStream<'a>: BitmaskStream + 'a
     where
         Self: 'a;
 
-    /// Returns a BitmaskStream over the Neighborhood for a given maximum number of nodes
+    /// Returns a [`BitmaskStream`] over the neighborhood.
     fn neighbors_as_stream(&self, n: NumNodes) -> Self::NeighborhoodStream<'_>;
 
-    /// Returns *true* if `u` is in the Neighborhood
-    /// ** Might panic if `u >= n` **
+    /// Checks whether `v` is a neighbor.
+    ///
+    /// # Panics
+    /// **Might panic** if `v >= n`.
     fn has_neighbor(&self, v: Node) -> bool {
         self.neighbors().any(|u| u == v)
     }
 
-    /// Performs `self.has_neighbor` for a constand number of nodes
-    /// ** Might panic if `u >= n` for any `u` in `neighbors` **
+    /// Checks membership for multiple nodes at once.
+    ///
+    /// # Panics
+    /// **Might panic** if any queried node is out of bounds.
     fn has_neighbors<const N: usize>(&self, neighbors: [Node; N]) -> [bool; N] {
         let mut res = [false; N];
         for node in self.neighbors() {
@@ -50,9 +94,9 @@ pub trait Neighborhood: Clone {
         res
     }
 
-    /// Tries to add a neighbor to the Neighborhood.
-    /// Returns *true* if the node was in the Neighborhood before.
-    /// ** Might panic if `u >= n` **
+    /// Tries to add a neighbor.
+    ///
+    /// Returns `true` if the neighbor was already present.
     fn try_add_neighbor(&mut self, u: Node) -> bool {
         if self.has_neighbor(u) {
             true
@@ -62,37 +106,38 @@ pub trait Neighborhood: Clone {
         }
     }
 
-    /// Adds a neighbor to the Neighborhood without checking if this neighbor exists beforehand.
-    /// For some implementations, this might lead to Multi-Edges
+    /// Adds a neighbor **without checking for duplicates**.
     fn add_neighbor(&mut self, u: Node);
 
-    /// Tries to remove a neighbor to the Neighborhood.
-    /// Returns *true* if the node was in the Neighborhood before.
-    /// ** Might panic if `u >= n` **
+    /// Tries to remove a neighbor.
+    ///
+    /// Returns `true` if the neighbor was present.
     fn try_remove_neighbor(&mut self, u: Node) -> bool;
 
-    /// Removes all neighbors that fit a given predicate and returns the number of removed neighbors
+    /// Removes all neighbors that match a predicate.
+    ///
+    /// Returns the number of removed neighbors.
     fn remove_neighbors_if<F: FnMut(Node) -> bool>(&mut self, predicate: F) -> NumNodes;
 
-    /// Removes all neighbors in the Neighborhood
+    /// Removes all neighbors.
     fn clear(&mut self);
 }
 
-/// Trait for indexing the Neighborhood
+/// Extension trait for neighborhoods supporting **random access**.
 pub trait IndexedNeighborhood: Neighborhood {
-    /// Returns the ith neighbor (0-indexed) of a given vertex
+    /// Returns the *i*-th neighbor (0-indexed).
     fn ith_neighbor(&self, i: NumNodes) -> Node;
 }
 
-/// Trait for accessing the neighborhood of nodes as slices
+/// Extension trait for neighborhoods exposing neighbors as slices.
 pub trait NeighborhoodSlice: Neighborhood {
-    /// Returns a slice-reference of the neighborhood of a given vertex
+    /// Returns a shared slice of the neighborhood.
     fn as_slice(&self) -> &[Node];
 }
 
-/// Trait for mutably accessing the neighborhood of nodes as slices
+/// Extension trait for neighborhoods exposing neighbors as mutable slices.
 pub trait NeighborhoodSliceMut: NeighborhoodSlice {
-    /// Returns a mutable slice-reference of the neighborhood of a given vertex
+    /// Returns a mutable slice of the neighborhood.
     fn as_slice_mut(&mut self) -> &mut [Node];
 }
 
@@ -102,6 +147,8 @@ impl<N: NeighborhoodSlice> IndexedNeighborhood for N {
     }
 }
 
+/// Macros to generate boilerplate trait implementations for graph types
+/// parameterized by neighborhood representations.
 pub(crate) mod macros {
     macro_rules! impl_common_graph_ops {
         ($struct:ident<$first_field:ident : $first_generic:ident $(, $field:ident : $generic:ident)*> => $nbs:ident, $directed:ident) => {
@@ -204,7 +251,10 @@ pub(crate) mod macros {
     pub(crate) use impl_try_add_edge;
 }
 
-/// Basic Neighborhood-Impl. using `Vec<Node>`
+/// Neighborhood backed by a `Vec<Node>`.
+///
+/// - Flexible, general-purpose representation.
+/// - Higher memory overhead than more compact representations.
 #[derive(Default, Clone)]
 pub struct ArrNeighborhood(pub Vec<Node>);
 
@@ -274,8 +324,10 @@ impl NeighborhoodSliceMut for ArrNeighborhood {
     }
 }
 
-/// Like `NeighborhoodArray` but uses `SmallVec<[Node; N]>` instead.
-/// Prefer this if the graph is known to be sparse.
+/// Neighborhood backed by a `SmallVec<[Node; N]>`.
+///
+/// - Optimized for sparse graphs where most neighborhoods are small.
+/// - Reduces cache misses by storing small lists inline.
 #[derive(Default, Clone)]
 pub struct SparseNeighborhood<const N: usize = 8>(pub SmallVec<[Node; N]>)
 where
@@ -356,7 +408,11 @@ where
     }
 }
 
-/// A Neighborhood represented by a NodeBitSet
+/// Neighborhood backed by a [`NodeBitSet`].
+///
+/// - Compact bitset representation.
+/// - Very efficient for `has_neighbor` queries.
+/// - More expensive iteration compared to `Vec`.
 #[derive(Default, Clone)]
 pub struct BitNeighborhood(pub NodeBitSet);
 

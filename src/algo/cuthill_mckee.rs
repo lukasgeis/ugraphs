@@ -176,7 +176,7 @@ mod test {
         let mut rng = Pcg64Mcg::seed_from_u64(123456);
         for n in 1..100 {
             let p = rng.random_range(0.5..(10.min(n) as f64)) / (n as f64);
-            let graph = AdjArrayUndir::gnp_no_loops(&mut rng, n, p);
+            let graph = AdjArrayUndir::gnp(&mut rng, n, p);
             let mapping: NodeMapper = graph.cuthill_mckee();
             assert_eq!(
                 mapping.len(),
@@ -190,7 +190,7 @@ mod test {
         let mut rng = Pcg64Mcg::seed_from_u64(1234567);
         for n in 1..100 {
             let p = rng.random_range(0.5..(2.min(n) as f64)) / (n as f64);
-            let graph = AdjArrayUndir::gnp_no_loops(&mut rng, n, p);
+            let graph = AdjArrayUndir::gnp(&mut rng, n, p);
             let (mapping, ccs) = graph.cuthill_mckee_cc::<NodeMapper>(true);
             let partition = graph.partition_into_connected_components_no_singletons();
 

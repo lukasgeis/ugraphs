@@ -1,31 +1,82 @@
+/*!
+# Compressed Sparse Row (CSR) Graph Representations
+
+This module provides adjacency representations based on the **Compressed Sparse Row (CSR)** format.
+They are designed for **memory efficiency** and **fast iteration** over adjacency lists in sparse graphs.
+
+CSR graphs store all adjacency lists in a single flattened array, with offset indices
+marking the start of each vertex’s neighbor list. This structure provides:
+
+- **Compact storage** compared to adjacency arrays (`Vec<Vec<Node>>`).
+- **Fast sequential access** to neighbors due to good cache locality.
+- **Efficient memory usage** for sparse graphs.
+- **Higher construction cost**, but immutable and optimized for traversal.
+
+## Types
+
+- [`CsrGraph`]: Directed CSR graph storing outgoing edges only.
+- [`CsrGraphIn`]: Directed CSR graph storing both outgoing and incoming edges.
+- [`CsrGraphUndir`]: Undirected CSR graph storing adjacency symmetrically.
+- [`CrossCsrGraph`]: Undirected CSR graph with *cross pointers* between reciprocal edges.
+
+Additionally:
+- [`NodeWithCrossPos`] is used internally by [`CrossCsrGraph`] to store the "cross position" of reciprocal edges.
+*/
+
 use super::*;
 use crate::{testing::test_graph_ops, utils::sliced_buffer::SlicedBuffer};
 use std::{iter::Copied, ops::Range, slice::Iter};
 use stream_bitset::{bitmask_stream::IntoBitmaskStream, bitset::BitsetStream};
 
+/// A neighbor node paired with its **cross position**.
+///
+/// Used in [`CrossCsrGraph`] to enable *O(1)* access to the reciprocal edge
+/// in an undirected graph.
+///
+/// - `node`: ID of the neighboring vertex.
+/// - `cross_pos`: Index of the reciprocal edge in the neighbor’s adjacency list.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct NodeWithCrossPos {
     pub node: Node,
     pub cross_pos: NumNodes,
 }
 
+/// Directed **CSR graph** representation.
+///
+/// - Stores adjacency as a single flattened array of outgoing edges.
+/// - Memory-efficient and fast for sparse graphs.
+/// - Incoming edges are not stored (see [`CsrGraphIn`] if you need them).
 #[derive(Clone)]
 pub struct CsrGraph {
     out_nbs: SlicedBuffer<Node, NumEdges>,
 }
 
+/// Directed **CSR graph** with both outgoing and incoming edges stored.
+///
+/// - Outgoing neighbors: `out_nbs`.
+/// - Incoming neighbors: `in_nbs`.
+///
+/// Useful for algorithms requiring fast access to both directions.
 #[derive(Clone)]
 pub struct CsrGraphIn {
     out_nbs: SlicedBuffer<Node, NumEdges>,
     in_nbs: SlicedBuffer<Node, NumEdges>,
 }
 
+/// Undirected **CSR graph** representation.
+///
+/// - Stores symmetric adjacency lists.
+/// - Each edge is stored twice (once per endpoint) (except self-loops).
 #[derive(Clone)]
 pub struct CsrGraphUndir {
     nbs: SlicedBuffer<Node, NumEdges>,
     self_loops: NumNodes,
 }
 
+/// Undirected **CSR graph** with cross-pointers between reciprocal edges.
+///
+/// - Like [`CsrGraphUndir`], but each neighbor entry knows the index of its reverse edge.
+/// - Useful for algorithms that need *constant-time edge reversal*, e.g. flow algorithms.
 #[derive(Clone)]
 pub struct CrossCsrGraph {
     nbs: SlicedBuffer<NodeWithCrossPos, NumEdges>,
@@ -286,6 +337,11 @@ impl IndexedAdjacencySwap for CrossCsrGraph {
 // As of now `#![feature(impl_trait_in_assoc_type)]` is not stable yet which is why we rely on
 // custom Wrappers around iterators if the *real* type is obfuscated by a closure.
 
+/// Iterator over **incoming neighbors** in [`CsrGraph`].
+///
+/// This iterator computes in-neighbors on-the-fly by scanning all edges.
+/// As a result, it is **very inefficient** and should be avoided if possible.
+/// Prefer [`CsrGraphIn`] when incoming adjacency is required.
 pub struct DirectedInCsrIter<'a> {
     graph: &'a CsrGraph,
     node: Node,
@@ -308,6 +364,9 @@ impl<'a> Iterator for DirectedInCsrIter<'a> {
     }
 }
 
+/// Iterator over neighbors in [`CrossCsrGraph`].
+///
+/// Wraps a slice iterator over [`NodeWithCrossPos`] but exposes only the neighbor node.
 pub struct CrossPosNeighborIter<'a>(Iter<'a, NodeWithCrossPos>);
 
 impl<'a> Iterator for CrossPosNeighborIter<'a> {

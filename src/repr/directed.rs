@@ -1,3 +1,26 @@
+/*!
+# Directed Graph Representations
+
+This module defines generic and concrete **directed graph** representations.
+
+A directed graph is represented by parameterizing [`DirectedGraph`] or
+[`DirectedGraphIn`] with one or two [`Neighborhood`] types, which
+control how adjacency information is stored.
+
+## Provided Representations
+
+- [`AdjArray`] / [`AdjArrayIn`] — adjacency arrays for outgoing and (optionally) incoming neighbors.
+- [`SparseAdjArray`] / [`SparseAdjArrayIn`] — sparse adjacency arrays using inline small vectors.
+- [`AdjMatrix`] / [`AdjMatrixIn`] — bitset-based adjacency matrices.
+- [`AdjArrayMatrix`] — outgoing adjacency arrays, incoming adjacency matrix.
+
+## Design
+- [`DirectedGraph`] stores **only outgoing neighborhoods** and derives
+  incoming neighborhoods by scanning all vertices (costly).
+- [`DirectedGraphIn`] stores **both outgoing and incoming neighborhoods**,
+  enabling efficient access to in-neighbors.
+*/
+
 use stream_bitset::{bitset::BitsetStream, prelude::IntoBitmaskStream};
 
 use std::ops::Range;
@@ -9,7 +32,13 @@ use crate::{
 
 use super::*;
 
-/// A directed graph representation storing only outgoing Neighborhoods
+/// A directed graph storing only **outgoing neighborhoods**.
+///
+/// - Outgoing adjacency is stored directly.
+/// - Incoming adjacency is derived on demand (expensive).
+///
+/// # Type parameters
+/// - `OutNbs`: [`Neighborhood`] implementation used for outgoing adjacency.
 #[derive(Clone)]
 pub struct DirectedGraph<OutNbs>
 where
@@ -19,7 +48,15 @@ where
     num_edges: NumEdges,
 }
 
-/// A directed graph representation storing both outgoing & incoming Neighborhoods
+/// A directed graph storing **both outgoing and incoming neighborhoods**.
+///
+/// - Outgoing adjacency is stored in `out_nbs`.
+/// - Incoming adjacency is stored in `in_nbs`.
+/// - Enables efficient `in_neighbors_of` and `in_degree_of`.
+///
+/// # Type parameters
+/// - `OutNbs`: [`Neighborhood`] implementation used for outgoing adjacency.
+/// - `InNbs`: [`Neighborhood`] implementation used for incoming adjacency.
 #[derive(Clone)]
 pub struct DirectedGraphIn<OutNbs, InNbs>
 where
@@ -31,27 +68,27 @@ where
     num_edges: NumEdges,
 }
 
-/// Representation using an Adjacency-Array
+/// Directed graph using adjacency arrays (`Vec<Node>`).
 pub type AdjArray = DirectedGraph<ArrNeighborhood>;
 
-/// Representation using an Adjacency-Array for both outgoing & incoming Neighborhoods
+/// Directed graph using adjacency arrays for both outgoing and incoming neighborhoods.
 pub type AdjArrayIn = DirectedGraphIn<ArrNeighborhood, ArrNeighborhood>;
 
-/// Representation using a sparse Adjacency-Array
+/// Directed graph using sparse adjacency arrays (`SmallVec<[Node; N]>`).
 pub type SparseAdjArray = DirectedGraph<SparseNeighborhood>;
 
-/// Representation using a sparse Adjacency-Array for both outgoing & incoming Neighborhoods
+/// Directed graph using sparse adjacency arrays for both outgoing and incoming neighborhoods.
 pub type SparseAdjArrayIn = DirectedGraphIn<SparseNeighborhood, SparseNeighborhood>;
 
-/// Representation using an Adjacency-Matrix
+/// Directed graph using a bitset-based adjacency matrix (`NodeBitSet`).
 pub type AdjMatrix = DirectedGraph<BitNeighborhood>;
 
-/// Representation using an Adjacency-Matrix for both outgoing & incoming Neighborhoods
+/// Directed graph using a bitset-based adjacency matrix for both outgoing and incoming neighborhoods.
 pub type AdjMatrixIn = DirectedGraphIn<BitNeighborhood, BitNeighborhood>;
 
-/// Representation using an
-/// - Adjacency-Array for outgoing Neighborhoods
-/// - Adjacency-Matrix for incoming Neighborhoods
+/// Directed graph using:
+/// - adjacency arrays for outgoing neighborhoods,
+/// - a bitset-based adjacency matrix for incoming neighborhoods.
 pub type AdjArrayMatrix = DirectedGraphIn<ArrNeighborhood, BitNeighborhood>;
 
 impl_common_graph_ops!(DirectedGraph<out_nbs : OutNbs> => out_nbs, Directed);
@@ -97,6 +134,10 @@ impl<OutNbs: Neighborhood> Singletons for DirectedGraph<OutNbs> {
     }
 }
 
+/// Iterator over the in-neighbors of a node in a [`DirectedGraph`].
+///
+/// Scans all vertices, checking if they have an edge into the target node.
+/// This is inherently costly compared to [`DirectedGraphIn`].
 pub struct DirectedInNeighborIter<'a, OutNbs>
 where
     OutNbs: Neighborhood,

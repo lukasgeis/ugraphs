@@ -121,7 +121,7 @@ impl Edge {
     /// assert_eq!(edges.len(), ub as usize);
     /// ```
     pub fn from_u64_undir(mut x: u64, n: u64) -> Self {
-        debug_assert!(x < n * (n - 1) / 2);
+        debug_assert!(x < n * (n - 1) / 2, "{x} >= {n}");
 
         let mut num_neighbors = (n - 1) / 2;
         // Easy case where `n - 1` is even and no corner cases exist

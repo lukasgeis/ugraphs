@@ -1,3 +1,39 @@
+/*!
+# Uniform Random Graph Generators: `G(n,m)`
+
+This module provides generators for the Erdős–Rényi `G(n,m)` random graph model:
+
+- **`G(n,m)`**: chooses exactly `m` distinct edges uniformly at random from the set of all possible edges on `n` nodes.
+- An alternative configuration uses an **average degree `d`**, which is internally converted to an expected edge count `m = d·n`.
+
+Both **directed** and **undirected** graphs are supported, depending on the consuming graph type.
+
+Generation is performed lazily using the **Batagelj–Brandes algorithm** (2005), which simulates a partial shuffle without replacement via a sparse mapping structure.
+This avoids the need to sample all edges eagerly, making the generator efficient even for large graphs.
+
+The internal mapping structure used for edge sampling can be customized via the [`GnmMap`] trait:
+- [`FxHashMap`] (default) for sparse graphs
+- `Vec`-like structures for dense graphs
+
+# Examples
+```
+use ugraphs::{prelude::*, gens::*};
+use rand::SeedableRng;
+use rand_pcg::Pcg64Mcg;
+
+// Generate a G(n,m) graph with n=10, m=15
+let rng = &mut Pcg64Mcg::seed_from_u64(42);
+let g = AdjArray::gnm(rng, 10, 15);
+assert_eq!(g.number_of_nodes(), 10);
+assert_eq!(g.number_of_edges(), 15);
+```
+
+# References
+- V. Batagelj and U. Brandes,
+  *Efficient Generation of Large Random Networks*,
+  Physical Review E 71.3 (2005): 036113.
+*/
+
 use std::marker::PhantomData;
 
 use fxhash::FxHashMap;
