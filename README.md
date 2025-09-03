@@ -83,6 +83,6 @@ If you need **labeled, weighted, or richer features**, consider:
 
 Developed by [Manuel Penschuck](https://github.com/manpen) and [Johannes Meintrup](https://github.com/jmeintrup) for the 
 - [PACE 2022 Challenge](https://pacechallenge.org/2022/) (solver: [BreakingTheCycle](https://github.com/goethe-tcs/breaking-the-cycle)),  
-- [PACE 2025](https://pacechallenge.org/2025/) (solver: [PaceYourself](https://github.com/manpen/pace25/tree/master)).  
+- [PACE 2025 Challenge](https://pacechallenge.org/2025/) (solver: [PaceYourself](https://github.com/manpen/pace25/tree/master)).  
 
 
