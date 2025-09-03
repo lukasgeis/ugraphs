@@ -52,8 +52,8 @@ Implemented algorithms include:
 - Connected components  
 - Matchings & network flow  
 - Bipartite checks  
-- Random graph generators (`gens`)  
-- Hashing (`repr::digest`)  
+- Random graph generators ([`repr`](src/gens))
+- Hashing ([`digest`](src/repr/digest.rs)) 
 
 ---
 
@@ -75,7 +75,7 @@ If you need **labeled, weighted, or richer features**, consider:
 ## Disclaimers
 
 * This library is currently under production.
-* `stream-bitset` will be separated into its own crate in the (hopefully near) future
+* [`stream-bitset`](stream-bitset) will be separated into its own crate in the (hopefully near) future
 
 ---
 
