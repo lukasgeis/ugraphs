@@ -4,7 +4,7 @@
 
 - **unlabelled & unsigned**: nodes are numbered `0..n-1`  
 - **unweighted**: no weights on nodes or edges  
-- **undirected**: optionally supported (directed graphs work too)
+- **undirected**: optionally supported (directed graphs work too) (fits the naming scheme)
 
 ---
 
@@ -14,14 +14,14 @@
 - **Edges** are stored as `Edge(Node, Node)`.  
 
 Both **directed** and **undirected** graphs are supported.  
-In undirected graphs, `Edge(u, v)` ≡ `Edge(v, u)`.  
+In undirected graphs, `Edge(u, v)` = `Edge(v, u)`.  
 In directed graphs, the two are distinct.
 
 ---
 
 ## Graph Backends
 
-Multiple storage backends are available (see [`repr`](src/repr)):  
+Multiple graph representations are available (see [`repr`](src/repr)):  
 
 - `AdjArray` – adjacency array  
 - `AdjMatrix` – adjacency matrix  
@@ -49,8 +49,8 @@ Implemented algorithms include:
 
 - Breadth-first search (BFS) and depth-first search (DFS)  
 - Topological search & cycle detection  
-- Connected components  
-- Matchings & network flow  
+- (Strongly) Connected components  
+- Matchings & Network Flow  
 - Bipartite checks  
 - Random graph generators ([`repr`](src/gens))
 - Hashing ([`digest`](src/repr/digest.rs)) 
