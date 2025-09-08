@@ -24,12 +24,18 @@ Supported models include:
 - G(n,p): Erdős–Rényi model with independent edge probability
 - G(n): Uniform random graphs with a fixed number of nodes
 - Rhg: Random hyperbolic graphs in the threshold case (T = 0)
+
+If you are building a CLI-Tool with [`structopt`], you can use [`GraphArgs`] to let the user specify a parametrized random graph model as input.
 */
+
+use std::path::PathBuf;
 
 use fxhash::FxHashMap;
 use rand::Rng;
 
-use crate::prelude::*;
+use structopt::StructOpt;
+
+use crate::{io::*, prelude::*};
 
 pub mod gnm;
 pub mod gnp;
@@ -307,6 +313,186 @@ where
         R: Rng,
     {
         Self::from_edges(n, Mst::new().nodes(n).stream(rng))
+    }
+}
+
+/// Arguments passable by a User.
+///
+/// # Examples
+/// ```
+/// use structopt::StructOpt;
+/// use ugraphs::gens::GraphArgs;
+///
+/// /// Can be passed via `./my_bin --param1 --param2 3 gnp -n 10 -d 3`
+/// #[derive(StructOpt)]
+/// struct MyArgs {
+///     #[structopt(subcommand)]
+///     graph: GraphArgs,
+///
+///     #[structopt(long)]
+///     param1: bool,
+///
+///     #[structopt(long)]
+///     param2: usize,
+/// }
+/// ```
+#[derive(StructOpt, Debug, Clone)]
+pub enum GraphArgs {
+    Gnp {
+        /// Number of nodes
+        #[structopt(short = "n")]
+        nodes: NumNodes,
+
+        /// Average degree (only one of `-d/-p` can be set)
+        #[structopt(short = "d")]
+        avg_deg: Option<f64>,
+
+        /// Probability (only one of `-d/-p` can be set)
+        #[structopt(short = "p")]
+        prob: Option<f64>,
+    },
+    Gn {
+        /// Number of nodes
+        #[structopt(short = "n")]
+        nodes: NumNodes,
+    },
+    Gnm {
+        /// Number of nodes
+        #[structopt(short = "n")]
+        nodes: NumNodes,
+
+        /// Average degree (only one of `-d/-p` can be set)
+        #[structopt(short = "m")]
+        edges: NumEdges,
+    },
+    Rhg {
+        /// Number of nodes
+        #[structopt(short = "n")]
+        nodes: NumNodes,
+
+        /// Radial dispersion
+        #[structopt(short = "a", default_value = "1")]
+        alpha: f64,
+
+        /// Radius of hyperbolic disk
+        #[structopt(short = "r")]
+        radius: Option<f64>,
+
+        /// Average degree
+        #[structopt(short = "d")]
+        avg_deg: Option<f64>,
+
+        /// Number of bands
+        #[structopt(short = "b")]
+        num_bands: Option<usize>,
+    },
+    Mst {
+        /// Number of nodes
+        #[structopt(short = "n")]
+        nodes: NumNodes,
+    },
+    Complete {
+        /// Number of nodes
+        #[structopt(short = "n")]
+        nodes: NumNodes,
+
+        /// Are self-loops allowed?
+        #[structopt(short = "l", long)]
+        loops: bool,
+    },
+    Cycle {
+        /// Number of nodes
+        #[structopt(short = "n")]
+        nodes: NumNodes,
+    },
+    File {
+        /// Path to file
+        #[structopt(short = "p", parse(from_os_str))]
+        path: PathBuf,
+
+        /// File Format
+        #[structopt(short = "f", long)]
+        format: FileFormat,
+    },
+}
+
+pub trait GraphFromArgs {
+    fn from_graph_args<R>(args: GraphArgs, rng: &mut R) -> Self
+    where
+        R: Rng;
+}
+
+impl<G> GraphFromArgs for G
+where
+    G: GraphFromScratch + GraphType,
+{
+    fn from_graph_args<R>(args: GraphArgs, rng: &mut R) -> Self
+    where
+        R: Rng,
+    {
+        match args {
+            GraphArgs::Gnp {
+                nodes,
+                avg_deg,
+                prob,
+            } => match (avg_deg, prob) {
+                (Some(d), None) => Self::from_edges(
+                    nodes,
+                    Gnp::new()
+                        .nodes(nodes)
+                        .avg_deg(d)
+                        .undirected(Self::is_undirected())
+                        .stream(rng),
+                ),
+                (None, Some(p)) => Self::gnp(rng, nodes, p),
+                _ => panic!("Provide either probability or average degree!"),
+            },
+            GraphArgs::Gn { nodes } => Self::gn(rng, nodes),
+            GraphArgs::Gnm { nodes, edges } => Self::gnm(rng, nodes, edges),
+            GraphArgs::Rhg {
+                nodes,
+                alpha,
+                radius,
+                avg_deg,
+                num_bands,
+            } => {
+                assert!(
+                    Self::is_undirected(),
+                    "Rhg is only implemented for undirected graphs!"
+                );
+                assert!(
+                    radius.is_some() != avg_deg.is_some(),
+                    "Provide either average degree or radius!"
+                );
+
+                let mut rhg = Rhg::new().nodes(nodes).alpha(alpha);
+                if let Some(bands) = num_bands {
+                    rhg.set_num_bands(bands);
+                }
+
+                if let Some(deg) = avg_deg {
+                    rhg.set_avg_deg(deg);
+                } else if let Some(rad) = radius {
+                    rhg.set_radius(rad);
+                }
+
+                Self::from_edges(nodes, rhg.stream(rng))
+            }
+            GraphArgs::Mst { nodes } => Self::mst(rng, nodes),
+            GraphArgs::Complete { nodes, loops } => Self::from_edges(
+                nodes,
+                (0..nodes).flat_map(|u| {
+                    (0..nodes).filter_map(move |v| {
+                        ((Self::is_directed() || Edge(u, v).is_normalized()) && (loops || u != v))
+                            .then_some(Edge(u, v))
+                    })
+                }),
+            ),
+            GraphArgs::Cycle { nodes } => {
+                Self::from_edges(nodes, (0..nodes).map(|u| Edge(u, (u + 1) % nodes)))
+            }
+            GraphArgs::File { path, format } => Self::try_from_file(path, format).unwrap(),
+        }
     }
 }
 

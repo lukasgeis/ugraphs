@@ -148,6 +148,23 @@ pub trait Connectivity: AdjacencyList + Traversal + Sized {
             .into_partition(self.number_of_nodes())
     }
 
+    /// Returns *true* if the graph is connected, ie. consists of a single connected component
+    /// of size `n`.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*};
+    ///
+    /// let g = AdjArrayUndir::from_edges(3, [(0, 1), (1, 2)]);
+    /// assert!(g.is_connected());
+    /// ```
+    fn is_connected(&self) -> bool
+    where
+        Self: GraphType<Dir = Undirected>,
+    {
+        self.connected_components().next().unwrap().len() == self.len()
+    }
+
     /// Returns an iterator over strongly connected components (SCCs) in a directed graph.
     ///
     /// Each SCC is returned as a vector of nodes.
@@ -223,6 +240,23 @@ pub trait Connectivity: AdjacencyList + Traversal + Sized {
     {
         self.strongly_connected_components_no_singletons()
             .into_partition(self.number_of_nodes())
+    }
+
+    /// Returns *true* if the graph is strongly connected, ie. consists of a single strongly connected
+    /// component of size `n`.
+    ///
+    /// # Examples
+    /// ```
+    /// use ugraphs::{prelude::*, algo::*};
+    ///
+    /// let g = AdjArray::from_edges(3, [(0, 1), (1, 2), (2, 0)]);
+    /// assert!(g.is_strongly_connected());
+    /// ```
+    fn is_strongly_connected(&self) -> bool
+    where
+        Self: DirectedAdjacencyList,
+    {
+        self.strongly_connected_components().next().unwrap().len() == self.len()
     }
 }
 

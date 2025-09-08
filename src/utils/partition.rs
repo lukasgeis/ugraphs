@@ -81,6 +81,21 @@ impl<'a> Iterator for ClassMemberIter<'a> {
     }
 }
 
+/// Iterator over all nodes assigned to a class and their classes.
+///
+/// Returned by [`Partition::iter`].
+pub struct NodeClassIter<'a>(Enumerate<Iter<'a, Option<OptionalNode>>>);
+
+impl<'a> Iterator for NodeClassIter<'a> {
+    type Item = (Node, PartitionClass);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0
+            .find(|(_, c)| c.is_some())
+            .map(|(u, c)| (u as Node, c.unwrap().get()))
+    }
+}
+
 impl Partition {
     /// Creates a new partition over `nodes` nodes, all initially unassigned.
     ///
@@ -230,6 +245,20 @@ impl Partition {
         self.class_sizes[class_id as usize]
     }
 
+    /// Returns the number of nodes that can be partitioned.
+    ///
+    /// # Example
+    /// ```
+    /// use ugraphs::utils::Partition;
+    ///
+    /// let mut part = Partition::new(3);
+    ///
+    /// assert_eq!(part.number_of_nodes(), 3);
+    /// ```
+    pub fn number_of_nodes(&self) -> NumNodes {
+        self.classes.len() as NumNodes
+    }
+
     /// Returns the number of partition classes (0 if all nodes are unassigned)
     ///
     /// # Example
@@ -268,6 +297,23 @@ impl Partition {
             classes: self.classes.iter().enumerate(),
             class_id: class,
         }
+    }
+
+    /// Returns an iterator over all nodes that are assigned to a class and their respective class.
+    /// Values are returned in increasing order of nodes.
+    ///
+    /// # Example
+    /// ```
+    /// use ugraphs::utils::Partition;
+    ///
+    /// let mut part = Partition::new(3);
+    /// let c0 = part.add_class([0, 2]);
+    ///
+    /// let part: Vec<_> = part.iter().collect();
+    /// assert_eq!(part, vec![(0, c0), (2, c0)]);
+    /// ```
+    pub fn iter(&self) -> NodeClassIter<'_> {
+        NodeClassIter(self.classes.iter().enumerate())
     }
 
     /// Splits the graph into one subgraph per partition class.
