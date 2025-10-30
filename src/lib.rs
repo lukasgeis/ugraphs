@@ -32,7 +32,7 @@ There are also `DirectedIn`-Variants for directed graphs that additionally store
 
 # Design
 
-All algorithms/generators are provided as configurable structs that one can alter to their needs using either the *Builder* / *Setter* pattern before calling the configured algorithm on a provided graph.
+All algorithms/generators are provided as configurable structs that one can alter to their needs before calling the configured algorithm on a provided graph.
 Alternatively, most important and commonly used functionalities should already be implemented via traits on the graph itself, making them usable without configuring the algorithm beforehand.
 
 # Usage
@@ -52,7 +52,6 @@ In most use-cases, `use ugraphs::{prelude::*, algo::*};` suffices for your needs
 # When to use
 You should only use this library if the following apply:
 - Your graphs are unlabelled and unweighted
-- You want to work in *Rust*
 - You require only basic functionality for graphs.
 - Performance is important
 

@@ -201,6 +201,32 @@ pub trait NewStructuredGraph {
     /// assert!(g.has_edge(0, 2));
     /// ```
     fn clique(n: NumNodes, self_loops: bool) -> Self;
+
+    /// Creates a new grid graph with `n * n` nodes arranged as a `n x n` grid.
+    /// Nodes are numbered as follows:
+    /// ```text
+    ///   0       1     ...  n-1
+    ///   n      n+1    ... 2n-1
+    ///   .       .     ...   .
+    ///   .       .     ...   .
+    ///   .       .     ...   .
+    /// n(n-1) n(n-1)+1 ... n^2-1
+    /// ```
+    ///
+    /// If the graph is directed, edges are connected via 2-cycles.
+    ///
+    /// ```
+    /// use ugraphs::{prelude::*, gens::*};
+    ///
+    /// let g = AdjArrayUndir::grid(2);
+    /// assert_eq!(g.number_of_nodes(), 4);
+    /// assert_eq!(g.number_of_edges(), 4);
+    /// assert_eq!(
+    ///     g.ordered_edges(true).collect::<Vec<Edge>>(),
+    ///     vec![Edge(0,1), Edge(0,2), Edge(1,3), Edge(2,3)]
+    /// );
+    /// ```
+    fn grid(n: NumNodes) -> Self;
 }
 
 impl<G> NewStructuredGraph for G
@@ -222,6 +248,28 @@ where
     fn clique(n: NumNodes, self_loops: bool) -> Self {
         let mut g = Self::new(n);
         g.connect_clique(&NodeBitSet::new_all_set(n), self_loops);
+        g
+    }
+
+    fn grid(n: NumNodes) -> Self {
+        let mut g = Self::new(n * n);
+
+        for i in 1..n {
+            for u in 0..n {
+                // Horizontal
+                g.add_edge(u * n + i - 1, u * n + i);
+                // Vertical
+                g.add_edge(u + n * i - n, u + n * i);
+
+                if G::is_directed() {
+                    // Horizontal
+                    g.add_edge(u * n + i, u * n + i - 1);
+                    // Vertical
+                    g.add_edge(u + n * i, u + n * i - n);
+                }
+            }
+        }
+
         g
     }
 }

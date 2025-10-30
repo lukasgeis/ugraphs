@@ -33,6 +33,7 @@ use std::path::PathBuf;
 use fxhash::FxHashMap;
 use rand::Rng;
 
+use smallvec::SmallVec;
 use structopt::StructOpt;
 
 use crate::{io::*, prelude::*};
@@ -405,6 +406,11 @@ pub enum GraphArgs {
         #[structopt(short = "n")]
         nodes: NumNodes,
     },
+    Grid {
+        /// Number of nodes
+        #[structopt(short = "n")]
+        nodes: NumNodes,
+    },
     File {
         /// Path to file
         #[structopt(short = "p", parse(from_os_str))]
@@ -491,6 +497,21 @@ where
             GraphArgs::Cycle { nodes } => {
                 Self::from_edges(nodes, (0..nodes).map(|u| Edge(u, (u + 1) % nodes)))
             }
+            GraphArgs::Grid { nodes } => Self::from_edges(
+                nodes * nodes,
+                (0..nodes).flat_map(|u| {
+                    (1..nodes).flat_map(move |i| {
+                        let mut edges: SmallVec<[Edge; 4]> = Default::default();
+                        edges.push(Edge(u * nodes + i - 1, u * nodes + i));
+                        edges.push(Edge(u + nodes * i - nodes, u + nodes * i));
+                        if Self::is_directed() {
+                            edges.push(Edge(u * nodes + i, u * nodes + i - 1));
+                            edges.push(Edge(u + nodes * i, u + nodes * i - nodes));
+                        }
+                        edges
+                    })
+                }),
+            ),
             GraphArgs::File { path, format } => Self::try_from_file(path, format).unwrap(),
         }
     }

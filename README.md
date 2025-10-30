@@ -1,16 +1,16 @@
 # ugraphs
 
-**`ugraphs`** is a graph data structure and algorithms library in Rust, designed for graphs that are:
+**`ugraphs`** is a graph data structure and algorithms library, designed for graphs that are:
 
 - **unlabelled & unsigned**: nodes are numbered `0..n-1`  
-- **unweighted**: no weights on nodes or edges  
-- **undirected**: optionally supported (directed graphs work too) (fits the naming scheme)
+- **unweighted**: no weights on nodes or edges 
+- **undirected**: optional but fits the naming scheme
 
 ---
 
 ## Representation
 
-- **Nodes** are `u32` in the range `0..n`. This covers up to 2³² nodes while saving memory compared to `usize/u64`.  
+- **Nodes** are `u32` in the range `0..n`. This covers up to 2^32 nodes while saving memory compared to `usize/u64`.  
 - **Edges** are stored as `Edge(Node, Node)`.  
 
 Both **directed** and **undirected** graphs are supported.  
@@ -26,7 +26,7 @@ Multiple graph representations are available (see [`repr`](src/repr)):
 - `AdjArray` – adjacency array  
 - `AdjMatrix` – adjacency matrix  
 - `CsrGraph` – compressed sparse row  
-- `SparseAdjArray` – sparse adjacency array  
+- `SparseAdjArray` – sparse adjacency array 
 - `AdjArrayMatrix` – hybrid (directed only)  
 
 `DirectedIn` variants additionally store in-neighbors for efficient reverse traversal.  
@@ -50,7 +50,7 @@ Implemented algorithms include:
 - Breadth-first search (BFS) and depth-first search (DFS)  
 - Topological search & cycle detection  
 - (Strongly) Connected components  
-- Matchings & Network Flow  
+- Matchings & Network Flow 
 - Bipartite checks  
 - Random graph generators ([`repr`](src/gens))
 - Hashing ([`digest`](src/repr/digest.rs)) 
@@ -66,7 +66,7 @@ Use **ugraphs** if:
 - You want **basic but efficient graph representations** 
 - You want to use *Rust*
 
-If you need **labeled, weighted, or richer features**, consider:  
+If you need **labeled or weighted graphs** or just **richer features**, consider:  
 - [petgraph](https://crates.io/crates/petgraph) (general-purpose Rust library)  
 - [NetworKit](https://networkit.github.io/) (high-performance C++/Python library)  
 

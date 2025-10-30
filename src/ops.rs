@@ -10,7 +10,7 @@ It covers:
 - **Node and edge counts** ([`GraphNodeOrder`], [`GraphEdgeOrder`], [`Singletons`]).
 - **Neighborhood access** ([`AdjacencyList`], [`DirectedAdjacencyList`], [`AdjacencyTest`], [`IndexedAdjacencyList`], [`NeighborsSlice`]).
 - **Edge editing** ([`GraphEdgeEditing`], [`GraphDirectedEdgeEditing`], [`GraphLocalEdgeEditing`], [`IndexedAdjacencySwap`], [`NeighborsSliceMut`]).
-- **New Graphs** ([`GraphNew`], [`GraphFromScratch`])
+- **Creating Graphs** ([`GraphNew`], [`GraphFromScratch`])
 
 These traits form the backbone for algorithms in `ugraphs` to work across
 multiple graph representations (static or dynamic, directed or undirected).
