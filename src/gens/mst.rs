@@ -25,7 +25,7 @@ assert_eq!(edges.len(), 4); // Always n-1 edges
 ```
 */
 
-use rand::Rng;
+use rand::RngExt;
 use rand_distr::{Distribution, Uniform};
 
 use super::*;
@@ -83,12 +83,12 @@ impl GraphGenerator for Mst {
     type EdgeStream<'a, R>
         = MstGenerator<'a, R>
     where
-        R: Rng + 'a,
+        R: RngExt + 'a,
         Self: 'a;
 
     fn stream<'a, R>(&'a self, rng: &'a mut R) -> Self::EdgeStream<'a, R>
     where
-        R: Rng,
+        R: RngExt,
     {
         MstGenerator::new(self.n, self.root, rng)
     }
@@ -123,7 +123,7 @@ impl GraphGenerator for Mst {
 /// ```
 pub struct MstGenerator<'a, R>
 where
-    R: Rng,
+    R: RngExt,
 {
     rng: &'a mut R,
     node_gen: Uniform<Node>,
@@ -135,7 +135,7 @@ where
 
 impl<'a, R> MstGenerator<'a, R>
 where
-    R: Rng,
+    R: RngExt,
 {
     /// Creates a new [`MstGenerator`] for a tree of `n` nodes rooted at `root`.
     ///
@@ -157,7 +157,7 @@ where
 
 impl<'a, R> Iterator for MstGenerator<'a, R>
 where
-    R: Rng,
+    R: RngExt,
 {
     type Item = Edge;
 

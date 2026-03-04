@@ -28,7 +28,7 @@ the algorithms in this module are based on **flow-based methods** (Edmonds–Kar
 
 use super::{traversal::*, *};
 use num::Integer;
-use rand::Rng;
+use rand::RngExt;
 use std::{collections::HashSet, ops::Range};
 use stream_bitset::{bitset::BitsetStream, prelude::*};
 
@@ -592,7 +592,7 @@ pub trait MinVertexCut: DirectedAdjacencyList {
         greedy: bool,
     ) -> Option<Vec<Node>>
     where
-        R: Rng;
+        R: RngExt;
 }
 
 impl<G> MinVertexCut for G
@@ -671,7 +671,7 @@ where
         greedy: bool,
     ) -> Option<Vec<Node>>
     where
-        R: Rng,
+        R: RngExt,
     {
         assert!(self.len() > 2);
 
@@ -1134,8 +1134,8 @@ mod tests {
 
             // plant connections between cliques
             for v in 0..2 * c {
-                let mut us = (0..n0).into_iter().choose_multiple(&mut rng, 3);
-                let mut ws = (n0..n0 + n1).into_iter().choose_multiple(&mut rng, 3);
+                let mut us = (0..n0).into_iter().sample(&mut rng, 3);
+                let mut ws = (n0..n0 + n1).into_iter().sample(&mut rng, 3);
 
                 if v.is_even() {
                     std::mem::swap(&mut us, &mut ws);

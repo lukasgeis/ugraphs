@@ -182,7 +182,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use rand::{Rng, SeedableRng, seq::SliceRandom};
+    use rand::{RngExt, SeedableRng, seq::SliceRandom};
     use rand_pcg::Pcg64Mcg;
 
     use super::*;

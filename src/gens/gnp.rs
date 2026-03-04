@@ -161,7 +161,7 @@ impl GraphGenerator for Gnp {
         MapToEdgeIter<GeometricJumperIter<'a, R>>,
     >
     where
-        R: Rng + 'a,
+        R: RngExt + 'a,
         Self: 'a;
 
     /// Produces a lazily-evaluated iterator over randomly generated edges.
@@ -188,7 +188,7 @@ impl GraphGenerator for Gnp {
     /// ```
     fn stream<'a, R>(&'a self, rng: &'a mut R) -> Self::EdgeStream<'a, R>
     where
-        R: Rng,
+        R: RngExt,
     {
         assert!(self.n > 0, "At least one node must be generated!");
         let p = match self.p {
@@ -311,12 +311,12 @@ impl GraphGenerator for Gn {
     type EdgeStream<'a, R>
         = MapToEdgeIter<GeometricJumperIter<'a, R>>
     where
-        R: Rng + 'a,
+        R: RngExt + 'a,
         Self: 'a;
 
     fn stream<'a, R>(&'a self, rng: &'a mut R) -> Self::EdgeStream<'a, R>
     where
-        R: Rng,
+        R: RngExt,
     {
         assert!(self.n > 0, "At least one node must be generated!");
 

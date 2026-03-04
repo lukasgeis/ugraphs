@@ -195,7 +195,7 @@ where
     type EdgeStream<'a, R>
         = GnmGenerator<'a, R, H>
     where
-        R: Rng + 'a,
+        R: RngExt + 'a,
         Self: 'a;
 
     /// Returns a lazily-evaluated iterator over uniformly sampled `G(n,m)` edges.
@@ -207,7 +207,7 @@ where
     /// - if neither edge count nor average degree was specified
     fn stream<'a, R>(&'a self, rng: &'a mut R) -> Self::EdgeStream<'a, R>
     where
-        R: Rng,
+        R: RngExt,
     {
         assert!(self.n > 0, "At least one node must be generated!");
         let m = match self.m {
@@ -244,7 +244,7 @@ where
 ///   Physical Review E 71.3 (2005): 036113.
 pub struct GnmGenerator<'a, R, H>
 where
-    R: Rng,
+    R: RngExt,
     H: Map<u64, OptionalU64>,
 {
     n: u64,
@@ -258,7 +258,7 @@ where
 
 impl<'a, R, H> GnmGenerator<'a, R, H>
 where
-    R: Rng,
+    R: RngExt,
     H: Map<u64, OptionalU64>,
 {
     /// Creates a new `GnmGenerator`.
@@ -314,7 +314,7 @@ where
 
 impl<'a, R, H> Iterator for GnmGenerator<'a, R, H>
 where
-    R: Rng,
+    R: RngExt,
     H: Map<u64, OptionalU64>,
 {
     type Item = Edge;
@@ -337,7 +337,7 @@ where
 
 impl<'a, R, H> ExactSizeIterator for GnmGenerator<'a, R, H>
 where
-    R: Rng,
+    R: RngExt,
     H: Map<u64, OptionalU64>,
 {
 }

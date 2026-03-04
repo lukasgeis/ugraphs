@@ -31,7 +31,7 @@ If you are building a CLI-Tool with [`structopt`], you can use [`GraphArgs`] to 
 use std::path::PathBuf;
 
 use fxhash::FxHashMap;
-use rand::Rng;
+use rand::RngExt;
 
 use smallvec::SmallVec;
 use structopt::StructOpt;
@@ -141,16 +141,16 @@ pub trait GraphGenerator {
     /// Default implementation collects from [`GraphGenerator::stream`].
     fn generate<R>(&self, rng: &mut R) -> Vec<Edge>
     where
-        R: Rng,
+        R: RngExt,
     {
         self.stream(rng).collect()
     }
 
     /// Type of the streaming iterator over edges.
-    /// Bound to a specific [`Rng`] type `R`.
+    /// Bound to a specific [`RngExt`] type `R`.
     type EdgeStream<'a, R>: Iterator<Item = Edge> + 'a
     where
-        R: Rng + 'a,
+        R: RngExt + 'a,
         Self: 'a;
 
     /// Produces a lazy stream (iterator) of edges.
@@ -170,7 +170,7 @@ pub trait GraphGenerator {
     /// ```
     fn stream<'a, R>(&'a self, rng: &'a mut R) -> Self::EdgeStream<'a, R>
     where
-        R: Rng;
+        R: RngExt;
 }
 
 /// Trait for constructing full random graph instances.
@@ -196,17 +196,17 @@ pub trait RandomGraph: Sized {
     /// Creates a random `G(n)` graph.
     fn gn<R>(rng: &mut R, n: NumNodes) -> Self
     where
-        R: Rng;
+        R: RngExt;
 
     /// Creates a random `G(n,p)` graph using edge probability `p`.
     fn gnp<R>(rng: &mut R, n: NumNodes, p: f64) -> Self
     where
-        R: Rng;
+        R: RngExt;
 
     /// Creates a `G(n,p)` graph with no self-loops.
     fn gnp_no_loops<R>(rng: &mut R, n: NumNodes, p: f64) -> Self
     where
-        R: Rng,
+        R: RngExt,
         Self: GraphType<Dir = Directed>;
 
     /// Creates a random `G(n,m)` graph with exactly `m` edges.
@@ -214,7 +214,7 @@ pub trait RandomGraph: Sized {
     /// Internally uses a default hash map-based edge selector.
     fn gnm<R>(rng: &mut R, n: NumNodes, m: NumEdges) -> Self
     where
-        R: Rng,
+        R: RngExt,
     {
         Self::gnm_with_map::<R, FxHashMap<u64, OptionalU64>>(rng, n, m)
     }
@@ -224,19 +224,19 @@ pub trait RandomGraph: Sized {
     /// This allows external control over memory layout or hashing strategy.
     fn gnm_with_map<R, H>(rng: &mut R, n: NumNodes, m: NumEdges) -> Self
     where
-        R: Rng,
+        R: RngExt,
         H: GnmMap;
 
     /// Creates a random `Rhg(alpha = 1.0, T = 0)` graph with `n` nodes and specified average degree.
     fn rhg<R>(rng: &mut R, n: NumNodes, avg_deg: f64) -> Self
     where
         Self: GraphType<Dir = Undirected>,
-        R: Rng;
+        R: RngExt;
 
     /// Creates a random Mst with `n` nodes and root node `0`
     fn mst<R>(rng: &mut R, n: NumNodes) -> Self
     where
-        R: Rng;
+        R: RngExt;
 }
 
 impl<G> RandomGraph for G
@@ -245,7 +245,7 @@ where
 {
     fn gn<R>(rng: &mut R, n: NumNodes) -> Self
     where
-        R: Rng,
+        R: RngExt,
     {
         Self::from_edges(
             n,
@@ -258,7 +258,7 @@ where
 
     fn gnp<R>(rng: &mut R, n: NumNodes, p: f64) -> Self
     where
-        R: Rng,
+        R: RngExt,
     {
         Self::from_edges(
             n,
@@ -272,7 +272,7 @@ where
 
     fn gnp_no_loops<R>(rng: &mut R, n: NumNodes, p: f64) -> Self
     where
-        R: Rng,
+        R: RngExt,
         Self: GraphType<Dir = Directed>,
     {
         Self::from_edges(
@@ -288,7 +288,7 @@ where
 
     fn gnm_with_map<R, H>(rng: &mut R, n: NumNodes, m: NumEdges) -> Self
     where
-        R: Rng,
+        R: RngExt,
         H: GnmMap,
     {
         Self::from_edges(
@@ -304,14 +304,14 @@ where
     fn rhg<R>(rng: &mut R, n: NumNodes, avg_deg: f64) -> Self
     where
         Self: GraphType<Dir = Undirected>,
-        R: Rng,
+        R: RngExt,
     {
         Self::from_edges(n, Rhg::new().nodes(n).avg_deg(avg_deg).stream(rng))
     }
 
     fn mst<R>(rng: &mut R, n: NumNodes) -> Self
     where
-        R: Rng,
+        R: RngExt,
     {
         Self::from_edges(n, Mst::new().nodes(n).stream(rng))
     }
@@ -425,7 +425,7 @@ pub enum GraphArgs {
 pub trait GraphFromArgs {
     fn from_graph_args<R>(args: GraphArgs, rng: &mut R) -> Self
     where
-        R: Rng;
+        R: RngExt;
 }
 
 impl<G> GraphFromArgs for G
@@ -434,7 +434,7 @@ where
 {
     fn from_graph_args<R>(args: GraphArgs, rng: &mut R) -> Self
     where
-        R: Rng,
+        R: RngExt,
     {
         match args {
             GraphArgs::Gnp {

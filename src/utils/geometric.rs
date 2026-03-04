@@ -19,7 +19,7 @@ The implementation also optimizes the common case of `p = 1/2` by using the
 faster [`StandardGeometric`] distribution.
 */
 
-use rand::Rng;
+use rand::RngExt;
 use rand_distr::{Distribution, Geometric, StandardGeometric};
 
 use super::Probability;
@@ -41,7 +41,7 @@ pub enum GeometricDistribution {
 
 impl Distribution<u64> for GeometricDistribution {
     #[inline(always)]
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> u64 {
+    fn sample<R: RngExt + ?Sized>(&self, rng: &mut R) -> u64 {
         match self {
             GeometricDistribution::General(distr) => distr.sample(rng),
             GeometricDistribution::OneHalf(distr) => distr.sample(rng),
@@ -191,7 +191,7 @@ impl GeometricJumper {
     /// let vals: Vec<_> = jumper.iter(&mut rng).collect();
     /// assert!(vals.iter().all(|&x| x <= 5));
     /// ```
-    pub fn iter<'a, R: Rng>(self, rng: &'a mut R) -> GeometricJumperIter<'a, R> {
+    pub fn iter<'a, R: RngExt>(self, rng: &'a mut R) -> GeometricJumperIter<'a, R> {
         let (distr, inv) = GeometricDistribution::from_prob_with_inv(self.prob);
 
         GeometricJumperIter {
@@ -214,7 +214,7 @@ impl GeometricJumper {
 #[derive(Debug)]
 pub struct GeometricJumperIter<'a, R>
 where
-    R: Rng,
+    R: RngExt,
 {
     geom_distr: GeometricDistribution,
     rng: &'a mut R,
@@ -226,7 +226,7 @@ where
 
 impl<'a, R> GeometricJumperIter<'a, R>
 where
-    R: Rng,
+    R: RngExt,
 {
     /// Updates the stop value in-place.
     ///
@@ -348,7 +348,7 @@ where
 
 impl<'a, R> Iterator for GeometricJumperIter<'a, R>
 where
-    R: Rng,
+    R: RngExt,
 {
     type Item = u64;
 

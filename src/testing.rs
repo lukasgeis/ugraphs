@@ -4,12 +4,12 @@ macro_rules! test_graph_ops {
         #[cfg(test)]
         mod $env {
             use crate::{ops::*, repr::*, testing::test_graph_ops};
-            use rand::{Rng, SeedableRng};
+            use rand::{RngExt, SeedableRng};
             use rand_pcg::Pcg64Mcg;
             use itertools::Itertools;
 
             /// Creates a list of at most `m_ub` random edges for nodes `0..n`
-            fn random_edges<R: Rng>(rng: &mut R, n: NumNodes, m_ub: NumEdges) -> Vec<Edge> {
+            fn random_edges<R: RngExt>(rng: &mut R, n: NumNodes, m_ub: NumEdges) -> Vec<Edge> {
                 let mut edges: Vec<Edge> = (0..m_ub).map(|_| {
                     let u = rng.random_range(0..n);
                     let v = rng.random_range(0..n);

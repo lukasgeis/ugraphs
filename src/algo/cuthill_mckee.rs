@@ -182,7 +182,7 @@ where
 
 #[cfg(test)]
 mod test {
-    use rand::{Rng, SeedableRng};
+    use rand::{RngExt, SeedableRng};
     use rand_pcg::Pcg64Mcg;
 
     use crate::gens::RandomGraph;

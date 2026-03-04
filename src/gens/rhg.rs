@@ -156,12 +156,12 @@ impl GraphGenerator for Rhg {
     type EdgeStream<'a, R>
         = RhgGenerator
     where
-        R: Rng + 'a,
+        R: RngExt + 'a,
         Self: 'a;
 
     fn stream<'a, R>(&'a self, rng: &'a mut R) -> Self::EdgeStream<'a, R>
     where
-        R: Rng,
+        R: RngExt,
     {
         RhgGenerator::new(rng, self.nodes, self.radius, self.alpha, self.num_bands)
     }
@@ -225,7 +225,7 @@ impl RhgGenerator {
         num_bands: Option<usize>,
     ) -> Self
     where
-        R: Rng,
+        R: RngExt,
     {
         assert!(alpha > 0.0);
 
@@ -351,7 +351,7 @@ impl RhgGenerator {
         band_limits: &[f64],
     ) -> (Vec<Coord>, Vec<NumNodes>)
     where
-        R: Rng,
+        R: RngExt,
     {
         let min = 1.0_f64.next_up();
         let max = (alpha * disk_rad).cosh();
