@@ -337,7 +337,7 @@ where
 ///     param2: usize,
 /// }
 /// ```
-#[derive(StructOpt, Debug, Clone)]
+#[derive(StructOpt, Debug, Clone, strum_macros::Display)]
 pub enum GraphArgs {
     Gnp {
         /// Number of nodes
