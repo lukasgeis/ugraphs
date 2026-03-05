@@ -33,6 +33,7 @@ use std::path::PathBuf;
 use fxhash::FxHashMap;
 use rand::RngExt;
 
+use rand_distr::Uniform;
 use smallvec::SmallVec;
 use structopt::StructOpt;
 
@@ -386,6 +387,13 @@ pub enum GraphArgs {
         /// Number of bands
         #[structopt(short = "b")]
         num_bands: Option<usize>,
+
+        /// If the underlying graph is directed, convert the undirected edge {u,v} into
+        /// - (u,v) & (v,u) with probability `1-p`
+        /// - (u,v) with probability `p/2`
+        /// - (v,u) with probability `p/2`
+        #[structopt(short = "p", default_value = "0.0")]
+        p: f64,
     },
     Mst {
         /// Number of nodes
@@ -461,11 +469,9 @@ where
                 radius,
                 avg_deg,
                 num_bands,
+                p,
             } => {
-                assert!(
-                    Self::is_undirected(),
-                    "Rhg is only implemented for undirected graphs!"
-                );
+                assert!((0.0..=1.0).contains(&p), "p should lie in [0,1]");
                 assert!(
                     radius.is_some() != avg_deg.is_some(),
                     "Provide either average degree or radius!"
@@ -482,7 +488,25 @@ where
                     rhg.set_radius(rad);
                 }
 
-                Self::from_edges(nodes, rhg.stream(rng))
+                let uniform_01 = Uniform::new_inclusive(0.0, 1.0).unwrap();
+                Self::from_edges(
+                    nodes,
+                    rhg.stream(rng).flat_map(|Edge(u, v)| {
+                        if Self::is_undirected() || p == 0.0 {
+                            return vec![Edge(u, v), Edge(v, u)];
+                        }
+
+                        // Sample directed edges
+                        let x = rng.sample(uniform_01);
+                        if x >= p {
+                            vec![Edge(u, v), Edge(v, u)]
+                        } else if x >= p / 2.0 {
+                            vec![Edge(u, v)]
+                        } else {
+                            vec![Edge(v, u)]
+                        }
+                    }),
+                )
             }
             GraphArgs::Mst { nodes } => Self::mst(rng, nodes),
             GraphArgs::Complete { nodes, loops } => Self::from_edges(
